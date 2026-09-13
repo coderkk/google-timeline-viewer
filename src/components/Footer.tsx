@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { SITE_NAME, SITE_TAGLINE } from '../lib/site'
 
 export default function Footer() {
@@ -7,12 +8,13 @@ export default function Footer() {
         <span>
           {SITE_NAME} — {SITE_TAGLINE}
         </span>
-        {/* Anchor with a path-hash keeps native fragment scrolling: on the
-            landing page it scrolls in place, from other pages it loads "/"
-            and the browser moves to the #built-with-opc element. */}
-        <a className="site-footer-brand" href="/#built-with-opc">
+        {/* Router link with an explicit hash: on the landing page it scrolls in
+            place; from other pages it navigates to "/" first and the landing's
+            scrollIntoView effect picks the hash up. Works under both
+            BrowserRouter and the HashRouter used for static hosting. */}
+        <Link className="site-footer-brand" to={{ pathname: '/', hash: '#built-with-opc' }}>
           Created by OPC 3.0
-        </a>
+        </Link>
       </div>
     </footer>
   )

@@ -110,3 +110,24 @@ T2 数据解析层开工。完成内部统一数据模型（`src/lib/types.ts`�
 **验证**：`npm run test` **57 passed**（50 回归 + tiles 7 新增）✅ / `npm run build` 通过 ✅ / `npm run lint` 无 error ✅。Playwright 实测：/settings 面板可见；非法 URL（缺 token）→ 警告 + 应用禁用；应用开源变体 `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` → 返 /app Trips 与 /app/places 地图 network 均为 `a/b/c.tile.openstreetmap.org`（200，无 `tile.openstreetmap.org` 请求）→ 自定义源驱动确认；恢复默认 → 地图回 `tile.openstreetmap.org`（200）✓；刷新页面 → 设置重置为 OSM（预期）✓；空 URL 应用 → 恢复默认 ✓；全程 console 0 error / 0 warning；localStorage 无键、IndexedDB 无库 ✓。
 
 **已知问题**：① 自定义源未提供 attribution 输入（存储默认为空串），Leaflet attribution 控件留空——如需要可后续加 attribution 输入框；② URL 校验是轻量的「tokens 齐全 + http(s)」检查，不做实际连通性探测（探测本身也会向第三方暴露请求，与隐私目标相悖）。
+
+## 2026-09-13 20:30 — Dev
+完成 T9.3 安全加固 + T10.1 GitHub Pages 部署 workflow + HashRouter + README 4 张截图。
+
+**T9.3 安全加固（Security 报告原样采纳）**：
+- **G1 raw points 上限**：`src/lib/parse/common.ts` 新增 `MAX_RAW_POINTS = 2_000_000`；`addRawPoint` 累计达上限后丢弃后续点并只发**一次** warning（`"x.json": raw points 超过 200 万，已截断`，`rawTruncated` 防重）；`index.ts` `mergeTimelineData(list, warnings=true)` 对跨文件合并结果也截断 + `累计 raw points 超过 200 万，已截断`，worker（`parse.worker.ts`）把合并截断警告并入 `allWarnings` 透传给 UI。新增 2 单测（单文件截断告警一次 / 合并截断）。
+- **S1 CSP meta**（`index.html`）：`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self' https:; worker-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'`。**实测**：dev（vite 5173）与生产 preview（4173）均无资源被拦、无 ws 阻断（CSP 规范里 `connect-src 'self'` 对同源 `ws://` 是放行的，Vite HMR 正常）；唯一 console 消息是浏览器提示「`frame-ancestors` 在 `<meta>` 里被忽略」——此为规范行为，`frame-ancestors` 需 HTTP 响应头才生效，而 GitHub Pages 静态托管无法加自定义头，故保留在 meta 中（**取舍**：frame 防护生效不了，其余指令全部生效；将来若要严控可改换 Vercel/Cloudflare 或自托管并配置头，不阻塞当前部署）。
+- **S2 http:// 明文警告**：`src/lib/tiles.ts` 新增 `tileUrlNotes(url)`，`http:` 协议 → 「⚠ 明文传输：数据可能被网络中间人篡改，建议使用 https 或内网瓦片源」（`kind: cleartext`）；SettingsPage 在输入下方按规则渲染（有校验错误时降级为红色错误条）。新 `.tile-note-warn` CSS（琥珀色粗体）。
+- **S3 {s} 子域说明**：`tileUrlNotes` 对含 `{s}` 的 URL 追加「{s} 将向 a/b/c 多个主机发起请求」（`subdomains`）；若域名含 `openstreetmap.org` 再追加「OSM 公共服务器不支持 {s}，瓦片将加载失败」（`osm-subdomains`）；设置页静态说明段同步补了同文案。新增 `tileUrlNotes` 4 单测。
+- **S5 示例数据命名**：`scripts/gen-sample-data.mjs` 把 `Home` → 「家（模拟）」、`Nexus Co., Ltd.` → 「公司（模拟）」（seed 不变 `20260913`，同 PRNG 重新生成则全部后续随机值序列改变，输出会整体变化，无妨——seed 确定即可复现）；已重跑生成 `src/lib/sample/sample-timeline.json`，python 校验全部 17 个地点名无旧英文名、UI 显示正常、无奇怪字符。
+
+**T10.1 GitHub Pages 部署 + HashRouter**：
+- `src/main.tsx`：**BrowserRouter → HashRouter**（静态托管无服务端重写，子路由刷新 404 的根治方案）。**锚点适配**：Footer「Created by OPC 3.0」从原生 `<a href="/#built-with-opc">` 改为路由 `<Link to={{ pathname:'/', hash:'#built-with-opc' }}>`，HashRouter 下 URL 变 `#/#built-with-opc`；Landing 现有 `useEffect` 读 `useLocation().hash` + `scrollIntoView` 逻辑保留即生效（无需 native fragment）。**实测**：preview 下从 `/help` 点 footer 链接 → 跳转 Landing 并滚到 `#built-with-opc` 顶部（落点差因页面高度不足 clamping，section 完整可见）。
+- `vite.config.ts`：`base: './'` 相对 base（适配 GitHub Pages `/<repo>/` 子路径部署，所有资源路径可移植）。
+- 新建 `.github/workflows/deploy.yml`：push main（+ workflow_dispatch）→ `actions/checkout` + `setup-node(22, cache:npm)` → `npm ci` → `lint` → `test` → `build` → `actions/configure-pages` + `upload-pages-artifact(path: dist)` → `deploy-pages`。permissions: pages:write / id-token:write；concurrency 组防堆叠。**未创建 remote/推送**（gh 未安装、无 remote，T10.3 由 CEO 协调）。
+
+**README 截图补全**（`docs/screenshots/`，playwright 对 preview 实际流程截图，命名固定）：`trips.png`（Trips：载入示例 + 近 30 天 + 地图 + 侧栏，「模拟数据 · 非真实轨迹」角标）· `places.png`（Places：点击台北市中心 25.04,121.51 → 100km 半径圈 + 浮层「98 个停留点在此范围内」+ 结果列表）· `help.png`（教程页顶部）· `settings.png`（设置页：瓦片源 + 生命卡 + `{s}` 说明）。加已有 3 张 landing 图，README 引用齐全。
+
+**验证**：`npm run test` **63 passed**（57 回归 + G1 2 + tileUrlNotes 4）✅ / `npm run build` ✅（tsc + vite）/ `npm run lint` 0 error ✅。**验收自查**（playwright，preview 4173 + dev 5173）：`#/`、`#/app`、`#/app/places`、`#/help`、`#/settings` 全部可达（HashRouter 单文档内路由）；Landing 锚点从 /help 跨页跳转滚动正常；CSP dev/preview 均无资源拦截（仅 frame-ancestors meta 忽略提示，见 S1 取舍）；设置页输入 `http://{s}.tile.openstreetmap.org/...` 实测同时出现明文警告 + {s} 说明 + OSM 不支持三条提示 ✅；canvas Trips 路线绘制（采样 alpha>0）、Trips 侧栏 115 停留、Places 半径圆 `leaflet-interactive` 可见 ✅。
+
+**已知问题**：① S1 的 `frame-ancestors` 在 meta 下被忽略（需 HTTP 头，GitHub Pages 不支持），见取舍记录；② deploy.yml 首次启用时需在 GitHub repo 开 Pages 指向 Actions（`Settings → Pages → Source: GitHub Actions`），T10.3 协调；③ `vite preview` 对 SPA 刷新 `#/xxx` 天然可达（单文档），真站验证仍留 T10.3。
