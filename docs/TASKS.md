@@ -4,49 +4,6 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T2: 数据解析层（四格式 + Web Worker）**
-  - 验收: 四类格式样例解析为统一模型；大文件走 Worker 不卡主线程；单测覆盖坐标转换（E7）、时间戳解析、空数据处理
-  - 指派: Dev
-  - 来源: PRD#功能1
-  - 时间: 09-13 创建 → 09-13 Doing
-  - 子任务:
-    - [ ] T2.1 内部统一数据模型（points/visits/segments + 时间范围统计）— Dev
-    - [ ] T2.2 四格式解析器：Timeline.json(direct-array semanticSegments) / Records.json / Semantic Location History(timelineObjects) / Location History.json — Dev
-    - [ ] T2.3 Web Worker 解析封装 + 大文件内存提示 + 多文件合并导入 — Dev
-    - [ ] T2.4 单元测试（vitest）：解析器 + 坐标/时间转换 — Dev
-
-## 📋 To Do
-
-- [ ] **T2: 数据解析层（四格式 + Web Worker）**
-  - 验收: 四类格式样例解析为统一模型；大文件走 Worker 不卡主线程；单测覆盖坐标转换（E7）、时间戳解析、空数据处理
-  - 指派: Dev
-  - 来源: PRD#功能1
-  - 时间: 09-13 创建
-  - 子任务:
-    - [ ] T2.1 内部统一数据模型（points/visits/segments + 时间范围统计）— Dev
-    - [ ] T2.2 四格式解析器：Timeline.json(direct-array semanticSegments) / Records.json / Semantic Location History(timelineObjects) / Location History.json — Dev
-    - [ ] T2.3 Web Worker 解析封装 + 大文件内存提示 + 多文件合并导入 — Dev
-    - [ ] T2.4 单元测试（vitest）：解析器 + 坐标/时间转换 — Dev
-
-- [ ] **T3: 模拟示例数据**
-  - 验收: 一键加载后 Trips/Places 可完整体验；数据明显标注"模拟数据，非真实轨迹"；覆盖多日行程 + 多地停留
-  - 指派: Dev
-  - 来源: PRD#功能8
-  - 时间: 09-13 创建
-  - 子任务:
-    - [ ] T3.1 生成器脚本，产出符合 Timeline.json 格式的模拟数据文件 — Dev
-    - [ ] T3.2 载入示例数据按钮 + 标注（空状态首屏 + Landing 均可用） — Dev
-
-- [ ] **T4: 导入集成 + 空状态首屏 + 全局状态**
-  - 验收: 空状态引导页（欢迎语/导入按钮/教程入口/隐私承诺）可见，导入后自动进入主界面；日期筛选状态全局共享
-  - 指派: Dev
-  - 来源: PRD#功能1、功能2
-  - 时间: 09-13 创建
-  - 子任务:
-    - [ ] T4.1 全局 store：数据集 + 日期范围筛选（Trips/Places 共享）— Dev
-    - [ ] T4.2 空状态首屏组件（欢迎 / 导入 / 教程入口 / 隐私承诺 / 载入示例）— Dev
-    - [ ] T4.3 导入面板（拖拽 + 多选文件 + 解析进度 + 错误提示）接入解析层 — Dev
-
 - [ ] **T5: Trips 视图（行程轨迹）**
   - 验收: 选日期范围后显示路线 + 停留点；大段轨迹降采样不卡；点轨迹可反查停留点
   - 指派: Dev
@@ -57,6 +14,8 @@
     - [ ] T5.2 路线绘制（waypointPath polyline）+ 停留点标记（placeVisit + 时长 tooltip）— Dev
     - [ ] T5.3 降采样 / 点数上限保护 — Dev
     - [ ] T5.4 轨迹 ↔ 停留点双向联动（点标记高亮对应路线）— Dev
+
+## 📋 To Do
 
 - [ ] **T6: Places 视图（地图点击查访）**
   - 验收: 无标记地图点击 → 浮层显示经纬度 + N 个停留点；半径 10/100/1000/5000KM 切换实时更新；半径圈可见且自动 zoom；点击结果定位到地点
@@ -132,5 +91,8 @@
 ## ✅ Done
 
 - [x] ~~T1: 项目脚手架 + 应用框架~~ (09-13→09-13) — Vite+React19+TS+Leaflet+Router+Zustand；路由/Header/Footer 骨架；build 通过
+- [x] ~~T2: 数据解析层（四格式 + Web Worker）~~ (09-13→09-13) — 18 单测通过；build/lint 通过；Reviewer 审查延后至下个节奏点
+- [x] ~~T3: 模拟示例数据~~ (09-13→09-13) — gen-sample-data.mjs 产出 54 天/5 城市直出格式数据；载入模块 + 单测通过；UI 角标就绪
+- [x] ~~T4: 导入集成 + 空状态首屏 + 全局状态~~ (09-13→09-13) — store（导入/示例/大文件确认/日期范围）+ 空状态页 + 拖拽导入面板；浏览器实测通过；22 单测全绿
 
 ## ❌ Cancelled
