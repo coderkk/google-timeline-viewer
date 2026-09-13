@@ -1,38 +1,27 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T11 -->
+<!-- next: T12 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T9: 隐私与瓦片源设置**
-  - 验收: 无任何分析 SDK；数据不落盘；瓦片源默认 OSM、可自定义 URL，选项旁隐私明示
-  - 指派: Dev
-  - 来源: PRD#功能5
-  - 时间: 09-13 创建 → 09-13 Doing
-  - 子任务:
-    - [x] T9.1 设置面板：瓦片源自定义（URL 输入 + 恢复默认）+ 隐私说明文案 — Dev
-    - [ ] T9.2 安全审查（数据生命周期 / 瓦片请求隐私） — Security Engineer
-
-## 📋 To Do
-
-- [ ] **T10: 部署 + 项目文档**
-  - 验收: GitHub Pages 可访问；README 完整（简介/截图/用法/格式支持/隐私声明/OPC 3.0 说明）；构建通过
-  - 指派: Dev
-  - 来源: PRD#约束
-  - 时间: 09-13 创建
-  - 子任务:
-    - [ ] T10.1 GitHub Pages 部署 workflow + 构建脚本 — Dev
-    - [ ] T10.2 README（中文） + 截图整理 + 项目介绍 — Writer
-    - [ ] T10.3 实际部署到 GitHub Pages 验证 — Dev
-
 - [ ] **T11: 端到端验收**
-  - 验收: 对照 PRD 全功能 pass；示例数据全流程体验流畅；Reviewer + Security 报告通过
+  - 验收: 对照 PRD 全功能 pass；示例数据全流程体验流畅；Reviewer + Security 报告通过；Designer QA 通过
   - 指派: Reviewer
   - 来源: PRD
-  - 时间: 09-13 创建
+  - 时间: 09-13 创建 → 09-13 Doing
   - 子任务:
     - [ ] T11.1 全流程手工验证（导入→Trips→Places→教程→设置→首页）— Reviewer
     - [ ] T11.2 性能抽查（大文件解析时间 / 半径查询响应）— Reviewer
+    - [ ] T11.3 Design QA（整体 UI/交互审查，含 T6.4 补查） — Designer
+
+## 📋 To Do
+
+- [ ] **T10.3: 实际部署到 GitHub Pages 验证**
+  - 验收: GitHub Pages 可访问；README 截图引用补齐；部署后 DevTools Network 冒烟（外部请求仅 tile.openstreetmap.org）
+  - 指派: Dev
+  - 来源: PRD#约束 + Security S4
+  - 时间: 09-13 创建
+  - 等待: 用户启用 GitHub Pages（Settings → Pages → Source = GitHub Actions）
 
 ## ⏸ KIV
 
@@ -54,9 +43,13 @@
 - [x] ~~T2: 数据解析层（四格式 + Web Worker）~~ (09-13→09-13) — 18 单测通过；build/lint 通过；Reviewer 审查延后至下个节奏点
 - [x] ~~T3: 模拟示例数据~~ (09-13→09-13) — gen-sample-data.mjs 产出 54 天/5 城市直出格式数据；载入模块 + 单测通过；UI 角标就绪
 - [x] ~~T4: 导入集成 + 空状态首屏 + 全局状态~~ (09-13→09-13) — store（导入/示例/大文件确认/日期范围）+ 空状态页 + 拖拽导入面板；浏览器实测通过；22 单测全绿
-- [x] ~~T5: Trips 视图（行程轨迹）~~ (09-13→09-13) — 日期范围选择器（三快捷档 + 单边日）全接入 store；路径绘制（waypointPath polyline 按交通方式着色 + 时长 tooltip）；三层降采样/上限（段 12000 / 点 30000 抽稀 / 标记 4000 / 列表 500，超限显示降采样提示）；轨迹 ↔ 停留点双向联动；map 容器高度锚定 viewport 修复超长 canvas 崩溃；40 单测 + build + lint 全过；playwright 实测含 123.4MB 真实导出
-- [x] ~~T6: Places 视图（地图点击查访）~~ (09-13→09-13) — SpatialGrid(1°×1° bbox+haversine)+4 档半径圆+自动 zoom+点击浮层+结果定位高亮；50 单测+build+lint 全过；真实数据 37287 停留：10km→11 / 100km→30 / 1000km→38 / 5000km→37287，查询 0.2-21ms；Design QA 并入 T11
-- [x] ~~T7: Landing 首页 + OPC 3.0 展示~~ (09-13→09-13) — Hero+痛点→方案+3 功能卡+隐私承诺+技术栈；Built with OPC 3.0 section（AI 流程叙事，无内部角色术语）+ Footer 品牌可点击锚点；「立即体验」→ loadSample 双 CTA；playwright 实测通过
-- [x] ~~T8: 导出教程页~~ (09-13→09-13) — Android(系统设置 6 步)/iOS(Maps App 6 步)+4 格式说明+FAQ 折叠(aria-expanded)+体验示例 CTA；实测与 50 用例全过
+- [x] ~~T5: Trips 视图（行程轨迹）~~ (09-13→09-13) — 日期范围选择器（快捷档+单边日）+ 路线按交通方式着色 + tooltip；三层降采样/上限；双向联动；viewport 锚定修复 canvas 崩溃；40 单测；playwright 实测含 123.4MB 真实导出
+- [x] ~~T6: Places 视图（地图点击查访）~~ (09-13→09-13) — SpatialGrid(1°×1° bbox+haversine)+4 档半径圆+自动 zoom+点击浮层+结果定位高亮；50 单测；真实数据 5000km 查询 21ms；Design QA 并入 T11
+- [x] ~~T7: Landing 首页 + OPC 3.0 展示~~ (09-13→09-13) — Hero+痛点→方案+3 功能卡+隐私承诺+技术栈；Built with OPC 3.0 section（无内部角色术语）+ Footer 品牌锚点；「立即体验」→ loadSample；playwright 实测通过
+- [x] ~~T8: 导出教程页~~ (09-13→09-13) — Android(系统设置)/iOS(Maps App)步骤 + 4 格式说明 + FAQ 折叠(aria-expanded) + 体验示例 CTA；实测通过
+- [x] ~~T9: 隐私与瓦片源设置~~ (09-13→09-13) — tileSource store(TileLayer 即时生效)+设置 UI(URL 校验/警告/生命卡/仅内存)+隐私明示文案；57 单测；Security 审查(有条件通过，0 致命/严重)
+- [x] ~~T9.3: 安全审查建议项加固~~ (09-13→09-13) — G1(raw points 2M 硬上限+warning+2 单测)；S1(CSP meta，dev/preview 无阻断，frame 头无法经 meta 生效已记录)；S2(http 明文警告)；S3({s}+OSM 提示)；S5(示例数据「家（模拟）」)；63 单测+build+lint 全过
+- [x] ~~T10.1: GitHub Pages 部署 workflow~~ (09-13→09-13) — HashRouter + base './' + deploy.yml(configure/upload/deploy-pages)；子路由刷新可达；未建 remote
+- [x] ~~T10.2: README（中文）~~ (09-13→09-13) — 10 区块：简介/亮点/截图(3 张 landing)/快速开始/取数指南/格式表/隐私声明/架构图(Worker+SpatialGrid)/Built with OPC 3.0(无内部术语)/MIT 声明；Trips/Places/Help/Settings 截图后补
 
 ## ❌ Cancelled
