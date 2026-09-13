@@ -27,14 +27,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run test
-      - run: npm run build
+      - run: cd src && npm ci
+      - run: cd src && npm run lint
+      - run: cd src && npm run test
+      - run: cd src && npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: src/dist
 
   deploy:
     needs: build

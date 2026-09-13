@@ -54,7 +54,7 @@
 
 ```bash
 git clone https://github.com/<user>/google-timeline-viewer.git
-cd google-timeline-viewer
+cd google-timeline-viewer/src
 npm install
 npm run dev
 ```
