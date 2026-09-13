@@ -4,6 +4,7 @@ import {
   addRawPoint,
   addSegment,
   asRecord,
+  stitchSegments,
   type ParseState,
 } from './common'
 
@@ -31,4 +32,9 @@ export function parseFormat2(root: unknown, state: ParseState, ctx: string): voi
   if (Array.isArray(savedPlaces) && savedPlaces.length > 0) {
     state.warnings.push(`${ctx}: savedPlaces 无时间戳，已忽略 ${savedPlaces.length} 处`)
   }
+  // Same final stitching pass as format 1: Records.json also routes coarse
+  // timelinePath segments through `addSegment`, so let the single sorted final
+  // pass backfill any path-less activity segments (no-op when the pool is
+  // empty).
+  stitchSegments(state)
 }

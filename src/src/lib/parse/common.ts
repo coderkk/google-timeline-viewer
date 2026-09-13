@@ -27,9 +27,10 @@ export interface ParseState {
   /** Set once a truncation warning for the raw-point cap has been emitted. */
   rawTruncated: boolean
   /**
-   * Coarse traces collected while parsing, kept roughly sorted by startMs
-   * (format-1 exports are time-ordered). Scanned when a path-less activity
-   * segment needs a polyline; see `stitchSegments`.
+   * Coarse traces collected while parsing, in file order — NOT sorted by
+   * startMs (the direct-array export interleaves activities and traces). The
+   * pool is sorted once in `stitchSegments`, which then scans it for every
+   * path-less activity segment.
    */
   timelinePathPool: TimelinePathCandidate[]
 }
@@ -244,15 +245,35 @@ function overlapMs(aStart: number, aEnd: number, bStart: number, bEnd: number): 
 }
 
 /**
+ * maxEndUpTo[i] = max(endMs over pool[0..i]). Requires `pool` sorted by
+ * startMs. Because endMs is not monotone over a startMs-sorted pool, this
+ * running maximum is what lets the left scan in `findStitchCandidate` step
+ * over short-window traces instead of stopping early.
+ */
+export function buildMaxEndUpTo(pool: readonly TimelinePathCandidate[]): number[] {
+  const prefix: number[] = new Array(pool.length)
+  let maxEnd = -Infinity
+  for (let i = 0; i < pool.length; i++) {
+    const endMs = pool[i].endMs
+    if (endMs > maxEnd) maxEnd = endMs
+    prefix[i] = maxEnd
+  }
+  return prefix
+}
+
+/**
  * Pick the coarse trace that best describes a short candidate segment: its
  * window must genuinely overlap the segment and both segment endpoints must
- * sit near the trace's first/last points. The pool is sorted by startMs, so a
- * binary search plus a bounded linear fan-out keeps this O(log n + overlap
- * width) instead of a full scan (device exports can hold ~30k traces).
+ * sit near the trace's first/last points (in either point order). The pool is
+ * sorted by startMs (with `maxEndUpTo` the monotone-max-end prefix built by
+ * `buildMaxEndUpTo`), so a binary search plus a bounded linear fan-out keeps
+ * this O(log n + overlap width) instead of a full scan (device exports can
+ * hold ~30k traces).
  */
 export function findStitchCandidate(
   segment: Pick<Segment, 'start' | 'end' | 'startMs' | 'endMs'>,
   pool: TimelinePathCandidate[],
+  maxEndUpTo: readonly number[],
 ): TimelinePathCandidate | null {
   if (pool.length === 0) return null
   let lo = 0
@@ -269,16 +290,22 @@ export function findStitchCandidate(
     if (overlap <= 0) return
     const first = candidate.points[0]
     const last = candidate.points[candidate.points.length - 1]
-    if (!isNear(segment.start, first) || !isNear(segment.end, last)) return
+    const forward = isNear(segment.start, first) && isNear(segment.end, last)
+    // A trace's own points may be ordered start→end or end→start; accept
+    // either pairing so reverse-direction traces are never missed.
+    const reverse = isNear(segment.start, last) && isNear(segment.end, first)
+    if (!forward && !reverse) return
     if (overlap > bestOverlap) {
       bestOverlap = overlap
       best = candidate
     }
   }
-  // Traces starting before the segment can still reach into it; scan left while
-  // their windows are long enough (buckets here are near-contiguous, so the
-  // neighborhood stays small).
-  for (let i = lo - 1; i >= 0 && pool[i].endMs >= segment.startMs; i--) consider(pool[i])
+  // Traces starting before the segment can still reach into it. endMs is not
+  // monotone over a startMs-sorted pool, so scan left while the maximum endMs
+  // of the covered prefix (maxEndUpTo) reaches the segment's start rather than
+  // stopping at the first short window; the prefix is monotone, so this exit
+  // is safe.
+  for (let i = lo - 1; i >= 0 && maxEndUpTo[i] >= segment.startMs; i--) consider(pool[i])
   // Traces starting at/after the segment only match while they begin before it
   // ends (exact scan boundary given a startMs-sorted pool).
   for (let i = lo; i < pool.length && pool[i].startMs <= segment.endMs; i++) consider(pool[i])
@@ -295,11 +322,15 @@ export function findStitchCandidate(
  */
 export function stitchSegments(state: ParseState): void {
   if (state.timelinePathPool.length === 0) return
-  state.timelinePathPool.sort((a, b) => a.startMs - b.startMs)
+  const pool = state.timelinePathPool
+  pool.sort((a, b) => a.startMs - b.startMs)
+  const maxEndUpTo = buildMaxEndUpTo(pool)
   for (const segment of state.segments) {
     if (segment.path.length >= 2) continue
-    const candidate = findStitchCandidate(segment, state.timelinePathPool)
-    if (candidate) segment.path = candidate.points
+    const candidate = findStitchCandidate(segment, pool, maxEndUpTo)
+    // Copy the points array so the stitched segment never aliases the trace's
+    // own path (downstream consumers may reorganize path points).
+    if (candidate) segment.path = candidate.points.slice()
   }
 }
 
@@ -426,15 +457,11 @@ export function addSegment(segmentObject: unknown, state: ParseState, ctx: strin
   if (activityType) segment.activityType = activityType
   state.segments.push(segment)
   if (isTimelinePathTrace && path.length >= 2) {
-    // Keep the trace for later stitching; exports are time-ordered so this
-    // stays sorted by startMs.
-    state.timelinePathPool.push({ startMs: duration.startMs, endMs: duration.endMs, points: segment.path })
-  } else if (segment.path.length < 2) {
-    // Short activity record: try to borrow the trajectory of an already-seen
-    // covering trace right away (the `stitchSegments` pass re-checks segments
-    // whose trace only shows up later in the file).
-    const candidate = findStitchCandidate(segment, state.timelinePathPool)
-    if (candidate) segment.path = candidate.points
+    // Keep the trace for the single final `stitchSegments` pass. File order is
+    // not a startMs order (the direct-array export interleaves activities and
+    // traces), and the pass sorts the pool once and re-evaluates every
+    // path-less segment against all traces, so no immediate borrowing here.
+    state.timelinePathPool.push({ startMs: duration.startMs, endMs: duration.endMs, points: path })
   }
 }
 

@@ -8,12 +8,18 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parseTimelineFile } from '../index'
+import {
+  buildMaxEndUpTo,
+  findStitchCandidate,
+  type TimelinePathCandidate,
+} from '../common'
 import type { Point, Segment } from '../../types'
 
-// Synthetic timeline in the shape of the 2026+ device export. Traces are
-// deliberately interleaved: two activities precede their covering trace (so
-// only the final pass can stitch them), one follows it (immediate stitch), and
-// one has matching coordinates but no time overlap (must NOT be stitched).
+// synthetic timeline in the shape of the 2026+ device export. Traces are
+// deliberately interleaved: two activities precede their covering trace and
+// one follows it (all three can only be stitched by the single sorted final
+// pass), and one has matching coordinates but no time overlap (must NOT be
+// stitched).
 const STITCH_FIXTURE = JSON.stringify({
   semanticSegments: [
     {
@@ -91,6 +97,63 @@ function segmentAt(segments: Segment[], startMs: number): Segment | undefined {
   return segments.find((s) => s.startMs === startMs)
 }
 
+const H = 3_600_000
+const p = (lat: number, lng: number): Point => ({ lat, lng })
+const candidateOf = (
+  pool: TimelinePathCandidate[],
+  seg: { startMs: number; endMs: number; start: Point; end: Point },
+): TimelinePathCandidate | null => findStitchCandidate(seg, pool.sort((a, b) => a.startMs - b.startMs), buildMaxEndUpTo(pool))
+
+describe('stitch: candidate selection (unit)', () => {
+  it('left scan steps over a short-window trace to reach a truly overlapping one (S1)', () => {
+    // startMs-sorted pool whose endMs is NOT monotone: T1 (11:00-11:30) is a
+    // short window sandwiched between T0 (10:00-12:00) and T2 (12:00-14:00).
+    const near = p(34.999, 135.7594)
+    const pool: TimelinePathCandidate[] = [
+      { startMs: 10 * H, endMs: 12 * H, points: [near, near] }, // T0 — genuinely overlaps
+      { startMs: 11 * H, endMs: 11.5 * H, points: [near, near] }, // T1 — short window
+      { startMs: 12 * H, endMs: 14 * H, points: [near, near] }, // T2
+    ]
+    // Query 11:45-12:10: T0 overlaps 15min, T2 overlaps 10min, T1 not at all.
+    const candidate = candidateOf(pool, { startMs: 11.75 * H, endMs: 12.1 * H, start: near, end: near })
+    expect(candidate).toBe(pool[0])
+  })
+
+  it('picks the candidate with the longest genuine overlap', () => {
+    const near = p(34.999, 135.7594)
+    const pool: TimelinePathCandidate[] = [
+      { startMs: 9 * H, endMs: 13 * H, points: [near, near] }, // overlaps 1h15m
+      { startMs: 10 * H, endMs: 12 * H, points: [near, near] }, // overlaps 1h
+    ]
+    // Query 11:00-12:15; the shorter-overlap trace is considered first during
+    // the left scan, so a strict `> bestOverlap` must still win for pool[0].
+    const candidate = candidateOf(pool, { startMs: 11 * H, endMs: 12.25 * H, start: near, end: near })
+    expect(candidate).toBe(pool[0])
+  })
+
+  it('matches traces whose points run in reverse order (A2)', () => {
+    const west = p(34.999, 135.7594)
+    const east = p(40, 140)
+    // Trace stored end→start: first point is the segment's end, last is its start.
+    const pool: TimelinePathCandidate[] = [{ startMs: 10 * H, endMs: 12 * H, points: [east, west] }]
+    const candidate = candidateOf(pool, { startMs: 11 * H, endMs: 11.5 * H, start: west, end: east })
+    expect(candidate).toBe(pool[0])
+  })
+
+  it('rejects a trace whose endpoints never near-match the segment', () => {
+    const a = p(34.999, 135.7594)
+    const c = p(35.001, 135.76)
+    const far = p(40, 140)
+    // Segment a→c but the trace only spans a→far: neither orientation brings
+    // both endpoints within the 0.02° tolerance.
+    const candidate = candidateOf(
+      [{ startMs: 10 * H, endMs: 12 * H, points: [a, far] }],
+      { startMs: 11 * H, endMs: 11.5 * H, start: a, end: c },
+    )
+    expect(candidate).toBeNull()
+  })
+})
+
 describe('stitch: timelinePath GPS into path-less activity segments', () => {
   it('merges the covering trace when it precedes the activity (final pass)', () => {
     const { data, warnings } = parseTimelineFile('Timeline.json', STITCH_FIXTURE)
@@ -109,13 +172,13 @@ describe('stitch: timelinePath GPS into path-less activity segments', () => {
     expect(morning?.path[1]).toEqual({ lat: 34.9995, lng: 135.77 })
   })
 
-  it('merges immediately when the trace precedes the activity', () => {
+  it('merges the covering trace even when it precedes the activity (final pass)', () => {
     const { data } = parseTimelineFile('Timeline.json', STITCH_FIXTURE)
     const afternoon = segmentAt(data.segments, Date.parse('2025-01-31T17:14:27.000+08:00'))
     expect(afternoon?.path).toHaveLength(3)
   })
 
-  it('keeps timelimePath traces as their own segments', () => {
+  it('keeps timelinePath traces as their own segments', () => {
     const { data } = parseTimelineFile('Timeline.json', STITCH_FIXTURE)
     const febTrace = segmentAt(data.segments, Date.parse('2025-02-01T08:00:00.000+08:00'))
     expect(febTrace?.path).toHaveLength(2)
@@ -141,16 +204,16 @@ describe.skipIf(!hasLivedata)('stitch: real device export (docs/livedata)', () =
     const start = Date.UTC(2025, 0, 31)
     const end = Date.UTC(2025, 1, 1)
     const bus = data.segments.filter((s) => s.activityType === 'IN_BUS' && s.startMs >= start && s.startMs < end)
-    expect(bus.length).toBeGreaterThan(0)
+    expect(bus).toHaveLength(5)
 
     const withPath = bus.filter((s) => s.path.length >= 2)
-    expect(withPath.length).toBeGreaterThan(0)
+    expect(withPath).toHaveLength(5)
 
     const near = (a: Point, b: Point): boolean =>
       Math.abs(a.lat - b.lat) <= 0.02 && Math.abs(a.lng - b.lng) <= 0.02
     const covering = withPath.filter(
       (s) => s.path.some((p) => near(p, s.start)) && s.path.some((p) => near(p, s.end)),
     )
-    expect(covering.length).toBeGreaterThan(0)
+    expect(covering).toHaveLength(5)
   }, 120_000)
 })
