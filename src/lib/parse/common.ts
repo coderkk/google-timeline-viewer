@@ -4,15 +4,20 @@
 import type { Point, RawPoint, Segment, TimelineData, TimelineMeta, Visit } from '../types'
 import { e7ToLat, e7ToLng, toMs } from '../types'
 
+/** Upper bound on accumulated raw trajectory points (per file and merged). */
+export const MAX_RAW_POINTS = 2_000_000
+
 export interface ParseState {
   points: RawPoint[]
   visits: Visit[]
   segments: Segment[]
   warnings: string[]
+  /** Set once a truncation warning for the raw-point cap has been emitted. */
+  rawTruncated: boolean
 }
 
 export function createState(warnings: string[]): ParseState {
-  return { points: [], visits: [], segments: [], warnings }
+  return { points: [], visits: [], segments: [], warnings, rawTruncated: false }
 }
 
 export function emptyTimelineData(): TimelineData {
@@ -207,6 +212,13 @@ export function addRawPoint(
   state: ParseState,
   ctx: string,
 ): void {
+  if (state.points.length >= MAX_RAW_POINTS) {
+    if (!state.rawTruncated) {
+      state.rawTruncated = true
+      state.warnings.push(`${ctx}: raw points 超过 ${MAX_RAW_POINTS / 1_000_000} 万，已截断`)
+    }
+    return
+  }
   const coordinate = getLatLng(record)
   if (!coordinate) {
     state.warnings.push(`${ctx}: 缺少坐标字段`)

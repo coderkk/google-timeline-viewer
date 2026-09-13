@@ -50,3 +50,50 @@ export function tileUrlError(url: string): string | null {
   }
   return null
 }
+
+export interface TileUrlNote {
+  kind: 'cleartext' | 'subdomains' | 'osm-subdomains'
+  /** User-facing warning / explanation shown next to the input. */
+  text: string
+}
+
+/** Unnamed hosts commonly exposing {z}/{x}/{y} {s}. */
+const OSM_PUBLIC_HOST = 'openstreetmap.org'
+
+/**
+ * Non-blocking advisory notes for a candidate tile URL. Mirrors of the input
+ * help the user understand two risky choices: plaintext http:// transport
+ * (network middlemen can rewrite tiles) and the {s} subdomain placeholder
+ * (which spawns requests to a/b/c hosts — unsupported by the OSM public
+ * servers, which no longer answer {s} subdomains).
+ */
+export function tileUrlNotes(url: string): TileUrlNote[] {
+  const trimmed = url.trim()
+  const notes: TileUrlNote[] = []
+  if (trimmed === '') return notes
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return notes
+  }
+  if (parsed.protocol === 'http:') {
+    notes.push({
+      kind: 'cleartext',
+      text: '⚠ 明文传输：数据可能被网络中间人篡改，建议使用 https 或内网瓦片源',
+    })
+  }
+  if (trimmed.includes('{s}')) {
+    notes.push({
+      kind: 'subdomains',
+      text: '{s} 将向 a/b/c 多个主机发起请求',
+    })
+    if (parsed.hostname.includes(OSM_PUBLIC_HOST)) {
+      notes.push({
+        kind: 'osm-subdomains',
+        text: 'OSM 公共服务器不支持 {s}，瓦片将加载失败',
+      })
+    }
+  }
+  return notes
+}

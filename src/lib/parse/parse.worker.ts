@@ -98,7 +98,7 @@ scope.onmessage = async (event: MessageEvent<ParseFilesRequest>) => {
   scope.postMessage({
     type: 'done',
     fileCount,
-    data: mergeTimelineData(results),
+    data: mergeTimelineData(results, allWarnings),
     warnings: allWarnings,
     progress: 1,
   })

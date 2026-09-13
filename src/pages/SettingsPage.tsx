@@ -3,7 +3,7 @@
 // any imported data vanish on refresh, matching the product's no-persistence
 // guarantee (no localStorage / IndexedDB, no analytics or telemetry SDKs).
 import { useState } from 'react'
-import { CUSTOM_TILE_NANE, OSM_TILE_URL, tileUrlError } from '../lib/tiles'
+import { CUSTOM_TILE_NANE, OSM_TILE_URL, tileUrlError, tileUrlNotes } from '../lib/tiles'
 import { useTimelineStore } from '../store/timelineStore'
 
 const TILE_PLACEHOLDER = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [draft, setDraft] = useState(tileSource.url)
 
   const error = tileUrlError(draft)
+  const notes = tileUrlNotes(draft)
   const isDefault = tileSource.url === OSM_TILE_URL
   const isCustom = tileSource.name === CUSTOM_TILE_NANE
 
@@ -85,9 +86,15 @@ export default function SettingsPage() {
         {draft.trim() !== '' && error === null && (
           <p className="tile-ok">URL 格式正确，点击「应用」后生效。</p>
         )}
+        {notes.map((note) => (
+          <p key={note.kind} className={error === null ? 'tile-note tile-note-warn' : 'tile-error'}>
+            {note.text}
+          </p>
+        ))}
         <p className="tile-note">
           自定义瓦片源 = 自担风险：瓦片请求会把你的 IP 与当前地图视野的坐标范围发送给瓦片服务器。默认使用
           OpenStreetMap 公共服务器；如需彻底本地，可配置自托管/内网瓦片服务器。
+          若 URL 含 <code>{'{s}'}</code> 占位符，瓦片将向 a/b/c 等多个主机发起请求；OSM 公共服务器不支持，应省略。
         </p>
       </section>
 

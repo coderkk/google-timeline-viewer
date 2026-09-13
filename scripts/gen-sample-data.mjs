@@ -44,8 +44,8 @@ const rnd = mulberry32(20260913)
 // Places are public, well-known coordinates (no private data involved).
 const P = {
   // Taipei
-  home: { name: 'Home', address: '萬華區成都路 27 巷, 台北市', placeId: 'home-tpe', lat: 25.024, lng: 121.549 },
-  work: { name: 'Nexus Co., Ltd.', address: '內湖區瑞光路 333 號, 台北市', placeId: 'work-tpe', lat: 25.051, lng: 121.6168 },
+  home: { name: '家（模拟）', address: '萬華區成都路 27 巷, 台北市', placeId: 'home-tpe', lat: 25.024, lng: 121.549 },
+  work: { name: '公司（模拟）', address: '內湖區瑞光路 333 號, 台北市', placeId: 'work-tpe', lat: 25.051, lng: 121.6168 },
   cafe: { name: 'Bella 咖啡館', address: '大安區忠孝東路四段, 台北市', placeId: 'cafe-tpe', lat: 25.0357, lng: 121.5687 },
   park: { name: '大安森林公園', address: '大安區新生南路二段, 台北市', placeId: 'park-tpe', lat: 25.028, lng: 121.541 },
   market: { name: '南門市場', address: '中正區南昌路一段, 台北市', placeId: 'market-tpe', lat: 25.021, lng: 121.543 },

@@ -1056,6 +1056,11 @@ code {
   line-height: 1.7;
 }
 
+.tile-note-warn {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
 .privacy-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

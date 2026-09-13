@@ -5,6 +5,7 @@ import {
   OSM_TILE_SOURCE,
   OSM_TILE_URL,
   tileUrlError,
+  tileUrlNotes,
 } from './tiles'
 
 describe('tiles', () => {
@@ -52,5 +53,32 @@ describe('tiles', () => {
     expect(tileUrlError('ftp://example.com/{z}/{x}/{y}.png')).not.toBeNull()
     expect(tileUrlError('file:///tmp/{z}/{x}/{y}.png')).not.toBeNull()
     expect(tileUrlError('javascript:alert(1)')).not.toBeNull()
+  })
+})
+
+describe('tileUrlNotes', () => {
+  it('returns no notes for empty or https URLs', () => {
+    expect(tileUrlNotes('')).toEqual([])
+    expect(tileUrlNotes(OSM_TILE_URL)).toEqual([])
+    expect(tileUrlNotes('https://tiles.example.com/{z}/{x}/{y}.png')).toEqual([])
+  })
+
+  it('warns about cleartext http:// tile sources', () => {
+    const notes = tileUrlNotes('http://192.168.1.10/tiles/{z}/{x}/{y}.png')
+    expect(notes.map((n) => n.kind)).toEqual(['cleartext'])
+    expect(notes[0].text).toContain('明文传输')
+    expect(notes[0].text).toContain('https')
+  })
+
+  it('explains {s} subdomains and flags the OSM conflict', () => {
+    const notes = tileUrlNotes('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+    expect(notes.map((n) => n.kind)).toEqual(['subdomains', 'osm-subdomains'])
+    expect(notes[0].text).toContain('a/b/c')
+    expect(notes[1].text).toContain('OSM 公共服务器不支持 {s}')
+  })
+
+  it('combines cleartext and {s} notes, with no OSM conflict for non-OSM hosts', () => {
+    const notes = tileUrlNotes('http://{s}.tiles.example.com/{z}/{x}/{y}.png')
+    expect(notes.map((n) => n.kind)).toEqual(['cleartext', 'subdomains'])
   })
 })

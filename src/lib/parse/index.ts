@@ -1,7 +1,7 @@
 // Entry point for parsing Google Timeline exports into the unified
 // TimelineData model, with automatic format detection and multi-file merge.
 import type { TimelineData } from '../types'
-import { asRecord, computeMeta, createState, emptyTimelineData } from './common'
+import { asRecord, computeMeta, createState, emptyTimelineData, MAX_RAW_POINTS } from './common'
 import { parseFormat1 } from './formatTimelineArray'
 import { parseFormat2 } from './formatRecords'
 import { parseFormat3 } from './formatSemanticHistory'
@@ -85,10 +85,14 @@ export function parseTimelineFile(name: string, text: string): ParseResult {
 }
 
 /** Merge several parsed files into one dataset and recompute aggregate meta. */
-export function mergeTimelineData(list: TimelineData[]): TimelineData {
-  const points = list.flatMap((data) => data.points)
+export function mergeTimelineData(list: TimelineData[], warnings: string[] = []): TimelineData {
   const visits = list.flatMap((data) => data.visits)
   const segments = list.flatMap((data) => data.segments)
+  let points = list.flatMap((data) => data.points)
+  if (points.length > MAX_RAW_POINTS) {
+    points = points.slice(0, MAX_RAW_POINTS)
+    warnings.push(`累计 raw points 超过 ${MAX_RAW_POINTS / 1_000_000} 万，已截断`)
+  }
   return {
     points,
     visits,

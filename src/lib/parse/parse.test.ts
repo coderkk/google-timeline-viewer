@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { e7ToLat, e7ToLng, haversineKm, toMs } from '../types'
+import type { TimelineData } from '../types'
+import { addRawPoint, createState, emptyTimelineData, MAX_RAW_POINTS } from './common'
 import { mergeTimelineData, parseTimelineFile, ParseError } from './index'
 import {
   FIXTURE_DEVICE_EXPORT_2026,
@@ -214,5 +216,40 @@ describe('mergeTimelineData', () => {
     expect(merged.meta.segmentCount).toBe(1)
     expect(merged.meta.timeRange.minMs).toBe(1289894400000)
     expect(merged.meta.timeRange.maxMs).toBe(Date.parse('2024-05-01T09:10:00.000Z'))
+  })
+})
+
+describe('raw points cap (security G1)', () => {
+  const mkTimeline = (pointCount: number): TimelineData => ({
+    ...emptyTimelineData(),
+    points: Array.from({ length: pointCount }, (_, i) => ({
+      lat: i * 1e-6,
+      lng: 0,
+      timestampMs: i,
+    })),
+  })
+
+  it('stops adding raw points once the cap is reached and warns once', () => {
+    const warnings: string[] = []
+    const state = createState(warnings)
+    const record = { timestampMs: 1000, latitudeE7: 1, longitudeE7: 2 }
+    for (let i = 0; i <= MAX_RAW_POINTS; i++) {
+      addRawPoint(record, state, '"huge.json"')
+    }
+    expect(state.points).toHaveLength(MAX_RAW_POINTS)
+    const truncations = warnings.filter((w) => w.includes('已截断'))
+    expect(truncations).toHaveLength(1)
+    expect(truncations[0]).toContain('"huge.json"')
+    expect(truncations[0]).toContain('raw points 超过')
+  })
+
+  it('caps the merged raw points across multiple files and reports truncation', () => {
+    const half = Math.floor(MAX_RAW_POINTS / 2) + 1
+    const warnings: string[] = []
+    const merged = mergeTimelineData([mkTimeline(half), mkTimeline(half)], warnings)
+    expect(merged.points).toHaveLength(MAX_RAW_POINTS)
+    expect(merged.meta.pointCount).toBe(MAX_RAW_POINTS)
+    expect(warnings.some((w) => w.includes('已截断'))).toBe(true)
+    expect(warnings.some((w) => w.includes('累计 raw points'))).toBe(true)
   })
 })
