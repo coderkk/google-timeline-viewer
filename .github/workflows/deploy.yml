@@ -21,20 +21,23 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./src
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-      - run: cd src && npm ci
-      - run: cd src && npm run lint
-      - run: cd src && npm run test
-      - run: cd src && npm run build
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: src/dist
+          path: dist
 
   deploy:
     needs: build
