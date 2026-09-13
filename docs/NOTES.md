@@ -291,3 +291,6 @@ format3（Semantic Location History）两个兼容性缺口补齐（依据 commu
 - 新增 `format3Compat.test.ts`（7 测试）
 
 **验证**：`npm run test` 87 passed（80 回归 + 7 新增）/ build ✅ / lint 0 error ✅。Reviewer 审查通过（3 条建议级遗留，不阻塞）。已部署 0a0d568，线上 200。
+
+## 2026-09-14 07:56 — Dev
+Reviewer 一般项 1：`budgetRoutePoints` 预算上限可被击穿（Math.max(1, round(len*ratio)) 逐段 floor 1，12000 段×2 点 → 12000 > ROUTE_POINT_CAP）。修复：展平所有 path 点后整体 strideTake（保两端），总点数保证 ≤ cap；更新 docstring。新增回归测试（3000 段×2 点，断言输出 ≤5000）。test 97 passed / build ✅ / lint 0 error。

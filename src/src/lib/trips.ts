@@ -277,23 +277,18 @@ export interface RoutePoint {
 /**
  * Flatten every prepared segment's path into small colored marker points. A
  * route point is drawn for each vertex the polyline passes through; when the
- * combined count overruns `cap` the per-segment lists are stride-sampled (in
- * the same proportional style as `prepareTrips`) so the marker layer can never
- * exceed the budget on decade-spanning "全部" views.
+ * combined count overruns `cap`, the whole flattened list is uniformly
+ * stride-sampled (keeping both ends) so the result is guaranteed to stay at
+ * or under `cap` on decade-spanning "全部" views.
  */
 export function budgetRoutePoints(segments: readonly Segment[], cap: number): RoutePoint[] {
-  let total = 0
-  for (const s of segments) total += s.path.length
-  if (total === 0) return []
-  const keepAll = total <= cap
-  const ratio = cap / total
   const out: RoutePoint[] = []
   for (const s of segments) {
     const color = activityColor(s.activityType)
-    const path = keepAll ? s.path : strideTake(s.path, Math.max(1, Math.round(s.path.length * ratio)))
-    for (const point of path) out.push({ lat: point.lat, lng: point.lng, color })
+    for (const point of s.path) out.push({ lat: point.lat, lng: point.lng, color })
   }
-  return out
+  if (out.length <= cap) return out
+  return strideTake(out, cap)
 }
 
 // -- Activity styling --------------------------------------------------------

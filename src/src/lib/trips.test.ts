@@ -179,6 +179,23 @@ describe('budgetRoutePoints', () => {
     expect(out[out.length - 1].lat).toBe(big.path[big.path.length - 1].lat)
   })
 
+  it('caps the flattened total across many small segments', () => {
+    const segCount = 3000
+    const segs = Array.from({ length: segCount }, (_, i) =>
+      segment({
+        id: `s${i}`,
+        activityType: 'WALKING',
+        path: [point(i, i), point(i + 1, i + 1)],
+      }),
+    )
+    expect(segs.flatMap((s) => s.path).length).toBe(segCount * 2)
+    expect(segCount * 2).toBeGreaterThan(ROUTE_POINT_CAP)
+    const out = budgetRoutePoints(segs, ROUTE_POINT_CAP)
+    expect(out.length).toBeLessThanOrEqual(ROUTE_POINT_CAP)
+    expect(out[0]).toEqual({ lat: 0, lng: 0, color: activityColor('WALKING') })
+    expect(out[out.length - 1].lat).toBe(segCount)
+  })
+
   it('returns an empty list with no segments', () => {
     expect(budgetRoutePoints([], ROUTE_POINT_CAP)).toEqual([])
   })
