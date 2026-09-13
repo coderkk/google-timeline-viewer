@@ -33,10 +33,12 @@ function MapPane({
   prepared,
   fitBounds,
   fitKey,
+  showRoutePoints,
 }: {
   prepared: PreparedTrips
   fitBounds: LatLngBoundsMatrix | null
   fitKey: string
+  showRoutePoints: boolean
 }) {
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
 
@@ -89,6 +91,7 @@ function MapPane({
           fitKey={fitKey}
           invalidateKey="static"
           flyTarget={selectedVisit}
+          showRoutePoints={showRoutePoints}
         />
       </div>
     </>
@@ -97,6 +100,7 @@ function MapPane({
 
 function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [showRoutePoints, setShowRoutePoints] = useState(true)
 
   const prepared = useMemo(
     () => prepareTrips(data.segments, data.visits, dateRange),
@@ -140,6 +144,13 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
         )}
         <button
           type="button"
+          className="trips-toggle trips-toggle--plain"
+          onClick={() => setShowRoutePoints((visible) => !visible)}
+        >
+          {showRoutePoints ? '隐藏轨迹点 ●' : '显示轨迹点 ○'}
+        </button>
+        <button
+          type="button"
           className="trips-toggle"
           onClick={() => setSidebarOpen((open) => !open)}
         >
@@ -148,7 +159,13 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
       </div>
       <div className="trips-body">
         {sidebarOpen ? (
-          <MapPane key={fitKey} prepared={prepared} fitBounds={fitBounds} fitKey={fitKey} />
+          <MapPane
+            key={fitKey}
+            prepared={prepared}
+            fitBounds={fitBounds}
+            fitKey={fitKey}
+            showRoutePoints={showRoutePoints}
+          />
         ) : (
           <div className="trips-map-wrap">
             {noData && <div className="trips-empty">该日期范围内没有行程数据</div>}
@@ -162,6 +179,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
               fitKey={fitKey}
               invalidateKey="static"
               flyTarget={null}
+              showRoutePoints={showRoutePoints}
             />
           </div>
         )}

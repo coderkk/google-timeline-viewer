@@ -277,10 +277,36 @@ export function buildMaxEndUpTo(pool: readonly TimelinePathCandidate[]): number[
 }
 
 /**
+ * Index of the trace point nearest to `point` within the stitch tolerance, or
+ * -1 when no point is that close. A linear scan is fine here: traces average
+ * ~10 points (max 106) and only path-less segments run this.
+ */
+function nearestTraceIndex(point: Point, points: readonly Point[]): number {
+  let best = -1
+  let bestDistSq = Infinity
+  for (let i = 0; i < points.length; i++) {
+    const candidate = points[i]
+    if (!isNear(point, candidate)) continue
+    const dLat = point.lat - candidate.lat
+    const dLng = point.lng - candidate.lng
+    const dSq = dLat * dLat + dLng * dLng
+    if (dSq < bestDistSq) {
+      bestDistSq = dSq
+      best = i
+    }
+  }
+  return best
+}
+
+/**
  * Pick the coarse trace that best describes a short candidate segment: its
- * window must genuinely overlap the segment and both segment endpoints must
- * sit near the trace's first/last points (in either point order). The pool is
- * sorted by startMs (with `maxEndUpTo` the monotone-max-end prefix built by
+ * window must genuinely overlap the segment, and the trace must contain a
+ * point near each activity endpoint (the segment is usually one leg *inside*
+ * the 2-hour window, not the whole window). The sub-trace between the two
+ * matched points is returned so the stitched path is exactly the activity's
+ * leg, not the full window. A trace stored end→start is accepted via the
+ * original reverse pairing (start ≈ last point, end ≈ first point). The pool
+ * is sorted by startMs (with `maxEndUpTo` the monotone-max-end prefix built by
  * `buildMaxEndUpTo`), so a binary search plus a bounded linear fan-out keeps
  * this O(log n + overlap width) instead of a full scan (device exports can
  * hold ~30k traces).
@@ -303,16 +329,36 @@ export function findStitchCandidate(
   const consider = (candidate: TimelinePathCandidate): void => {
     const overlap = overlapMs(segment.startMs, segment.endMs, candidate.startMs, candidate.endMs)
     if (overlap <= 0) return
-    const first = candidate.points[0]
-    const last = candidate.points[candidate.points.length - 1]
-    const forward = isNear(segment.start, first) && isNear(segment.end, last)
-    // A trace's own points may be ordered start→end or end→start; accept
-    // either pairing so reverse-direction traces are never missed.
-    const reverse = isNear(segment.start, last) && isNear(segment.end, first)
-    if (!forward && !reverse) return
+    const points = candidate.points
+    const startIdx = nearestTraceIndex(segment.start, points)
+    if (startIdx < 0) return
+    const endIdx = nearestTraceIndex(segment.end, points)
+    if (endIdx < 0) return
+    // Both endpoints collapsed onto a single trace point: no real route to
+    // hand back (degenerate match).
+    if (startIdx === endIdx) return
+    if (startIdx > endIdx) {
+      // The activity runs opposite to the trace's stored point order. Only the
+      // original reverse pairing (start ≈ last, end ≈ first) is accepted, so
+      // reverse-stored traces stay supported without inventing backwards
+      // sub-trips somewhere in the middle of a wandering window.
+      const first = points[0]
+      const last = points[points.length - 1]
+      if (!isNear(segment.start, last) || !isNear(segment.end, first)) return
+      const sub = points.slice(endIdx, startIdx + 1).reverse()
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap
+        best = { ...candidate, points: sub }
+      }
+      return
+    }
+    // Forward: sub-trace from the matched start point through the matched end
+    // point, in trace (travel) order. New object so the trace pool is never
+    // mutated.
+    const sub = points.slice(startIdx, endIdx + 1)
     if (overlap > bestOverlap) {
       bestOverlap = overlap
-      best = candidate
+      best = { ...candidate, points: sub }
     }
   }
   // Traces starting before the segment can still reach into it. endMs is not

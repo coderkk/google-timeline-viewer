@@ -212,6 +212,12 @@ body {
   background: var(--color-surface);
 }
 
+/* Secondary topbar toggle (route points) — the sidebar toggle keeps the
+   margin-left: auto that pins it to the right edge. */
+.trips-toggle--plain {
+  margin-left: 0;
+}
+
 .trips-body {
   flex: 1;
   display: flex;

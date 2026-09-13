@@ -2,6 +2,25 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-14 07:50 — Dev
+完成 T13.3 ① + ②（③仅为记录项，无行动）：缝合匹配中途子段 + Trips 路线点渲染。
+
+**改动 1 — 缝合匹配从「端点≡trace首末点」改为「trace 内子段匹配」**（`src/lib/parse/common.ts`）：
+- 根因：新版导出的 `timelinePath` 是 2 小时窗口连续轨迹（16:00-18:00 含 18 点），`activity` 段常是其中一段短途行程（start=16:15 点、end=16:33=trace[4]，非 trace 末点）。旧 `findStitchCandidate` 只接受 activity 起点≡trace首点 且 终点≡trace末点 → 64% 中途行程失配 → path=0 → 路线退化。
+- 新语义：新增 `nearestTraceIndex`（对每个候选 trace 的点线性扫描，找到与 segment.start / segment.end 在 `MAX_STITCH_DEG=0.02°` 容差内**距离最近**的点下标 i / j）。i≤j → 返回 `{...candidate, points: points.slice(i, j+1)}` 子段（新对象，不污染池；调用方照旧 `.slice()` 复制）。i>j → 仅当原始反向配对成立（start≈末点 且 end≈首点）时接受，子段按行程方向 reverse 后返回；i==j（两端点塌缩到同一点）拒绝，防退化 1 点 path。性能不变（二分 + maxEndUpTo 前缀扇出，trace 平均 ~10 点线性扫）。
+- 保持 `isNear` 容差与 `stitchSegments` 终 pass 结构不变。
+
+**改动 2 — Trips 路线轨迹点渲染**：
+- `src/lib/trips.ts`：新增 `ROUTE_POINT_CAP=5000`、`RoutePoint{lat,lng,color}`、`budgetRoutePoints(segments, cap)`（把 prepared.segments 的 path（已 DP 化简）拍平成点并带回 activityType 颜色；总量超预算时按比例 strideTake 抽稀，保两端）。3 个单测。
+- `src/components/TripMap.tsx`：新增 `showRoutePoints?: boolean`（默认 true）prop；`useMemo` 调 `budgetRoutePoints`，在 Polyline 之上、停留点 marker 之下渲染 `CircleMarker`（radius 3，type 同色，fillOpacity 0.6；有选中停留点时降透明度不妨碍聚焦）；停留点 marker 更大且后渲染，不被遮挡。
+- `src/pages/TripsPage.tsx`：顶栏新增「显示/隐藏轨迹点」toggle（本地 state，默认开），双 TripMap 实例共用。`src/index.css` 加 `.trips-toggle--plain`（去掉 auto margin，避免与侧栏 toggle 抢右侧）。
+
+**测试**（`stitch.test.ts` 重构 +9，`trips.test.ts` +3）：S1 左扫 / 最长重叠 / A2 反向仍断言，但适配新契约（候选对象改为 new object，身份断言 `toBe(pool[0])` → `startMs` + 返回 points 断言）；新增 中途子段返回 5 点子段 / 邻近双点选更近 / 全段前向兼容 / 无近点拒绝 / i>j 非反向拒绝 / i==j 退化拒绝 / parse 管线的中途逐段集成用例（16:15→16:33 从 18 点窗口取 5 点子段）。
+
+**验证**：`npm run test` **96 passed**（87 回归 + 9 新增，含 livedata 5/5 精确断言）✅ / `npm run build`（tsc + vite）✅ / `npm run lint` 0 error ✅。
+
+**已知问题/记录**：①③ rawSignals 评估——livedata 里 2026-01-30 无 rawSignals，故 ③ 仅作记录不行动；②反向子段仅支持「trace 极端配对」（start≈末点/end≈首点），窗口中途的折返行程仍不缝合（保守策略，防乱序窗口误配，如需可后续放宽）；③路线点预算 5000 独立于全局 30000 path 预算，全部视图下圆点近似显示。
+
 ## 2026-09-14 07:05 — Dev
 修复 7674cb4 后 Reviewer（S1/S2/A1/A2/A3）审查发现的拼接缺陷 + S3/A5 顺手项。
 

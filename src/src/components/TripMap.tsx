@@ -11,7 +11,13 @@ import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from
 import L from 'leaflet'
 import type { CircleMarker as LeafletCircleMarker } from 'leaflet'
 import type { Segment, Visit } from '../lib/types'
-import { activityColor, fmtDateTime, fmtDuration } from '../lib/trips'
+import {
+  activityColor,
+  budgetRoutePoints,
+  fmtDateTime,
+  fmtDuration,
+  ROUTE_POINT_CAP,
+} from '../lib/trips'
 import { useTimelineStore } from '../store/timelineStore'
 
 type LatLngExpression = [number, number]
@@ -32,6 +38,8 @@ export interface TripMapProps {
   invalidateKey: string
   /** Visit to fly the camera onto (list or marker click). */
   flyTarget: Visit | null
+  /** Draw a small circle at every route vertex. Defaults to true. */
+  showRoutePoints?: boolean
 }
 
 interface ControllerProps {
@@ -107,6 +115,7 @@ export default function TripMap(props: TripMapProps) {
     fitKey,
     invalidateKey,
     flyTarget,
+    showRoutePoints = true,
   } = props
 
   const positions = useMemo(
@@ -116,6 +125,14 @@ export default function TripMap(props: TripMapProps) {
         return source.map((point): LatLngExpression => [point.lat, point.lng])
       }),
     [segments],
+  )
+
+  // Route vertices are already DP-simplified + globally budgeted by
+  // `prepareTrips`; this memo just flattens them into drawable points (with a
+  // dedicated marker cap) so small circles never outnumber the shared budget.
+  const routePoints = useMemo(
+    () => (showRoutePoints ? budgetRoutePoints(segments, ROUTE_POINT_CAP) : []),
+    [segments, showRoutePoints],
   )
 
   const hasSelection = highlightedSegments.size > 0
@@ -168,6 +185,23 @@ export default function TripMap(props: TripMapProps) {
           />
         )
       })}
+      {routePoints.map((point, index) => (
+        <CircleMarker
+          key={`rp-${index}`}
+          center={[point.lat, point.lng]}
+          radius={3}
+          pathOptions={{
+            color: point.color,
+            weight: 1,
+            opacity: hasSelection ? 0.2 : 0.75,
+            fillColor: point.color,
+            // Route points sit between the polylines and the stop markers in
+            // the children tree, so stop markers (bigger, later) stay on top.
+            fillOpacity: hasSelection ? 0.15 : 0.6,
+          }}
+          renderer={canvasRenderer}
+        />
+      ))}
       {markers.map((visit, index) => {
         const selected = selectedMarkerIndex === index
         const title = visit.name ?? `${visit.lat.toFixed(5)}, ${visit.lng.toFixed(5)}`

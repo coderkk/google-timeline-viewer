@@ -5,6 +5,7 @@
 ## 🔨 Doing（WIP ≤ 2）
 
 - [x] ~~T12: 产品改动（改名 + Theme + 半径档位 + marker 颜色）~~ (09-13→09-13) — 改名 Timeline Map + Theme Light/Dark/System + 半径 1/5/10/50/100 KM + Places marker 颜色区分 + Places 日期筛选；63 单测 + build + lint 全过
+- [ ] **T13.3: Trips 轨迹缝合改进 + 路线点显示** (09-14→09-14 Doing) — ①✅缝合匹配从"端点≡trace首末点"改为"trace 中存在与 activity start/end 分别接近的点（子段轨迹）"，修 16:15/17:57 类中途行程失败；②✅Trips 视图把 segment.path 的点渲染为小圆点（默认开，顶栏可切换，5000 点预算）；③记录 rawSignals 评估（2026-01-30 无 rawSignals，条目仅为记录）
 
 ## 📋 To Do
 

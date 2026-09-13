@@ -3,6 +3,7 @@ import type { Segment, Visit } from './types'
 import {
   activityColor,
   boundsOf,
+  budgetRoutePoints,
   endOfDayMs,
   filterSegments,
   filterVisits,
@@ -12,6 +13,7 @@ import {
   LIST_LIMIT,
   MARKER_CAP,
   prepareTrips,
+  ROUTE_POINT_CAP,
   segmentsOnSameDay,
   segmentsOverlappingVisit,
   simplifyPath,
@@ -149,6 +151,36 @@ describe('simplifyPath / caps', () => {
     ])
     expect(prepared.visits).toHaveLength(3)
     expect(LIST_LIMIT).toBeGreaterThan(0)
+  })
+})
+
+describe('budgetRoutePoints', () => {
+  it('flattens every path point under the cap, colored by activity', () => {
+    const segA = segment({
+      id: 'a',
+      activityType: 'WALKING',
+      path: [point(1, 1), point(2, 2), point(3, 3)],
+    })
+    const segB = segment({ id: 'b', activityType: 'IN_BUS', path: [point(4, 4), point(5, 5)] })
+    const out = budgetRoutePoints([segA, segB], 100)
+    expect(out).toHaveLength(5)
+    expect(out[0]).toEqual({ lat: 1, lng: 1, color: activityColor('WALKING') })
+    expect(out[3]).toEqual({ lat: 4, lng: 4, color: activityColor('IN_BUS') })
+  })
+
+  it('stride-samples proportionally and keeps both ends when the cap is exceeded', () => {
+    const big = segment({
+      id: 'big',
+      path: Array.from({ length: ROUTE_POINT_CAP + 200 }, (_, i) => point(0.05 + i * 0.0001, 103.8)),
+    })
+    const out = budgetRoutePoints([big], ROUTE_POINT_CAP)
+    expect(out.length).toBe(ROUTE_POINT_CAP)
+    expect(out[0].lat).toBe(0.05)
+    expect(out[out.length - 1].lat).toBe(big.path[big.path.length - 1].lat)
+  })
+
+  it('returns an empty list with no segments', () => {
+    expect(budgetRoutePoints([], ROUTE_POINT_CAP)).toEqual([])
   })
 })
 
