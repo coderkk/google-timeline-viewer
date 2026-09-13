@@ -22,29 +22,29 @@
 
 ### Landing 首页
 
-![Landing 完整截图](docs/screenshots/landing-full.png)
+![Landing 完整截图](public/landing-full.png)
 
-![Landing Hero](docs/screenshots/landing-hero.png)
+![Landing Hero](public/landing-hero.png)
 
 ### Built with OPC 3.0 section
 
-![Built with OPC 3.0](docs/screenshots/landing-builtwith.png)
+![Built with OPC 3.0](public/landing-builtwith.png)
 
 ### Trips 视图（行程回放）
 
-![Trips 视图](docs/screenshots/trips.png)
+![Trips 视图](public/trips.png)
 
 ### Places 视图（点击查访）
 
-![Places 视图](docs/screenshots/places.png)
+![Places 视图](public/places.png)
 
 ### 导出教程页
 
-![教程页](docs/screenshots/help.png)
+![教程页](public/help.png)
 
 ### 设置页
 
-![设置页](docs/screenshots/settings.png)
+![设置页](public/settings.png)
 
 ---
 
