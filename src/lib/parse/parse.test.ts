@@ -1,0 +1,188 @@
+import { describe, expect, it } from 'vitest'
+import { e7ToLat, e7ToLng, haversineKm, toMs } from '../types'
+import { mergeTimelineData, parseTimelineFile, ParseError } from './index'
+import {
+  FIXTURE_EMPTY_ARRAY,
+  FIXTURE_EMPTY_LOCATIONS,
+  FIXTURE_EMPTY_OBJECT,
+  FIXTURE_LOCATION_HISTORY,
+  FIXTURE_LOCATION_ONLY,
+  FIXTURE_RECORDS,
+  FIXTURE_RECORDS_EMPTY_SEGMENTS,
+  FIXTURE_SEMANTIC_HISTORY,
+  FIXTURE_TIMELINE_DIRECT_ARRAY,
+} from './__fixtures__/fixtures'
+
+describe('e7 coordinate conversion', () => {
+  it('divides E7 values by 1e7', () => {
+    expect(e7ToLat(523719400)).toBeCloseTo(52.37194, 6)
+    expect(e7ToLng(13375000)).toBeCloseTo(1.3375, 6)
+    expect(e7ToLat(0)).toBe(0)
+  })
+})
+
+describe('toMs', () => {
+  it('accepts numeric milliseconds', () => {
+    expect(toMs(1714543200000)).toBe(1714543200000)
+  })
+
+  it('accepts ISO date strings', () => {
+    expect(toMs('2024-05-01T00:00:00.000Z')).toBe(Date.parse('2024-05-01T00:00:00.000Z'))
+    expect(toMs('2024-05-01T07:40:00Z')).toBe(Date.parse('2024-05-01T07:40:00Z'))
+  })
+
+  it('accepts numeric strings as milliseconds', () => {
+    expect(toMs('1714543200000')).toBe(1714543200000)
+  })
+
+  it('returns NaN for unparsable input', () => {
+    expect(Number.isNaN(toMs('not-a-time'))).toBe(true)
+    expect(Number.isNaN(toMs(Number.NaN))).toBe(true)
+  })
+})
+
+describe('haversineKm', () => {
+  it('returns zero for identical points', () => {
+    expect(haversineKm({ lat: 0, lng: 0 }, { lat: 0, lng: 0 })).toBe(0)
+  })
+
+  it('approximates one degree of longitude at the equator', () => {
+    expect(haversineKm({ lat: 0, lng: 0 }, { lat: 0, lng: 1 })).toBeCloseTo(111.19, 0)
+  })
+})
+
+describe('format 1: Timeline.json direct array', () => {
+  it('parses trips and place-visits into the unified model', () => {
+    const { data, warnings } = parseTimelineFile('timeline.json', FIXTURE_TIMELINE_DIRECT_ARRAY)
+    expect(warnings).toEqual([])
+    expect(data.segments).toHaveLength(1)
+    expect(data.visits).toHaveLength(1)
+    expect(data.points).toHaveLength(0)
+
+    const segment = data.segments[0]
+    expect(segment.activityType).toBe('IN_PASSENGER_VEHICLE')
+    expect(segment.start).toEqual({ lat: 52.37194, lng: 1.3375 })
+    expect(segment.end).toEqual({ lat: 52.4433, lng: 1.35189 })
+    expect(segment.startMs).toBe(Date.parse('2024-05-01T07:00:00.000Z'))
+    expect(segment.endMs).toBe(Date.parse('2024-05-01T07:40:00.000Z'))
+    expect(segment.path).toHaveLength(3)
+    expect(segment.path[1]).toEqual({ lat: expect.closeTo(52.4, 4), lng: expect.closeTo(1.34, 4) })
+
+    const visit = data.visits[0]
+    expect(visit.name).toBe('Office')
+    expect(visit.address).toBe('1 Main St')
+    expect(visit.placeId).toBe('office')
+    expect(visit.startMs).toBe(Date.parse('2024-05-01T07:40:00.000Z'))
+    expect(visit.endMs).toBe(Date.parse('2024-05-01T09:10:00.000Z'))
+  })
+})
+
+describe('format 2: Records.json', () => {
+  it('parses locations, activity segments and warns about savedPlaces', () => {
+    const { data, warnings } = parseTimelineFile('Records.json', FIXTURE_RECORDS)
+    expect(warnings.some((w) => w.includes('savedPlaces'))).toBe(true)
+    expect(data.points).toHaveLength(2)
+    expect(data.segments).toHaveLength(1)
+    expect(data.visits).toHaveLength(0)
+
+    expect(data.points[0].accuracyMeters).toBe(12)
+    expect(data.points[1].accuracyMeters).toBe(8)
+
+    const segment = data.segments[0]
+    expect(segment.activityType).toBe('IN_PASSENGER_VEHICLE')
+    expect(segment.path).toHaveLength(2)
+    expect(segment.startMs).toBe(1714543200000)
+  })
+})
+
+describe('format 3: Semantic Location History', () => {
+  it('parses timelineObjects into visits and segments', () => {
+    const { data, warnings } = parseTimelineFile('2024_05.json', FIXTURE_SEMANTIC_HISTORY)
+    expect(warnings).toEqual([])
+    expect(data.segments).toHaveLength(1)
+    expect(data.visits).toHaveLength(1)
+    expect(data.segments[0].activityType).toBe('WALKING')
+    expect(data.visits[0].name).toBe('Cafe')
+    expect(data.visits[0].startMs).toBe(1714203600000)
+  })
+})
+
+describe('format 4: Location History.json', () => {
+  it('parses raw locations into points', () => {
+    const { data, warnings } = parseTimelineFile('Location History.json', FIXTURE_LOCATION_HISTORY)
+    expect(warnings).toEqual([])
+    expect(data.points).toHaveLength(2)
+    expect(data.points[0]).toMatchObject({
+      lat: 52.37194,
+      lng: 1.3375,
+      timestampMs: 1289894400000,
+      accuracyMeters: 30,
+    })
+    expect(data.segments).toHaveLength(0)
+    expect(data.visits).toHaveLength(0)
+  })
+})
+
+describe('format auto-detection', () => {
+  it('keeps location-only payloads on format 4', () => {
+    const { data } = parseTimelineFile('a.json', FIXTURE_LOCATION_ONLY)
+    expect(data.points).toHaveLength(1)
+    expect(data.meta.pointCount).toBe(1)
+  })
+
+  it('routes locations + activitySegments to format 2 even when segments are empty', () => {
+    const { data } = parseTimelineFile('b.json', FIXTURE_RECORDS_EMPTY_SEGMENTS)
+    expect(data.points).toHaveLength(1)
+  })
+})
+
+describe('empty and malformed input', () => {
+  it('does not throw on empty structures', () => {
+    for (const text of [FIXTURE_EMPTY_OBJECT, FIXTURE_EMPTY_ARRAY, FIXTURE_EMPTY_LOCATIONS]) {
+      const { data } = parseTimelineFile('empty.json', text)
+      expect(data.points).toHaveLength(0)
+      expect(data.visits).toHaveLength(0)
+      expect(data.segments).toHaveLength(0)
+      expect(data.meta.timeRange).toEqual({ minMs: 0, maxMs: 0 })
+    }
+  })
+
+  it('warns about an object with no recognizable structure', () => {
+    const { warnings } = parseTimelineFile('empty.json', FIXTURE_EMPTY_OBJECT)
+    expect(warnings.length).toBeGreaterThan(0)
+  })
+
+  it('skips malformed records with warnings instead of throwing', () => {
+    const text = JSON.stringify({
+      locations: [
+        { timestampMs: 1000, latitudeE7: 1, longitudeE7: 2 },
+        { latitudeE7: 3, longitudeE7: 4 },
+        { timestampMs: 'bad', latitudeE7: 5, longitudeE7: 6 },
+      ],
+    })
+    const { data, warnings } = parseTimelineFile('diry.json', text)
+    expect(data.points).toHaveLength(1)
+    expect(warnings.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('throws ParseError on invalid JSON text', () => {
+    expect(() => parseTimelineFile('bad.json', '{ not json')).toThrow(ParseError)
+  })
+})
+
+describe('mergeTimelineData', () => {
+  it('concatenates collections and recomputes meta', () => {
+    const a = parseTimelineFile('a.json', FIXTURE_TIMELINE_DIRECT_ARRAY).data
+    const b = parseTimelineFile('b.json', FIXTURE_LOCATION_HISTORY).data
+    const merged = mergeTimelineData([a, b])
+    expect(merged.points).toHaveLength(a.points.length + b.points.length)
+    expect(merged.segments).toHaveLength(1)
+    expect(merged.visits).toHaveLength(1)
+    expect(merged.meta.fileCount).toBe(2)
+    expect(merged.meta.pointCount).toBe(2)
+    expect(merged.meta.visitCount).toBe(1)
+    expect(merged.meta.segmentCount).toBe(1)
+    expect(merged.meta.timeRange.minMs).toBe(1289894400000)
+    expect(merged.meta.timeRange.maxMs).toBe(Date.parse('2024-05-01T09:10:00.000Z'))
+  })
+})

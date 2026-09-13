@@ -4,14 +4,16 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T1: 项目脚手架 + 应用框架**
-  - 验收: `npm run dev` 启动，Landing 路由与工具主界面路由可达，Header/Footer 骨架可见
+- [ ] **T2: 数据解析层（四格式 + Web Worker）**
+  - 验收: 四类格式样例解析为统一模型；大文件走 Worker 不卡主线程；单测覆盖坐标转换（E7）、时间戳解析、空数据处理
   - 指派: Dev
-  - 来源: PRD#功能7
+  - 来源: PRD#功能1
   - 时间: 09-13 创建 → 09-13 Doing
   - 子任务:
-    - [ ] T1.1 初始化 Vite + React + TS 项目（含 ESLint），安装 leaflet + react-leaflet + router + zustand 等依赖 — Dev
-    - [ ] T1.2 应用框架：Header（Logo + Nav：首页/Trips/Places/教程/设置）、Footer（"Created by OPC 3.0" 占位）、路由骨架 — Dev
+    - [ ] T2.1 内部统一数据模型（points/visits/segments + 时间范围统计）— Dev
+    - [ ] T2.2 四格式解析器：Timeline.json(direct-array semanticSegments) / Records.json / Semantic Location History(timelineObjects) / Location History.json — Dev
+    - [ ] T2.3 Web Worker 解析封装 + 大文件内存提示 + 多文件合并导入 — Dev
+    - [ ] T2.4 单元测试（vitest）：解析器 + 坐标/时间转换 — Dev
 
 ## 📋 To Do
 
@@ -128,5 +130,7 @@
 - [ ] [P2] 跨设备多 Takeout 合并去重 — （→ PRD 不做）(09-13)
 
 ## ✅ Done
+
+- [x] ~~T1: 项目脚手架 + 应用框架~~ (09-13→09-13) — Vite+React19+TS+Leaflet+Router+Zustand；路由/Header/Footer 骨架；build 通过
 
 ## ❌ Cancelled
