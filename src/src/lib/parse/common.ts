@@ -182,7 +182,11 @@ export function pathToPoints(value: unknown, maxPoints = 1_000_000): Point[] {
   } else {
     const record = asRecord(value)
     if (!record) return []
-    const nested = Array.isArray(record['waypoints']) ? record['waypoints'] : record['points']
+    const nested = Array.isArray(record['waypoints'])
+      ? record['waypoints']
+      : Array.isArray(record['points'])
+        ? record['points']
+        : record['path']
     if (!Array.isArray(nested)) return []
     items = nested
   }
@@ -298,7 +302,7 @@ export function addSegment(segmentObject: unknown, state: ParseState, ctx: strin
     getLatLng(record['endLocation']) ??
     getLatLng(activityRec?.['end']) ??
     getLatLng(record['end'])
-  const PATH_KEYS = ['timelinePath', 'waypointPath', 'simplifiedRawPath', 'transitPath']
+  const PATH_KEYS = ['timelinePath', 'waypointPath', 'path', 'simplifiedRawPath', 'transitPath']
   let path = firstPath(record, PATH_KEYS)
   if (path.length === 0) path = firstPath(activityRec ?? {}, PATH_KEYS)
   const effectiveStart = start ?? path[0]

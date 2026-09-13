@@ -77,11 +77,6 @@ export function fmtDay(ms: number): string {
   return `${d.getMonth() + 1}-${pad2(d.getDate())}`
 }
 
-/** Full date input value; nulls render as "—". */
-export function fmtFullDate(ms: number | null): string {
-  return ms === null ? '—' : toInputDate(ms)
-}
-
 /** Range summary like "2026-07-20 ~ 09-11" (open-ended sides shown as 不限). */
 export function fmtRangeLabel(range: DateRangeFilter): string {
   const start = range.startMs === null ? '不限' : toInputDate(range.startMs)
@@ -101,7 +96,7 @@ export function fmtDuration(ms: number): string {
 
 export function fmtDateTime(ms: number): string {
   const d = new Date(ms)
-  return `${fmtDay(ms)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  return `${toInputDate(ms)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
 // -- Filtering ---------------------------------------------------------------

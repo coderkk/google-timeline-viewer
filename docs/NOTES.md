@@ -2,6 +2,26 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-14 00:04 — Dev
+修复三个问题：marker 日期格式 + Google Maps 链接 + 汽车 GPS 轨迹。
+
+**修改文件**：
+- `src/lib/trips.ts`：`fmtDateTime` 从 `fmtDay`（MM-DD）改为 `toInputDate`（YYYY-MM-DD），Places 视图停留点日期显示从 "01-30 14:30" → "2025-01-30 14:30"。
+- `src/components/PlacesMap.tsx`：`CircleMarker` 新增子元素 `<a>` 弹窗，含 Google Maps 链接（`https://www.google.com/maps?q=lat,lng`），`onClick` 阻止冒泡防止触发地图拾取。
+- `src/lib/parse/common.ts`：`pathToPoints` 新增 `path` 作为嵌套对象 fallback key（原仅支持 `waypoints`/`points`）；`PATH_KEYS` 新增 `path` 字段，使 `addSegment` 可解析 `path` 命名的轨迹数组。
+
+**问题 3 根因分析**：Google Timeline 导出的 `activitySegment` 轨迹字段名存在变体——部分导出使用 `waypointPath`（已支持），部分使用 `path`（原未支持）。`pathToPoints` 在 `waypointPath` 非数组且非 `{waypoints|points}` 对象时返回空数组，导致 `addSegment` 路径为空、`TripMap` 因 `latLngs.length < 2` 跳过渲染。修复后 `path` 作为 fallback key 被正确解析。
+
+**验证**：`npm run build` ✅ / `npm run test` **71 passed**（无回归）✅ / `npm run lint` 无 error ✅。
+
+<!-- 示例：
+## 2026-09-12 14:20 — Dev
+完成 T1 登录 API。自测通过。已知问题: token 刷新逻辑待优化。
+
+## 2026-09-12 15:10 — Reviewer
+审查 T1。通过。建议: 密码 hash 用 bcrypt（一般级，不阻塞）。
+-->
+
 ## 2026-09-13 23:33 — Dev
 完成 Places 视图停留点点击历史功能：点击地图上的停留点 marker 后，弹出浮动面板显示该地点的历史访问记录（时间线）。
 

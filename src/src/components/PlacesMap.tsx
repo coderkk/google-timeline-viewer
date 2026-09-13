@@ -179,7 +179,16 @@ export default function PlacesMap({
               onVisitClick(visit)
             },
           }}
-        />
+        >
+          <a
+            href={`https://www.google.com/maps?q=${visit.lat},${visit.lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Open in Google Maps
+          </a>
+        </CircleMarker>
       ))}
       {center && (
         <Marker
