@@ -500,6 +500,99 @@ body {
   pointer-events: none;
 }
 
+/* Visit history panel (Places marker click) */
+.visit-history-panel {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 800;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px;
+  width: 320px;
+  max-height: 40vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.visit-history-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.visit-history-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visit-history-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text-dim);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.visit-history-close:hover {
+  color: var(--color-text);
+}
+
+.visit-history-count {
+  font-size: 12px;
+  color: var(--color-text-dim);
+  margin-bottom: 10px;
+}
+
+.visit-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.visit-history-item {
+  padding: 8px 10px;
+  background: var(--color-bg);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.visit-history-time {
+  font-size: 12px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.visit-history-duration {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  margin-top: 2px;
+}
+
+.visit-history-address {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Map tooltip */
 .trip-tooltip {
   background: var(--color-surface);

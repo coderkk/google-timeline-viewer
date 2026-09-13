@@ -2,6 +2,17 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-13 23:33 — Dev
+完成 Places 视图停留点点击历史功能：点击地图上的停留点 marker 后，弹出浮动面板显示该地点的历史访问记录（时间线）。
+
+**新增文件**：`src/lib/geo/visitHistory.ts`（`visitGroupKey` + `groupVisitsByLocation`：按 name → address → 坐标桶分组，倒序排列）；`src/lib/geo/visitHistory.test.ts`（8 用例）；`src/components/VisitHistoryPanel.tsx`（浮动面板：地点名 + 访问次数 + 时间线列表，含关闭按钮）。
+
+**修改文件**：`src/components/PlacesMap.tsx`（`CircleMarker` 新增 `click` 事件处理器，`stopPropagation` + `onVisitClick` callback；新增 `onVisitClick` prop）；`src/pages/PlacesPage.tsx`（新增 `historyVisit` state + `handleVisitClick`/`handleHistoryClose`；`useMemo` 预计算 `visitGroups`；PlacesMap 传 `onVisitClick`；地图区域内渲染 `VisitHistoryPanel`）；`src/index.css` 追加 visit-history-panel 样式段（~60 行，浮动卡片，bottom-right 定位，max-height 40vh，overflow-y auto）。
+
+**验证**：`npm run build` ✅ / `npm run test` **71 passed**（63 回归 + 8 新增）✅ / `npm run lint` 无 error ✅。
+
+**已知问题**：① 分组使用精确字符串匹配（同名才算同一地点），后续如需可加入模糊匹配或 placeId 去重；② 面板在侧栏折叠时仍显示在地图区域右上角，不占用侧栏空间。
+
 <!-- 示例：
 ## 2026-09-12 14:20 — Dev
 完成 T1 登录 API。自测通过。已知问题: token 刷新逻辑待优化。

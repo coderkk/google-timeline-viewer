@@ -141,10 +141,19 @@ export interface PlacesMapProps {
   selected: Visit | null
   visits: Visit[]
   onPick: (point: Point) => void
+  onVisitClick: (visit: Visit) => void
   invalidateKey: string
 }
 
-export default function PlacesMap({ center, radiusKm, selected, visits, onPick, invalidateKey }: PlacesMapProps) {
+export default function PlacesMap({
+  center,
+  radiusKm,
+  selected,
+  visits,
+  onPick,
+  onVisitClick,
+  invalidateKey,
+}: PlacesMapProps) {
   const tileSource = useTimelineStore((state) => state.tileSource)
   return (
     <MapContainer className="trip-map" center={[14, 112]} zoom={5} scrollWheelZoom maxZoom={19}>
@@ -163,6 +172,12 @@ export default function PlacesMap({ center, radiusKm, selected, visits, onPick, 
             fillColor: PLACES_RING_COLOR,
             fillOpacity: 1,
             opacity: 1,
+          }}
+          eventHandlers={{
+            click: (e: L.LeafletMouseEvent) => {
+              L.DomEvent.stopPropagation(e)
+              onVisitClick(visit)
+            },
           }}
         />
       ))}

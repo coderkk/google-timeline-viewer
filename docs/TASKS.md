@@ -39,5 +39,7 @@
 - [x] ~~T10.2: README（中文）~~ (09-13→09-13) — 10 区块：简介/亮点/截图(3 张 landing)/快速开始/取数指南/格式表/隐私声明/架构图(Worker+SpatialGrid)/Built with OPC 3.0(无内部术语)/MIT 声明；Trips/Places/Help/Settings 截图后补
 - [x] ~~T10.3: GitHub Pages 部署~~ (09-13→09-13) — Actions 成功；所有路由 200；7 张截图 200；Network 冒烟通过（无外部硬编码 URL）；https://coderkk.github.io/google-timeline-viewer/
 - [x] ~~T12: 产品改动（改名 + Theme + 半径档位 + marker 颜色）~~ (09-13→09-13) — Timeline Map 改名 + Theme(Light/Dark/System) + 半径 1/5/10/50/100KM + Places marker 颜色区分 + 日期筛选全局共享；63 单测+build+lint 全过；已部署到 https://coderkk.github.io/google-timeline-viewer/
+- [x] ~~T12.6: Places marker 颜色区分修复~~ (09-13→09-13) — 范围内所有停留点都显示 marker，点击处蓝色高亮 + 周围琥珀色；部署成功
+- [x] ~~T13: Places 停留点点击历史~~ (09-13→09-13) — 点击 marker 弹出浮动面板显示该地点历史访问记录；visitHistory 分组工具 + VisitHistoryPanel 组件 + PlacesMap marker click handler；71 单测 + build + lint 全过
 
 ## ❌ Cancelled

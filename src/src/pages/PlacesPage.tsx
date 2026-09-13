@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import DateRangePicker from '../components/DateRangePicker'
 import PlacesMap from '../components/PlacesMap'
+import VisitHistoryPanel from '../components/VisitHistoryPanel'
 import { SpatialGrid, type CircleHit } from '../lib/geo/SpatialGrid'
+import { groupVisitsByLocation, visitGroupKey } from '../lib/geo/visitHistory'
 import { fmtDistanceKm, PLACE_RADII_KM, PLACES_RESULT_LIMIT } from '../lib/geo/places'
 import { SAMPLE_LABEL } from '../lib/sample'
 import { filterVisits, fmtDateTime, fmtDuration, type DateRangeFilter } from '../lib/trips'
@@ -39,11 +41,21 @@ function matchesSignature(state: QuerySignature | null, sig: QuerySignature): bo
   )
 }
 
+/**
+ * Resolve the full visit history for a given visit by looking up the grouped
+ * visits from the current dataset. Uses the same date filter as the query.
+ */
+function getVisitHistory(visit: Visit, groups: Map<string, Visit[]> = new Map()): Visit[] {
+  const key = visitGroupKey(visit)
+  return groups.get(key) ?? [visit]
+}
+
 function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [center, setCenter] = useState<Point | null>(null)
   const [radiusKm, setRadiusKm] = useState<number>(100)
   const [selected, setSelected] = useState<Visit | null>(null)
+  const [historyVisit, setHistoryVisit] = useState<Visit | null>(null)
   // All query updates happen inside timer callbacks (never synchronously in an
   // effect) to satisfy the strict react-hooks set-state-in-effect rule.
   const [queryState, setQueryState] = useState<QueryState>({ sig: null, slow: false, results: [] })
@@ -53,6 +65,12 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
   const grid = useMemo(() => {
     const visits = filterVisits(data.visits, dateRange)
     return new SpatialGrid<Visit>().build(visits)
+  }, [data, dateRange])
+
+  // Pre-compute visit groups keyed by location for the history panel.
+  const visitGroups = useMemo(() => {
+    const visits = filterVisits(data.visits, dateRange)
+    return groupVisitsByLocation(visits)
   }, [data, dateRange])
 
   useEffect(() => {
@@ -84,11 +102,20 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
 
   const handlePick = useCallback((point: Point) => {
     setSelected(null)
+    setHistoryVisit(null)
     setCenter(point)
   }, [])
 
   const handleSelect = useCallback((visit: Visit) => {
     setSelected(visit)
+  }, [])
+
+  const handleVisitClick = useCallback((visit: Visit) => {
+    setHistoryVisit(visit)
+  }, [])
+
+  const handleHistoryClose = useCallback(() => {
+    setHistoryVisit(null)
   }, [])
 
   const sig = center ? { lat: center.lat, lng: center.lng, radiusKm } : null
@@ -114,8 +141,16 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
         selected={selected}
         visits={results.map((r) => r.record)}
         onPick={handlePick}
+        onVisitClick={handleVisitClick}
         invalidateKey={sidebarOpen ? 'open' : 'collapsed'}
       />
+      {historyVisit && (
+        <VisitHistoryPanel
+          locationName={historyVisit.name ?? historyVisit.address ?? 'Unknown location'}
+          visits={getVisitHistory(historyVisit, visitGroups)}
+          onClose={handleHistoryClose}
+        />
+      )}
     </div>
   )
 
