@@ -22,6 +22,7 @@
 - [ ] [P2] 跨设备多 Takeout 合并去重 — （→ PRD 不做）(09-13)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [ ] [P2] 多语言（英文为主，可换中文）— 需要 i18n 依赖，v2 加入（→ PRD 约束）(09-13)
+- [ ] [P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）(09-14)
 
 ## ✅ Done
 
@@ -41,5 +42,7 @@
 - [x] ~~T12: 产品改动（改名 + Theme + 半径档位 + marker 颜色）~~ (09-13→09-13) — Timeline Map 改名 + Theme(Light/Dark/System) + 半径 1/5/10/50/100KM + Places marker 颜色区分 + 日期筛选全局共享；63 单测+build+lint 全过；已部署到 https://coderkk.github.io/google-timeline-viewer/
 - [x] ~~T12.6: Places marker 颜色区分修复~~ (09-13→09-13) — 范围内所有停留点都显示 marker，点击处蓝色高亮 + 周围琥珀色；部署成功
 - [x] ~~T13: Places 停留点点击历史~~ (09-13→09-13) — 点击 marker 弹出浮动面板显示该地点历史访问记录；visitHistory 分组工具 + VisitHistoryPanel 组件 + PlacesMap marker click handler；71 单测 + build + lint 全过
+- [x] ~~T13.1: Trips/Places marker 细节修复~~ (09-14→09-14) — ① marker 日期 tooltip 加年份（fmtDateTime YYYY-MM-DD）② Places popup 加 Google Maps 链接 ③ 解析器新增 `path` fallback key；df24db2；71→71 单测
+- [x] ~~T13.2: 真实 livedata 车辆 GPS 轨迹合并~~ (09-14→09-14) — 根因：新版 Timeline.json 的 activity 段（IN_BUS/IN_PASSENGER_VEHICLE）只带 start/end、无轨迹点，完整 GPS 在同时间 timelinePath 段；实现 stitchSegments 终 pass 把重叠 trace 轨迹缝合进 activity 段（maxEnd 前缀左扫 + 单次排序 pass + format1/2/3 覆盖 + 反向配对 + slice 防别名）；Reviewer 两轮（S1/S2/S3 + A1/A2/A3/A5）后通过；802ddf7；80 单测
 
 ## ❌ Cancelled
