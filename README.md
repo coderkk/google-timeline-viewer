@@ -32,23 +32,19 @@
 
 ### Trips 视图（行程回放）
 
-<!-- 待补：导入示例数据后 Trips 视图截图 -->
-> 📸 待补
+![Trips 视图](docs/screenshots/trips.png)
 
 ### Places 视图（点击查访）
 
-<!-- 待补：点击地图后 Places 浮层截图 -->
-> 📸 待补
+![Places 视图](docs/screenshots/places.png)
 
 ### 导出教程页
 
-<!-- 待补：Help 页 Android/iOS 步骤截图 -->
-> 📸 待补
+![教程页](docs/screenshots/help.png)
 
 ### 设置页
 
-<!-- 待补：Settings 页瓦片源配置截图 -->
-> 📸 待补
+![设置页](docs/screenshots/settings.png)
 
 ---
 
