@@ -259,3 +259,16 @@ format3（Semantic Location History）两个兼容性缺口补齐（依据 commu
 **测试**（`src/lib/parse/__tests__/format3Compat.test.ts`，新增 7 个）：getLatLng centerE7 换算 + 优先级 + 缺字段返回 null；addVisit 解析仅含 centerLatE7 的 placeVisit；transitStops 多点提取；仅 transitPath 的 activitySegment 解析；完整 format3 文件混合两种 shape 的端到端解析。
 
 **验证**：`npm run test` **87 passed**（80 回归 + 7 新增）✅ / `npm run build` ✅（tsc + vite）/ `npm run lint` 0 error ✅。livedata 未改未提交。
+
+## 2026-09-14 11:30 — Dev + CEO
+依据 community 权威格式文档（locationhistoryformat.com / CarlosBergillos/LocationHistoryFormat，含官方 JSON Schema）补齐 format3（Semantic Location History）两个兼容性缺口。
+
+**价值评估**：该网站是 Google Location History 格式的权威参考（Records.json / Settings.json / Timeline Edits.json / Semantic Location History，附官方 JSON Schema）。对照后确认我们的核心覆盖正确，但发现 2 个 format3 缺口。用户 livedata（新版设备导出 semanticSegments）不受影响，此轮为公开项目 format3 兼容性加分。
+
+**修复**（0a0d568）：
+- `common.ts:getLatLng` 新增 `centerLatE7/centerLngE7` 分支（优先级低于 latitudeE7/longitudeE7）
+- `common.ts:pathToPoints` 对象分支链补 `transitStops`（transitPath 是 {transitStops:[{latitudeE7,longitudeE7}...]} 公交站列表，原解析为空）
+- `common.ts:addVisit` 坐标解析回退 `(location ? getLatLng(location) : null) ?? getLatLng(record)`，使无 location 但带 centerLatE7 的 placeVisit 能解析
+- 新增 `format3Compat.test.ts`（7 测试）
+
+**验证**：`npm run test` 87 passed（80 回归 + 7 新增）/ build ✅ / lint 0 error ✅。Reviewer 审查通过（3 条建议级遗留，不阻塞）。已部署 0a0d568，线上 200。
