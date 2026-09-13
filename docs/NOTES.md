@@ -243,3 +243,19 @@ T2 数据解析层开工。完成内部统一数据模型（`src/lib/types.ts`�
 3. **汽车移动 GPS 显示** ✅ — 真实 livedata 的 IN_BUS / IN_PASSENGER_VEHICLE 行程已缝合 timelinePath 轨迹（2025-01-31 实测 5/5 车辆段获得真实路径，路径点 6-11 个）
 
 部署：三个 commit 均通过 GitHub Actions 成功部署（最新 802ddf7 线上 200）。新增 Backlog 项：livedata 完整支持延伸（visit 段与 activity 段关联展示）。
+
+## 2026-09-14 07:15 — Dev
+format3（Semantic Location History）两个兼容性缺口补齐（依据 community 权威格式文档：https://locationhistoryformat.com/reference/semantic/ 与 github.com/CarlosBergillos/LocationHistoryFormat schemas/Semantic.schema.json，均确认字段存在）。
+
+**缺口 1：`placeVisit.centerLatE7 / centerLngE7`**
+- 旧版 Takeout format3 的 placeVisit 坐标可能直接是 `centerLatE7`/`centerLngE7`（整数 E7），不一定有 `location` 对象。
+- `common.ts:getLatLng` 增加 `centerLatE7`/`centerLngE7` 分支（fallback，优先级低于 `latitudeE7/longitudeE7`，用 `e7ToLat/e7ToLng` 换算）；JSON schema 限定 E7 为整数。
+- `common.ts:addVisit` 坐标解析改为 `(location ? getLatLng(location) : null) ?? getLatLng(record)`：无 `location` 对象时回退到 placeVisit 记录本身，否则 centerLatE7 永远读不到。
+
+**缺口 2：`activitySegment.transitPath.transitStops[]`**
+- transitPath 是 `{ transitStops: [{ latitudeE7, longitudeE7, placeId, address, name }...] }` 公交站列表，不是点数组。原 `PATH_KEYS` 已含 `transitPath`，但 `pathToPoints` 对 object 只查 `waypoints/points/path` → 返回空，段起终点全靠 startLocation/endLocation。
+- `common.ts:pathToPoints` 在链中插入 `Array.isArray(record['transitStops']) ? record['transitStops'] : ...`；元素经 `pointFromPathElement → getLatLng` 直接解析 `latitudeE7/longitudeE7`。
+
+**测试**（`src/lib/parse/__tests__/format3Compat.test.ts`，新增 7 个）：getLatLng centerE7 换算 + 优先级 + 缺字段返回 null；addVisit 解析仅含 centerLatE7 的 placeVisit；transitStops 多点提取；仅 transitPath 的 activitySegment 解析；完整 format3 文件混合两种 shape 的端到端解析。
+
+**验证**：`npm run test` **87 passed**（80 回归 + 7 新增）✅ / `npm run build` ✅（tsc + vite）/ `npm run lint` 0 error ✅。livedata 未改未提交。

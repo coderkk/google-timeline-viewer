@@ -143,7 +143,8 @@ export function parseLatLngString(value: string): Point | null {
 }
 
 /**
- * Extract a coordinate pair from a location record: E7 fields first, then
+ * Extract a coordinate pair from a location record: E7 fields first (including
+ * the placeVisit-level `centerLatE7`/`centerLngE7` fallback), then
  * decimal-degree fields, then a combined "lat, lng" string (both spellings are
  * seen in the wild).
  */
@@ -154,6 +155,13 @@ export function getLatLng(location: unknown): Point | null {
   const lngE7 = numField(record, ['longitudeE7', 'lngE7'])
   if (latE7 !== undefined && lngE7 !== undefined) {
     return { lat: e7ToLat(latE7), lng: e7ToLng(lngE7) }
+  }
+  // Older Semantic Location History placeVisits carry the coordinate directly
+  // on the record as centerLatE7/centerLngE7 instead of a `location` object.
+  const centerLatE7 = numField(record, ['centerLatE7'])
+  const centerLngE7 = numField(record, ['centerLngE7'])
+  if (centerLatE7 !== undefined && centerLngE7 !== undefined) {
+    return { lat: e7ToLat(centerLatE7), lng: e7ToLng(centerLngE7) }
   }
   const lat = numField(record, ['latitude', 'lat'])
   const lng = numField(record, ['longitude', 'lng'])
@@ -193,7 +201,12 @@ function pointFromPathElement(element: unknown): Point | null {
   return getLatLng(element)
 }
 
-/** Extract points from a path field: an array, or { waypoints | points: [] }. */
+/**
+ * Extract points from a path field: an array, or
+ * { waypoints | points | transitStops | path: [] }. transitPath objects expose
+ * the stop list under `transitStops` (each element is a plain location record
+ * with latitudeE7/longitudeE7), so it is treated as a point source too.
+ */
 export function pathToPoints(value: unknown, maxPoints = 1_000_000): Point[] {
   let items: unknown[]
   if (Array.isArray(value)) {
@@ -205,7 +218,9 @@ export function pathToPoints(value: unknown, maxPoints = 1_000_000): Point[] {
       ? record['waypoints']
       : Array.isArray(record['points'])
         ? record['points']
-        : record['path']
+        : Array.isArray(record['transitStops'])
+          ? record['transitStops']
+          : record['path']
     if (!Array.isArray(nested)) return []
     items = nested
   }
@@ -374,13 +389,15 @@ export function addVisit(visitObject: unknown, state: ParseState, ctx: string): 
     return
   }
   // Location may sit on the record itself, on a flat visit wrapper's
-  // topCandidate, or in the older `location` field.
+  // topCandidate, or in the older `location` field. Older records may instead
+  // carry centerLatE7/centerLngE7 directly on the placeVisit, so the record
+  // itself is the final fallback.
   const visitWrapper = asRecord(record['visit'])
   const location =
     asRecord(record['location']) ??
     asRecord(asRecord(record['topCandidate'])?.['placeLocation']) ??
     asRecord(asRecord(visitWrapper?.['topCandidate'])?.['placeLocation'])
-  const coordinate = location ? getLatLng(location) : null
+  const coordinate = (location ? getLatLng(location) : null) ?? getLatLng(record)
   const duration = getDuration(asRecord(record['duration'])) ?? getDuration(record)
   if (!coordinate || !duration) {
     state.warnings.push(`${ctx}: placeVisit 缺少坐标或时间范围`)
