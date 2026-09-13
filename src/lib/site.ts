@@ -2,6 +2,9 @@ export const SITE_NAME = 'GT Viewer'
 
 export const SITE_TAGLINE = 'Google Timeline 位置历史本地查看器'
 
+/** Placeholder replaced at T10 deployment with real OPC 3.0 introduction URL. */
+export const OPC_3_LINK = '#'
+
 export const NAV_LINKS = [
   { label: '首页', to: '/' },
   { label: 'Trips', to: '/app' },
