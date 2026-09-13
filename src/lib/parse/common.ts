@@ -103,8 +103,25 @@ function stringField(record: Record<string, unknown>, keys: string[]): string | 
 }
 
 /**
- * Extract a coordinate pair from a location record, preferring E7 fields and
- * falling back to decimal-degree fields (both spellings are seen in the wild).
+ * Parse a "lat, lng" coordinate string. The newer device exports append a
+ * degree symbol ("1.3521°, 103.8198°"), so coordinates are extracted with a
+ * tolerant regex rather than a plain Number() cast.
+ */
+export function parseLatLngString(value: string): Point | null {
+  if (typeof value !== 'string') return null
+  const parts = value.match(/[+-]?\d+(?:\.\d+)?/g)
+  if (!parts || parts.length < 2) return null
+  const lat = Number(parts[0])
+  const lng = Number(parts[1])
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
+  return { lat, lng }
+}
+
+/**
+ * Extract a coordinate pair from a location record: E7 fields first, then
+ * decimal-degree fields, then a combined "lat, lng" string (both spellings are
+ * seen in the wild).
  */
 export function getLatLng(location: unknown): Point | null {
   const record = asRecord(location)
@@ -117,6 +134,11 @@ export function getLatLng(location: unknown): Point | null {
   const lat = numField(record, ['latitude', 'lat'])
   const lng = numField(record, ['longitude', 'lng'])
   if (lat !== undefined && lng !== undefined) return { lat, lng }
+  const latLng = stringField(record, ['latLng', 'coordinates'])
+  if (latLng !== undefined) {
+    const point = parseLatLngString(latLng)
+    if (point) return point
+  }
   return null
 }
 
@@ -140,12 +162,8 @@ function pointFromPathElement(element: unknown): Point | null {
   if (record) {
     const pointLabel = record['point']
     if (typeof pointLabel === 'string') {
-      const parts = pointLabel.split(',')
-      if (parts.length >= 2) {
-        const lat = Number(parts[0])
-        const lng = Number(parts[1])
-        if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng }
-      }
+      const point = parseLatLngString(pointLabel)
+      if (point) return point
     }
   }
   return getLatLng(element)
@@ -215,7 +233,13 @@ export function addVisit(visitObject: unknown, state: ParseState, ctx: string): 
     state.warnings.push(`${ctx}: placeVisit 结构无效`)
     return
   }
-  const location = asRecord(record['location'])
+  // Location may sit on the record itself, on a flat visit wrapper's
+  // topCandidate, or in the older `location` field.
+  const visitWrapper = asRecord(record['visit'])
+  const location =
+    asRecord(record['location']) ??
+    asRecord(asRecord(record['topCandidate'])?.['placeLocation']) ??
+    asRecord(asRecord(visitWrapper?.['topCandidate'])?.['placeLocation'])
   const coordinate = location ? getLatLng(location) : null
   const duration = getDuration(asRecord(record['duration'])) ?? getDuration(record)
   if (!coordinate || !duration) {
@@ -228,10 +252,15 @@ export function addVisit(visitObject: unknown, state: ParseState, ctx: string): 
     startMs: duration.startMs,
     endMs: duration.endMs,
   }
+  // Name, address and placeId usually live next to the coordinates inside the
+  // location; for flat visit wrappers they sit on topCandidate itself.
+  const topCandidate = visitWrapper?.['topCandidate']
+  const meta = asRecord(topCandidate)
   if (location) {
-    const name = stringField(location, ['name'])
-    const address = stringField(location, ['address'])
-    const placeId = stringField(location, ['placeId', 'place'])
+    const name = stringField(location, ['name']) ?? stringField(meta ?? {}, ['name'])
+    const address = stringField(location, ['address']) ?? stringField(meta ?? {}, ['address'])
+    const placeId =
+      stringField(location, ['placeId', 'place']) ?? stringField(meta ?? {}, ['placeId', 'place'])
     if (name) visit.name = name
     if (address) visit.address = address
     if (placeId) visit.placeId = placeId
@@ -246,9 +275,20 @@ export function addSegment(segmentObject: unknown, state: ParseState, ctx: strin
     state.warnings.push(`${ctx}: 行程段结构无效`)
     return
   }
-  const start = getLatLng(record['startLocation']) ?? getLatLng(record['start'])
-  const end = getLatLng(record['endLocation']) ?? getLatLng(record['end'])
-  const path = firstPath(record, ['timelinePath', 'waypointPath', 'simplifiedRawPath', 'transitPath'])
+  // Flat `activity` wrappers carry start/end inside the wrapper rather than
+  // on the record itself.
+  const activityRec = asRecord(record['activity'])
+  const start =
+    getLatLng(record['startLocation']) ??
+    getLatLng(activityRec?.['start']) ??
+    getLatLng(record['start'])
+  const end =
+    getLatLng(record['endLocation']) ??
+    getLatLng(activityRec?.['end']) ??
+    getLatLng(record['end'])
+  const PATH_KEYS = ['timelinePath', 'waypointPath', 'simplifiedRawPath', 'transitPath']
+  let path = firstPath(record, PATH_KEYS)
+  if (path.length === 0) path = firstPath(activityRec ?? {}, PATH_KEYS)
   const effectiveStart = start ?? path[0]
   const effectiveEnd = end ?? path[path.length - 1]
   if (!effectiveStart || !effectiveEnd) {
@@ -267,7 +307,10 @@ export function addSegment(segmentObject: unknown, state: ParseState, ctx: strin
     endMs: duration.endMs,
     path,
   }
-  const activityType = stringField(record, ['activityType'])
+  // Newer device exports carry the activity label under activity.topCandidate.
+  const activityType =
+    stringField(record, ['activityType']) ??
+    stringField(asRecord(asRecord(record['activity'])?.['topCandidate']) ?? {}, ['type'])
   if (activityType) segment.activityType = activityType
   state.segments.push(segment)
 }
@@ -291,6 +334,18 @@ export function parseSemanticElement(element: unknown, state: ParseState, ctx: s
   const activitySegment = asRecord(record['activitySegment'])
   if (activitySegment) {
     addSegment(activitySegment, state, ctx)
+    return
+  }
+  // Flat shapes used by the 2026+ device export: `visit` / `activity` wrappers
+  // carrying times on the same record the coords inside the wrapper.
+  const flatVisit = asRecord(record['visit'])
+  if (flatVisit) {
+    addVisit(record, state, ctx)
+    return
+  }
+  const flatActivity = asRecord(record['activity'])
+  if (flatActivity) {
+    addSegment(record, state, ctx)
     return
   }
   const hasLocation =

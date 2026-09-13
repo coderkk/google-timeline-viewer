@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { e7ToLat, e7ToLng, haversineKm, toMs } from '../types'
 import { mergeTimelineData, parseTimelineFile, ParseError } from './index'
 import {
+  FIXTURE_DEVICE_EXPORT_2026,
   FIXTURE_EMPTY_ARRAY,
   FIXTURE_EMPTY_LOCATIONS,
   FIXTURE_EMPTY_OBJECT,
@@ -74,6 +75,35 @@ describe('format 1: Timeline.json direct array', () => {
     expect(visit.placeId).toBe('office')
     expect(visit.startMs).toBe(Date.parse('2024-05-01T07:40:00.000Z'))
     expect(visit.endMs).toBe(Date.parse('2024-05-01T09:10:00.000Z'))
+  })
+})
+
+describe('format 1: 2026 device export (semanticSegments object, flat records)', () => {
+  it('parses flat visit / activity / timelinePath records with °-suffixed coords', () => {
+    const { data, warnings } = parseTimelineFile('Timeline.json', FIXTURE_DEVICE_EXPORT_2026)
+    expect(warnings).toEqual([])
+    expect(data.visits).toHaveLength(1)
+    expect(data.segments).toHaveLength(2)
+
+    expect(data.visits[0]).toMatchObject({
+      lat: expect.closeTo(6.060128, 6),
+      lng: expect.closeTo(116.155137, 6),
+      startMs: Date.parse('2012-12-30T15:15:50.000+08:00'),
+      endMs: Date.parse('2012-12-30T20:48:23.000+08:00'),
+      placeId: 'ChIJ-TqqarRsOzIRqQZVixuJl8M',
+    })
+
+    const activity = data.segments[0]
+    expect(activity.activityType).toBe('IN_PASSENGER_VEHICLE')
+    expect(activity.start).toEqual({ lat: expect.closeTo(6.0611445, 6), lng: expect.closeTo(116.1556962, 6) })
+    expect(activity.end).toEqual({ lat: expect.closeTo(5.9616525, 6), lng: expect.closeTo(116.0972516, 6) })
+
+    const path = data.segments[1]
+    expect(path.activityType).toBeUndefined()
+    expect(path.path).toHaveLength(2)
+    expect(path.path[0]).toEqual({ lat: expect.closeTo(6.0611385, 6), lng: expect.closeTo(116.1557205, 6) })
+    expect(path.start).toEqual(path.path[0])
+    expect(path.end).toEqual(path.path[1])
   })
 })
 

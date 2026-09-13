@@ -1,0 +1,202 @@
+// Leaflet map for the Trips view. Routes are polylines tinted by transport
+// mode and stops are round markers with hover tooltips. Everything draws on a
+// single shared Canvas renderer so decade-spanning datasets stay fluid. Fit /
+// fly helpers are imperative (fitBounds/flyTo) so user pan/zoom is never
+// overwritten by props — the map only auto-fits when the filtered window's
+// structure (which days are selected) changes. The map boots on a fixed
+// center/zoom rather than a `bounds` prop: fitting at init against a container
+// that is not yet laid out crashes the renderer.
+import { useEffect, useMemo, useRef } from 'react'
+import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import L from 'leaflet'
+import type { CircleMarker as LeafletCircleMarker } from 'leaflet'
+import type { Segment, Visit } from '../lib/types'
+import { activityColor, fmtDateTime, fmtDuration } from '../lib/trips'
+
+type LatLngExpression = [number, number]
+export type LatLngBoundsMatrix = [[number, number], [number, number]]
+
+export interface TripMapProps {
+  segments: readonly Segment[]
+  markers: readonly Visit[]
+  /** Segment indices (into `segments`) to emphasize when a stop is selected. */
+  highlightedSegments: ReadonlySet<number>
+  /** Index into `markers` that is currently selected, or null. */
+  selectedMarkerIndex: number | null
+  onSelectMarker: (index: number, visit: Visit) => void
+  fitBounds: LatLngBoundsMatrix | null
+  /** Changes only when the selected window spans a different set of days. */
+  fitKey: string | null
+  /** Bumped (e.g. sidebar collapse) to force a Leaflet re-layout. */
+  invalidateKey: string
+  /** Visit to fly the camera onto (list or marker click). */
+  flyTarget: Visit | null
+}
+
+interface ControllerProps {
+  fitBounds: LatLngBoundsMatrix | null
+  fitKey: string | null
+  invalidateKey: string
+  flyTarget: Visit | null
+}
+
+function FitController({ fitBounds, fitKey, invalidateKey, flyTarget }: ControllerProps) {
+  const map = useMap()
+  const lastFitKey = useRef<string | null>(null)
+  const lastInvalidate = useRef<string>(invalidateKey)
+  const lastTarget = useRef<Visit | null>(null)
+
+  // The map often mounts mid-layout (EmptyState -> view swap), when its
+  // container may not have real pixels yet. Deferring the fit until a size is
+  // available is also a correctness guard: fitting a 0-size map produces an
+  // undefined center + NaN view, which corrupts the canvas transform (and can
+  // crash the rasterizer).
+  useEffect(() => {
+    let raf = 0
+    let attempts = 0
+
+    const fit = () => {
+      const size = map.getSize()
+      if ((size.x < 2 || size.y < 2) && attempts++ < 120) {
+        raf = requestAnimationFrame(fit)
+        return
+      }
+      if (fitBounds && lastFitKey.current !== fitKey) {
+        lastFitKey.current = fitKey
+        map.invalidateSize()
+        map.fitBounds(fitBounds, { padding: [32, 32], maxZoom: 15 })
+      }
+      if (lastInvalidate.current !== invalidateKey) {
+        lastInvalidate.current = invalidateKey
+        map.invalidateSize()
+      }
+    }
+
+    raf = requestAnimationFrame(fit)
+    return () => cancelAnimationFrame(raf)
+  }, [fitBounds, fitKey, invalidateKey, map])
+
+  useEffect(() => {
+    if (!flyTarget) return
+    const prev = lastTarget.current
+    if (prev && prev.lat === flyTarget.lat && prev.lng === flyTarget.lng) return
+    const size = map.getSize()
+    if (size.x < 2 || size.y < 2) return
+    lastTarget.current = flyTarget
+    map.flyTo([flyTarget.lat, flyTarget.lng], Math.max(map.getZoom(), 15), { duration: 0.7 })
+  }, [flyTarget, map])
+
+  return null
+}
+
+// Single shared Canvas renderer: leaflet redraws every vector layer (routes and
+// stop circles) on one <canvas>, which keeps pan/zoom smooth for the capped
+// budgets instead of creating thousands of SVG paths. Module-level so creating
+// it is a one-time import side effect, never a render-time mutation.
+const canvasRenderer = L.canvas({ padding: 0.5 })
+
+export default function TripMap(props: TripMapProps) {
+  const {
+    segments,
+    markers,
+    highlightedSegments,
+    selectedMarkerIndex,
+    onSelectMarker,
+    fitBounds,
+    fitKey,
+    invalidateKey,
+    flyTarget,
+  } = props
+
+  const positions = useMemo(
+    () =>
+      segments.map((segment) => {
+        const source = segment.path.length >= 2 ? segment.path : [segment.start, segment.end]
+        return source.map((point): LatLngExpression => [point.lat, point.lng])
+      }),
+    [segments],
+  )
+
+  const hasSelection = highlightedSegments.size > 0
+
+  // Canvas circles do not fire DOM hover events, so a selection's tooltip must
+  // be opened/closed imperatively instead of relying on mouseover.
+  const circles = useRef(new Map<number, LeafletCircleMarker>())
+  const lastOpened = useRef<LeafletCircleMarker | null>(null)
+  useEffect(() => {
+    lastOpened.current?.closeTooltip()
+    const next = selectedMarkerIndex === null ? null : (circles.current.get(selectedMarkerIndex) ?? null)
+    next?.openTooltip()
+    lastOpened.current = next
+  }, [selectedMarkerIndex])
+
+  return (
+    <MapContainer
+      className="trip-map"
+      center={[14, 112]}
+      zoom={5}
+      scrollWheelZoom
+      maxZoom={19}
+    >
+      <TileLayer
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution="&copy; OpenStreetMap contributors"
+      />
+      <FitController
+        fitBounds={fitBounds}
+        fitKey={fitKey}
+        invalidateKey={invalidateKey}
+        flyTarget={flyTarget}
+      />
+      {segments.map((segment, index) => {
+        const latLngs = positions[index]
+        if (latLngs.length < 2) return null
+        const highlighted = highlightedSegments.has(index)
+        const color = activityColor(segment.activityType)
+        return (
+          <Polyline
+            key={index}
+            positions={latLngs}
+            pathOptions={{
+              color,
+              weight: highlighted ? 5 : hasSelection ? 1.75 : 2.5,
+              opacity: highlighted ? 1 : hasSelection ? 0.22 : 0.72,
+            }}
+            renderer={canvasRenderer}
+          />
+        )
+      })}
+      {markers.map((visit, index) => {
+        const selected = selectedMarkerIndex === index
+        const title = visit.name ?? `${visit.lat.toFixed(5)}, ${visit.lng.toFixed(5)}`
+        return (
+<CircleMarker
+              key={index}
+              center={[visit.lat, visit.lng]}
+              radius={selected ? 9 : 6}
+              pathOptions={{
+                color: '#fff',
+                weight: 1.5,
+                fillColor: selected ? '#f87171' : '#3b82f6',
+                fillOpacity: selected ? 1 : 0.75,
+                opacity: 0.95,
+              }}
+              renderer={canvasRenderer}
+              eventHandlers={{ click: () => onSelectMarker(index, visit) }}
+              ref={(el) => {
+                if (el) circles.current.set(index, el)
+              }}
+            >
+            <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip" permanent={selected}>
+              <span className="trip-tip-title">{title}</span>
+              {visit.address !== undefined && <span className="trip-tip-addr">{visit.address}</span>}
+              <span className="trip-tip-meta">
+                {fmtDateTime(visit.startMs)} · {fmtDuration(visit.endMs - visit.startMs)}
+              </span>
+            </Tooltip>
+          </CircleMarker>
+        )
+      })}
+    </MapContainer>
+  )
+}

@@ -1,0 +1,54 @@
+// Sidebar stop list for the Trips view: the currently-filtered stops in
+// newest-first order. Clicking an item pans the map to that stop and highlights
+// the surrounding day's routes (handled by the parent).
+import type { Visit } from '../lib/types'
+import { fmtDateTime, fmtDuration } from '../lib/trips'
+
+export interface StopListProps {
+  visits: readonly Visit[]
+  limit: number
+  selectedVisitIndex: number | null
+  onSelect: (index: number, visit: Visit) => void
+}
+
+export default function StopList({ visits, limit, selectedVisitIndex, onSelect }: StopListProps) {
+  const shown = visits.slice(0, limit)
+  const hidden = visits.length - shown.length
+
+  return (
+    <div className="stop-list">
+      <div className="stop-list-head">停留点（{visits.length}）</div>
+      {shown.length === 0 ? (
+        <div className="stop-list-empty">该日期范围内没有停留点，换个日期试试</div>
+      ) : (
+        <ul className="stop-list-items">
+          {shown.map((visit, index) => {
+            const selected = selectedVisitIndex === index
+            const title = visit.name ?? `${visit.lat.toFixed(4)}, ${visit.lng.toFixed(4)}`
+            return (
+              <li key={index}>
+                <button
+                  type="button"
+                  className={selected ? 'stop-item selected' : 'stop-item'}
+                  onClick={() => onSelect(index, visit)}
+                >
+                  <span className="stop-name">{title}</span>
+                  {visit.address !== undefined && <span className="stop-address">{visit.address}</span>}
+                  <span className="stop-meta">
+                    {fmtDateTime(visit.startMs)} → {fmtDateTime(visit.endMs)} ·{' '}
+                    {fmtDuration(visit.endMs - visit.startMs)}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {hidden > 0 && (
+        <div className="stop-list-more">
+          列表仅显示前 {shown.length} 条，还有 {hidden} 条 — 请缩小日期范围
+        </div>
+      )}
+    </div>
+  )
+}

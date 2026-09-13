@@ -95,6 +95,324 @@ body {
   padding: 40px 20px;
 }
 
+/* Map-heavy app pages break out of the constrained column and fill the viewport. */
+.app-main--app {
+  max-width: none;
+  padding: 0;
+  height: calc(100vh - var(--header-height));
+  overflow: hidden;
+}
+
+/* --- Trips view ---------------------------------------------------------- */
+
+.trips-shell {
+  display: flex;
+  flex-direction: column;
+  /* Anchor to the viewport directly: the app <main> is a stretched flex item
+     (flex-basis: 0%) whose height tracks content, so height: 100% would
+     resolve to the full sidebar content height, blowing up the map canvas. */
+  height: calc(100vh - var(--header-height));
+}
+
+.trips-topbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.trips-title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.trips-summary {
+  color: var(--color-text-dim);
+  font-size: 13px;
+}
+
+.trips-note {
+  font-size: 12px;
+  color: #fcd34d;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.trips-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.chip i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.trips-toggle {
+  margin-left: auto;
+  background: transparent;
+  color: var(--color-text-dim);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.trips-toggle:hover {
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.trips-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.trips-side {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.trips-map-wrap {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+.trip-map {
+  height: 100%;
+  width: 100%;
+  background: #13161c;
+}
+
+.trips-empty {
+  position: absolute;
+  z-index: 700;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 8px 16px;
+  border-radius: 8px;
+  color: var(--color-text-dim);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+/* Date range picker */
+.drp {
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.drp-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.drp-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.drp-preset {
+  background: transparent;
+  color: var(--color-text-dim);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.drp-preset:hover {
+  color: var(--color-text);
+  background: var(--color-border);
+}
+
+.drp-preset.active {
+  color: #fff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.drp-fields {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.drp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.drp-field span {
+  font-size: 11px;
+  color: var(--color-text-dim);
+}
+
+.drp-field input {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.drp-field input::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
+.drp-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--color-text-dim);
+}
+
+/* Stop list */
+.stop-list {
+  padding: 14px;
+  min-height: 0;
+}
+
+.stop-list-head {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.stop-list-empty {
+  font-size: 12px;
+  color: var(--color-text-dim);
+  text-align: center;
+  padding: 24px 8px;
+}
+
+.stop-list-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stop-item {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.stop-item:hover {
+  background: var(--color-bg);
+}
+
+.stop-item.selected {
+  border-color: var(--color-accent);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.stop-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stop-address {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stop-meta {
+  font-size: 11px;
+  color: var(--color-text-dim);
+}
+
+.stop-list-more {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--color-text-dim);
+}
+
+/* Map tooltip */
+.trip-tooltip {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.trip-tip-title {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.trip-tip-addr {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-dim);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-tip-meta {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-dim);
+  margin-top: 2px;
+}
+
 .page h1,
 .page h2 {
   margin-top: 0;

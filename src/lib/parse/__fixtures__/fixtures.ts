@@ -115,3 +115,48 @@ export const FIXTURE_RECORDS_EMPTY_SEGMENTS = JSON.stringify({
 export const FIXTURE_EMPTY_OBJECT = '{}'
 export const FIXTURE_EMPTY_ARRAY = '[]'
 export const FIXTURE_EMPTY_LOCATIONS = JSON.stringify({ locations: [] })
+
+/**
+ * Format-1 variant from the 2026+ Android/iOS device export: a top-level
+ * object whose `semanticSegments` items are flat `visit` / `activity` /
+ * `timelinePath` records. Coordinates use the "lat°, lng°" string spelling.
+ */
+export const FIXTURE_DEVICE_EXPORT_2026 = JSON.stringify({
+  semanticSegments: [
+    {
+      startTime: '2012-12-30T15:15:50.000+08:00',
+      endTime: '2012-12-30T20:48:23.000+08:00',
+      startTimeTimezoneUtcOffsetMinutes: 480,
+      endTimeTimezoneUtcOffsetMinutes: 480,
+      visit: {
+        hierarchyLevel: 0,
+        probability: 0.86,
+        topCandidate: {
+          placeId: 'ChIJ-TqqarRsOzIRqQZVixuJl8M',
+          semanticType: 'UNKNOWN',
+          placeLocation: { latLng: '6.060128°, 116.155137°' },
+        },
+      },
+    },
+    {
+      startTime: '2013-01-02T00:57:04.000+08:00',
+      endTime: '2013-01-02T09:35:40.000+08:00',
+      startTimeTimezoneUtcOffsetMinutes: 480,
+      endTimeTimezoneUtcOffsetMinutes: 480,
+      activity: {
+        distanceMeters: 12812,
+        end: { latLng: '5.9616525°, 116.0972516°' },
+        start: { latLng: '6.0611445°, 116.1556962°' },
+        topCandidate: { type: 'IN_PASSENGER_VEHICLE', probability: 0 },
+      },
+    },
+    {
+      startTime: '2013-01-02T09:35:40.000+08:00',
+      endTime: '2013-01-02T10:00:00.000+08:00',
+      timelinePath: [
+        { point: '6.0611385°, 116.1557205°', time: '2013-01-02T09:40:00.000+08:00' },
+        { point: '6.0100000°, 116.1200000°', time: '2013-01-02T09:50:00.000+08:00' },
+      ],
+    },
+  ],
+})

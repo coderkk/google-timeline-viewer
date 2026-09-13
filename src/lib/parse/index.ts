@@ -58,6 +58,10 @@ export function parseTimelineFile(name: string, text: string): ParseResult {
       warnings.push(`${ctx(name)}: 数据为空或不可识别`)
     } else if (Array.isArray(record['timelineObjects'])) {
       parseFormat3(root, state, ctx(name))
+    } else if (Array.isArray(record['semanticSegments'])) {
+      // Format 1 also ships as a plain object whose semanticSegments array is
+      // the top-level element list ({ semanticSegments, rawSignals, ... }).
+      parseFormat1(record['semanticSegments'], state, ctx(name))
     } else if (Array.isArray(record['locations'])) {
       if (Array.isArray(record['activitySegments']) || Array.isArray(record['savedPlaces'])) {
         parseFormat2(root, state, ctx(name))
