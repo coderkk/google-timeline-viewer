@@ -11,8 +11,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import L from 'leaflet'
 import type { Circle as LeafletCircle } from 'leaflet'
-import { Circle, CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet'
-import { fmtDateTime, fmtDuration } from '../lib/trips'
+import { Circle, CircleMarker, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
 import type { Point, Visit } from '../lib/types'
 import { useTimelineStore } from '../store/timelineStore'
 
@@ -140,11 +139,12 @@ export interface PlacesMapProps {
   center: Point | null
   radiusKm: number
   selected: Visit | null
+  visits: Visit[]
   onPick: (point: Point) => void
   invalidateKey: string
 }
 
-export default function PlacesMap({ center, radiusKm, selected, onPick, invalidateKey }: PlacesMapProps) {
+export default function PlacesMap({ center, radiusKm, selected, visits, onPick, invalidateKey }: PlacesMapProps) {
   const tileSource = useTimelineStore((state) => state.tileSource)
   return (
     <MapContainer className="trip-map" center={[14, 112]} zoom={5} scrollWheelZoom maxZoom={19}>
@@ -152,6 +152,20 @@ export default function PlacesMap({ center, radiusKm, selected, onPick, invalida
       <ClickController onPick={onPick} />
       <InvalidateController invalidateKey={invalidateKey} />
       {center && <RadiusCircle center={center} radiusKm={radiusKm} />}
+      {visits.map((visit, i) => (
+        <CircleMarker
+          key={`visit-${visit.lat}-${visit.lng}-${visit.startMs}-${i}`}
+          center={[visit.lat, visit.lng]}
+          radius={7}
+          pathOptions={{
+            color: '#fff',
+            weight: 2,
+            fillColor: PLACES_RING_COLOR,
+            fillOpacity: 1,
+            opacity: 1,
+          }}
+        />
+      ))}
       {center && (
         <Marker
           key={`click-${center.lat}-${center.lng}`}
@@ -163,29 +177,6 @@ export default function PlacesMap({ center, radiusKm, selected, onPick, invalida
             iconAnchor: [7, 7],
           })}
         />
-      )}
-      {selected && (
-        <CircleMarker
-          key={`${selected.lat}-${selected.lng}-${selected.startMs}`}
-          center={[selected.lat, selected.lng]}
-          radius={9}
-          pathOptions={{
-            color: '#fff',
-            weight: 2,
-            fillColor: PLACES_RING_COLOR,
-            fillOpacity: 1,
-            opacity: 1,
-          }}
-        >
-          <Tooltip permanent direction="top" offset={[0, -6]} className="trip-tooltip">
-            <span className="trip-tip-title">
-              {selected.name ?? `${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}`}
-            </span>
-            <span className="trip-tip-meta">
-              {fmtDateTime(selected.startMs)} · {fmtDuration(selected.endMs - selected.startMs)}
-            </span>
-          </Tooltip>
-        </CircleMarker>
       )}
       <FlyController selected={selected} />
     </MapContainer>

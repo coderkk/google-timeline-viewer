@@ -112,6 +112,7 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
         center={center}
         radiusKm={radiusKm}
         selected={selected}
+        visits={results.map((r) => r.record)}
         onPick={handlePick}
         invalidateKey={sidebarOpen ? 'open' : 'collapsed'}
       />
