@@ -1,0 +1,177 @@
+// Leaflet map for the Places view: a clean, marker-free base layer. Clicking
+// anywhere records the pick point and draws a semi-transparent radius ring
+// showing the active query scope; the ring is auto-fitted so the whole circle
+// stays on screen. Clicking an entry in the result list flies the camera onto
+// that stop and drops a temporary highlight marker, which survives until the
+// next map click. Delta-versus-Trips styling: the ring and highlight use amber
+// (#f59e0b) instead of the blue stop palette.
+import { useCallback, useEffect, useRef } from 'react'
+import L from 'leaflet'
+import type { Circle as LeafletCircle } from 'leaflet'
+import { Circle, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { fmtDateTime, fmtDuration } from '../lib/trips'
+import type { Point, Visit } from '../lib/types'
+
+export const PLACES_RING_COLOR = '#f59e0b'
+
+interface ClickControllerProps {
+  onPick: (point: Point) => void
+}
+
+// Single listener bound to the map instance. Leaflet only fires `click` for
+// plain clicks (drag gestures are suppressed internally), so picking needs no
+// per-layer handlers.
+function ClickController({ onPick }: ClickControllerProps) {
+  const map = useMap()
+  const handler = useCallback(
+    (event: L.LeafletMouseEvent) => onPick({ lat: event.latlng.lat, lng: event.latlng.lng }),
+    [onPick],
+  )
+  useEffect(() => {
+    map.on('click', handler)
+    return () => {
+      map.off('click', handler)
+    }
+  }, [map, handler])
+  return null
+}
+
+interface RadiusCircleProps {
+  center: Point
+  radiusKm: number
+}
+
+// Rings the current query scope and re-fits the viewport so the circle stays
+// whole whenever the center or the radius band changes. The ref callback stores
+// the Leaflet circle instance; fitting is deferred behind a rAF so the ring's
+// geometry is refreshed before `getBounds()` reads it.
+function RadiusCircle({ center, radiusKm }: RadiusCircleProps) {
+  const map = useMap()
+  const circleRef = useRef<LeafletCircle | null>(null)
+  const setCircleRef = useCallback((instance: LeafletCircle | null) => {
+    circleRef.current = instance
+  }, [])
+
+  useEffect(() => {
+    let attempts = 0
+    let raf = 0
+    const fit = () => {
+      const circle = circleRef.current
+      const size = map.getSize()
+      if ((!circle || size.x < 2 || size.y < 2) && attempts++ < 120) {
+        raf = requestAnimationFrame(fit)
+        return
+      }
+      if (circle) map.fitBounds(circle.getBounds(), { padding: [40, 40], animate: true })
+    }
+    raf = requestAnimationFrame(fit)
+    return () => cancelAnimationFrame(raf)
+  }, [center, radiusKm, map])
+
+  return (
+    <Circle
+      center={[center.lat, center.lng]}
+      radius={radiusKm * 1000}
+      pathOptions={{
+        color: PLACES_RING_COLOR,
+        weight: 2,
+        opacity: 0.85,
+        fillColor: PLACES_RING_COLOR,
+        fillOpacity: 0.07,
+      }}
+      ref={setCircleRef}
+    />
+  )
+}
+
+interface FlyControllerProps {
+  selected: Visit | null
+}
+
+// Flies the camera onto the selected result stop once per selection change.
+function FlyController({ selected }: FlyControllerProps) {
+  const map = useMap()
+  const lastTarget = useRef<Visit | null>(null)
+
+  useEffect(() => {
+    if (!selected) {
+      lastTarget.current = null
+      return
+    }
+    const prev = lastTarget.current
+    if (prev && prev.lat === selected.lat && prev.lng === selected.lng && prev.startMs === selected.startMs) {
+      return
+    }
+    lastTarget.current = selected
+    const size = map.getSize()
+    if (size.x < 2 || size.y < 2) return
+    map.flyTo([selected.lat, selected.lng], Math.max(map.getZoom(), 14), { duration: 0.7 })
+  }, [selected, map])
+
+  return null
+}
+
+interface InvalidateControllerProps {
+  invalidateKey: string
+}
+
+// Re-layouts the map when the sidebar collapses/expands so tiles render at the
+// correct size.
+function InvalidateController({ invalidateKey }: InvalidateControllerProps) {
+  const map = useMap()
+  const lastKey = useRef<string>(invalidateKey)
+
+  useEffect(() => {
+    if (lastKey.current === invalidateKey) return
+    lastKey.current = invalidateKey
+    requestAnimationFrame(() => map.invalidateSize())
+  }, [invalidateKey, map])
+
+  return null
+}
+
+export interface PlacesMapProps {
+  center: Point | null
+  radiusKm: number
+  selected: Visit | null
+  onPick: (point: Point) => void
+  invalidateKey: string
+}
+
+export default function PlacesMap({ center, radiusKm, selected, onPick, invalidateKey }: PlacesMapProps) {
+  return (
+    <MapContainer className="trip-map" center={[14, 112]} zoom={5} scrollWheelZoom maxZoom={19}>
+      <TileLayer
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution="&copy; OpenStreetMap contributors"
+      />
+      <ClickController onPick={onPick} />
+      <InvalidateController invalidateKey={invalidateKey} />
+      {center && <RadiusCircle center={center} radiusKm={radiusKm} />}
+      {selected && (
+        <CircleMarker
+          key={`${selected.lat}-${selected.lng}-${selected.startMs}`}
+          center={[selected.lat, selected.lng]}
+          radius={9}
+          pathOptions={{
+            color: '#fff',
+            weight: 2,
+            fillColor: PLACES_RING_COLOR,
+            fillOpacity: 1,
+            opacity: 1,
+          }}
+        >
+          <Tooltip permanent direction="top" offset={[0, -6]} className="trip-tooltip">
+            <span className="trip-tip-title">
+              {selected.name ?? `${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}`}
+            </span>
+            <span className="trip-tip-meta">
+              {fmtDateTime(selected.startMs)} · {fmtDuration(selected.endMs - selected.startMs)}
+            </span>
+          </Tooltip>
+        </CircleMarker>
+      )}
+      <FlyController selected={selected} />
+    </MapContainer>
+  )
+}

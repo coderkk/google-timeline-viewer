@@ -383,6 +383,82 @@ body {
   color: var(--color-text-dim);
 }
 
+/* --- Places view --------------------------------------------------------- */
+
+.places-help {
+  font-size: 12px;
+  color: var(--color-text-dim);
+  line-height: 1.6;
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.places-controls {
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.places-radii {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.places-radius {
+  background: transparent;
+  color: var(--color-text-dim);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.places-radius:hover {
+  color: var(--color-text);
+  background: var(--color-border);
+}
+
+.places-radius.active {
+  color: #fff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.places-card {
+  padding: 14px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.places-card-coord {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.places-card-count {
+  font-size: 12px;
+  color: var(--color-text-dim);
+}
+
+.places-overlay {
+  position: absolute;
+  z-index: 700;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 8px 16px;
+  border-radius: 8px;
+  color: var(--color-text-dim);
+  font-size: 13px;
+  pointer-events: none;
+}
+
 /* Map tooltip */
 .trip-tooltip {
   background: var(--color-surface);
