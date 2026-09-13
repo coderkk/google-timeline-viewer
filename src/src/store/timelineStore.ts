@@ -10,6 +10,7 @@ import type { TimelineData } from '../lib/types'
 
 export type DataSource = 'none' | 'user' | 'sample'
 export type TimelineStatus = 'empty' | 'parsing' | 'ready' | 'error'
+export type ThemeMode = 'system' | 'light' | 'dark'
 
 export interface DateRange {
   startMs: number | null
@@ -40,6 +41,7 @@ interface TimelineStore {
   parseProgress: number
   dateRange: DateRange
   tileSource: TileSource
+  themeMode: ThemeMode
   importFiles: (files: File[]) => void
   loadSample: () => Promise<boolean>
   clearData: () => void
@@ -47,6 +49,7 @@ interface TimelineStore {
   resetDateRange: () => void
   setTileSource: (url: string, attribution?: string) => void
   resetTileSource: () => void
+  setThemeMode: (mode: ThemeMode) => void
 }
 
 function parseErrorMessage(err: unknown): string {
@@ -66,6 +69,7 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   parseProgress: 0,
   dateRange: RESET_RANGE,
   tileSource: OSM_TILE_SOURCE,
+  themeMode: 'system',
 
   importFiles: (files) => {
     if (files.length === 0) return
@@ -159,4 +163,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
     }),
 
   resetTileSource: () => set({ tileSource: OSM_TILE_SOURCE }),
+
+  setThemeMode: (mode) => set({ themeMode: mode }),
 }))

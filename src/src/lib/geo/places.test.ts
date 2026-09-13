@@ -12,8 +12,8 @@ describe('places helpers', () => {
     expect(fmtDistanceKm(Number.NaN)).toBe('—')
   })
 
-  it('exposes the four radius bands and the result cap', () => {
-    expect(PLACE_RADII_KM).toEqual([10, 100, 1000, 5000])
+  it('exposes the five radius bands and the result cap', () => {
+    expect(PLACE_RADII_KM).toEqual([1, 5, 10, 50, 100])
     expect(PLACES_RESULT_LIMIT).toBe(200)
   })
 })

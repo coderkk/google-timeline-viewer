@@ -1,7 +1,7 @@
 // Constants and small helpers shared by the Places view. Radius bands are the
-// product spec's four click-to-explore scopes; the result list is capped to
+// product spec's five click-to-explore scopes; the result list is capped to
 // keep the sidebar light on decade-spanning datasets.
-export const PLACE_RADII_KM = [10, 100, 1000, 5000] as const
+export const PLACE_RADII_KM = [1, 5, 10, 50, 100] as const
 
 /** Maximum number of result list entries rendered for one query. */
 export const PLACES_RESULT_LIMIT = 200

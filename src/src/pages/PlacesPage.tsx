@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import DateRangePicker from '../components/DateRangePicker'
 import PlacesMap from '../components/PlacesMap'
 import { SpatialGrid, type CircleHit } from '../lib/geo/SpatialGrid'
 import { fmtDistanceKm, PLACE_RADII_KM, PLACES_RESULT_LIMIT } from '../lib/geo/places'
@@ -119,9 +120,11 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
 
   const sidebar = (
     <aside className="trips-side">
+      <DateRangePicker />
       <div className="places-help">点击地图任意位置，查看该处历史上的停留点及访问时间。</div>
       <div className="places-controls">
         <div className="stop-list-head">查询半径</div>
+        <div className="places-radii-label">1–100 KM</div>
         <div className="places-radii">
           {PLACE_RADII_KM.map((radius) => (
             <button
@@ -130,7 +133,7 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
               className={radius === radiusKm ? 'places-radius active' : 'places-radius'}
               onClick={() => setRadiusKm(radius)}
             >
-              {radius} km
+              {radius}
             </button>
           ))}
         </div>
@@ -198,7 +201,7 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
         <h2 className="trips-title">Places</h2>
         {dataSource === 'sample' && <span className="badge-sample">{SAMPLE_LABEL}</span>}
         <span className="trips-summary">
-          {grid.recordCount} 停留（总 {data.meta.visitCount}）· 当前半径 {radiusKm} km
+          {grid.recordCount} 停留（总 {data.meta.visitCount}）· 当前半径 {radiusKm} km · 1–100 KM 可选
         </span>
         <span className="trips-legend">
           <span className="chip">

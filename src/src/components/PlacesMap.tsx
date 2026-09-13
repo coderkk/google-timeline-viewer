@@ -5,15 +5,20 @@
 // that stop and drops a temporary highlight marker, which survives until the
 // next map click. Delta-versus-Trips styling: the ring and highlight use amber
 // (#f59e0b) instead of the blue stop palette.
+//
+// T12.4: Click point uses a prominent L.marker (accent color), surrounding
+// stops use L.circleMarker (default dim color) for visual hierarchy.
 import { useCallback, useEffect, useRef } from 'react'
 import L from 'leaflet'
 import type { Circle as LeafletCircle } from 'leaflet'
-import { Circle, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { Circle, CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { fmtDateTime, fmtDuration } from '../lib/trips'
 import type { Point, Visit } from '../lib/types'
 import { useTimelineStore } from '../store/timelineStore'
 
 export const PLACES_RING_COLOR = '#f59e0b'
+export const PLACES_CLICK_MARKER_COLOR = '#3b82f6'
+export const PLACES_STOP_MARKER_COLOR = '#94a3b8'
 
 interface ClickControllerProps {
   onPick: (point: Point) => void
@@ -147,6 +152,18 @@ export default function PlacesMap({ center, radiusKm, selected, onPick, invalida
       <ClickController onPick={onPick} />
       <InvalidateController invalidateKey={invalidateKey} />
       {center && <RadiusCircle center={center} radiusKm={radiusKm} />}
+      {center && (
+        <Marker
+          key={`click-${center.lat}-${center.lng}`}
+          position={[center.lat, center.lng]}
+          icon={L.divIcon({
+            className: 'places-click-marker',
+            html: `<div style="background:${PLACES_CLICK_MARKER_COLOR};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+          })}
+        />
+      )}
       {selected && (
         <CircleMarker
           key={`${selected.lat}-${selected.lng}-${selected.startMs}`}

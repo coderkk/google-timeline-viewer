@@ -68,7 +68,7 @@ export default function Landing() {
           <div className="feature-card">
             <p className="fc-tag">Places</p>
             <h3>点击地图，查访历史</h3>
-            <p>地图上任意点一下，10–5000KM 半径内自动列出所有历史停留点——哪个商圈、到过哪些地方，一次看个明白。</p>
+            <p>地图上任意点一下，1–100KM 半径内自动列出所有历史停留点——哪个商圈、到过哪些地方，一次看个明白。</p>
           </div>
           <div className="feature-card">
             <p className="fc-tag">Privacy</p>

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import RouterBridge from './components/RouterBridge'
@@ -6,8 +7,20 @@ import TripsPage from './pages/TripsPage'
 import PlacesPage from './pages/PlacesPage'
 import HelpPage from './pages/HelpPage'
 import SettingsPage from './pages/SettingsPage'
+import { useTimelineStore } from './store/timelineStore'
 
 export default function App() {
+  const themeMode = useTimelineStore((state) => state.themeMode)
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (themeMode === 'system') {
+      root.removeAttribute('data-theme')
+    } else {
+      root.setAttribute('data-theme', themeMode)
+    }
+  }, [themeMode])
+
   return (
     <>
       <RouterBridge />

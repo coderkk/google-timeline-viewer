@@ -4,6 +4,8 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
+- [x] ~~T12: 产品改动（改名 + Theme + 半径档位 + marker 颜色）~~ (09-13→09-13) — 改名 Timeline Map + Theme Light/Dark/System + 半径 1/5/10/50/100 KM + Places marker 颜色区分 + Places 日期筛选；63 单测 + build + lint 全过
+
 ## 📋 To Do
 
 ## ⏸ KIV
@@ -19,6 +21,7 @@
 - [ ] [P2] 行程分享/导出（GeoJSON/KML）— （→ PRD 不做）(09-13)
 - [ ] [P2] 跨设备多 Takeout 合并去重 — （→ PRD 不做）(09-13)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
+- [ ] [P2] 多语言（英文为主，可换中文）— 需要 i18n 依赖，v2 加入（→ PRD 约束）(09-13)
 
 ## ✅ Done
 

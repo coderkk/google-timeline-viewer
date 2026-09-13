@@ -1,4 +1,4 @@
-export const SITE_NAME = 'GT Viewer'
+export const SITE_NAME = 'Timeline Map'
 
 export const SITE_TAGLINE = 'Google Timeline 位置历史本地查看器'
 

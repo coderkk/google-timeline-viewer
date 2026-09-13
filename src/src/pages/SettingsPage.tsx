@@ -1,10 +1,10 @@
-// Settings panel: choose a map tile source (default OpenStreetMap) and read the
-// privacy statement. Everything here is in-memory only — the tile selection and
-// any imported data vanish on refresh, matching the product's no-persistence
-// guarantee (no localStorage / IndexedDB, no analytics or telemetry SDKs).
+// Settings panel: choose a map tile source (default OpenStreetMap), switch
+// theme (light/dark/system), and read the privacy statement. Everything here is
+// in-memory only — the tile selection and any imported data vanish on refresh,
+// matching the product's no-persistence guarantee.
 import { useState } from 'react'
 import { CUSTOM_TILE_NANE, OSM_TILE_URL, tileUrlError, tileUrlNotes } from '../lib/tiles'
-import { useTimelineStore } from '../store/timelineStore'
+import { type ThemeMode, useTimelineStore } from '../store/timelineStore'
 
 const TILE_PLACEHOLDER = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 
@@ -12,6 +12,8 @@ export default function SettingsPage() {
   const tileSource = useTimelineStore((state) => state.tileSource)
   const setTileSource = useTimelineStore((state) => state.setTileSource)
   const resetTileSource = useTimelineStore((state) => state.resetTileSource)
+  const themeMode = useTimelineStore((state) => state.themeMode)
+  const setThemeMode = useTimelineStore((state) => state.setThemeMode)
 
   // Local draft so the store only changes on an explicit apply; typing stays
   // cheap and invalid text never enters the store.
@@ -39,12 +41,34 @@ export default function SettingsPage() {
     setDraft(OSM_TILE_URL)
   }
 
+  const themeOptions: { value: ThemeMode; label: string }[] = [
+    { value: 'system', label: '跟随系统' },
+    { value: 'light', label: '浅色' },
+    { value: 'dark', label: '深色' },
+  ]
+
   return (
     <section className="page settings-page">
       <h1>设置</h1>
       <p className="settings-lead">
-        地图瓦片源选择与隐私说明。所有设置仅保存在当前页面的内存里，刷新页面即恢复默认。
+        地图瓦片源选择、主题切换与隐私说明。所有设置仅保存在当前页面的内存里，刷新页面即恢复默认。
       </p>
+
+      <section className="settings-section">
+        <h2>主题</h2>
+        <div className="theme-selector">
+          {themeOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`theme-btn ${themeMode === option.value ? 'theme-btn-active' : ''}`}
+              onClick={() => setThemeMode(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section className="settings-section">
         <h2>地图瓦片源</h2>
