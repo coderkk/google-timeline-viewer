@@ -4,35 +4,16 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T7: Landing 首页 + OPC 3.0 展示**
-  - 验收: 首页完整：产品介绍/亮点/立即体验（跳转 + 载入示例）/隐私承诺/技术栈/教程入口/Built with OPC 3.0 section；Footer "Created by OPC 3.0" 可点击
-  - 指派: Dev
-  - 来源: PRD#功能7
-  - 时间: 09-13 创建 → 09-13 Doing
-  - 子任务:
-    - [ ] T7.1 Landing 页面结构与文案 — Dev
-    - [ ] T7.2 Built with OPC 3.0 section + Footer 品牌链接 — Dev
-    - [ ] T7.3 「立即体验」按钮（跳工具 + 载入示例数据联动） — Dev
-
-- [ ] **T8: 导出教程页**
-  - 验收: Android/iOS 导出步骤图文完整；新旧格式说明 + FAQ；页面常驻入口可达
-  - 指派: Dev
-  - 来源: PRD#功能6
-  - 时间: 09-13 创建 → 09-13 Doing
-  - 子任务:
-    - [ ] T8.1 教程页内容 + 分步展示组件 — Dev
-    - [ ] T8.2 FAQ 折叠组件 — Dev
-
-## 📋 To Do
-
 - [ ] **T9: 隐私与瓦片源设置**
   - 验收: 无任何分析 SDK；数据不落盘；瓦片源默认 OSM、可自定义 URL，选项旁隐私明示
   - 指派: Dev
   - 来源: PRD#功能5
-  - 时间: 09-13 创建
+  - 时间: 09-13 创建 → 09-13 Doing
   - 子任务:
-    - [ ] T9.1 设置面板：瓦片源自定义（URL 输入 + 恢复默认）+ 隐私说明文案 — Dev
+    - [x] T9.1 设置面板：瓦片源自定义（URL 输入 + 恢复默认）+ 隐私说明文案 — Dev
     - [ ] T9.2 安全审查（数据生命周期 / 瓦片请求隐私） — Security Engineer
+
+## 📋 To Do
 
 - [ ] **T10: 部署 + 项目文档**
   - 验收: GitHub Pages 可访问；README 完整（简介/截图/用法/格式支持/隐私声明/OPC 3.0 说明）；构建通过
@@ -75,5 +56,7 @@
 - [x] ~~T4: 导入集成 + 空状态首屏 + 全局状态~~ (09-13→09-13) — store（导入/示例/大文件确认/日期范围）+ 空状态页 + 拖拽导入面板；浏览器实测通过；22 单测全绿
 - [x] ~~T5: Trips 视图（行程轨迹）~~ (09-13→09-13) — 日期范围选择器（三快捷档 + 单边日）全接入 store；路径绘制（waypointPath polyline 按交通方式着色 + 时长 tooltip）；三层降采样/上限（段 12000 / 点 30000 抽稀 / 标记 4000 / 列表 500，超限显示降采样提示）；轨迹 ↔ 停留点双向联动；map 容器高度锚定 viewport 修复超长 canvas 崩溃；40 单测 + build + lint 全过；playwright 实测含 123.4MB 真实导出
 - [x] ~~T6: Places 视图（地图点击查访）~~ (09-13→09-13) — SpatialGrid(1°×1° bbox+haversine)+4 档半径圆+自动 zoom+点击浮层+结果定位高亮；50 单测+build+lint 全过；真实数据 37287 停留：10km→11 / 100km→30 / 1000km→38 / 5000km→37287，查询 0.2-21ms；Design QA 并入 T11
+- [x] ~~T7: Landing 首页 + OPC 3.0 展示~~ (09-13→09-13) — Hero+痛点→方案+3 功能卡+隐私承诺+技术栈；Built with OPC 3.0 section（AI 流程叙事，无内部角色术语）+ Footer 品牌可点击锚点；「立即体验」→ loadSample 双 CTA；playwright 实测通过
+- [x] ~~T8: 导出教程页~~ (09-13→09-13) — Android(系统设置 6 步)/iOS(Maps App 6 步)+4 格式说明+FAQ 折叠(aria-expanded)+体验示例 CTA；实测与 50 用例全过
 
 ## ❌ Cancelled

@@ -929,6 +929,152 @@ code {
   text-align: center;
 }
 
+/* --- Settings page ------------------------------------------------------- */
+
+.settings-page {
+  max-width: 780px;
+}
+
+.settings-page h1 {
+  font-size: 32px;
+}
+
+.settings-lead {
+  color: var(--color-text-dim);
+  font-size: 16px;
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+
+.settings-section {
+  margin: 40px 0;
+}
+
+.settings-section h2 {
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+
+.settings-hint {
+  color: var(--color-text-dim);
+  font-size: 14px;
+  margin: 4px 0 18px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-hint strong {
+  color: var(--color-text);
+}
+
+.settings-custom-badge,
+.settings-default-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.settings-custom-badge {
+  color: #facc15;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+}
+
+.settings-default-badge {
+  color: var(--color-accent);
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.tile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.tile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tile-field > span {
+  font-size: 12px;
+  color: var(--color-text-dim);
+}
+
+.tile-field input {
+  width: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.tile-field input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.tile-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.tile-error {
+  margin: 12px 0 0;
+  color: #f87171;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tile-ok {
+  margin: 12px 0 0;
+  color: #34d399;
+  font-size: 13px;
+}
+
+.tile-note {
+  margin: 16px 0;
+  border-left: 3px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  padding: 10px 14px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  color: var(--color-text-dim);
+  line-height: 1.7;
+}
+
+.privacy-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 8px 20px;
+}
+
+.privacy-card ul {
+  margin: 12px 0;
+  padding-left: 20px;
+  color: var(--color-text-dim);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.privacy-card li {
+  margin: 4px 0;
+}
+
 @media (max-width: 860px) {
   .landing-hero h1 {
     font-size: 32px;

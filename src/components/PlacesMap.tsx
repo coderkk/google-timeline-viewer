@@ -11,6 +11,7 @@ import type { Circle as LeafletCircle } from 'leaflet'
 import { Circle, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { fmtDateTime, fmtDuration } from '../lib/trips'
 import type { Point, Visit } from '../lib/types'
+import { useTimelineStore } from '../store/timelineStore'
 
 export const PLACES_RING_COLOR = '#f59e0b'
 
@@ -139,12 +140,10 @@ export interface PlacesMapProps {
 }
 
 export default function PlacesMap({ center, radiusKm, selected, onPick, invalidateKey }: PlacesMapProps) {
+  const tileSource = useTimelineStore((state) => state.tileSource)
   return (
     <MapContainer className="trip-map" center={[14, 112]} zoom={5} scrollWheelZoom maxZoom={19}>
-      <TileLayer
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="&copy; OpenStreetMap contributors"
-      />
+      <TileLayer url={tileSource.url} attribution={tileSource.attribution} />
       <ClickController onPick={onPick} />
       <InvalidateController invalidateKey={invalidateKey} />
       {center && <RadiusCircle center={center} radiusKm={radiusKm} />}

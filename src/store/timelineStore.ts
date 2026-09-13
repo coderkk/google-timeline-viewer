@@ -4,6 +4,8 @@
 import { create } from 'zustand'
 import { loadSampleTimeline } from '../lib/sample'
 import { parseFilesInWorker } from '../lib/parse/worker'
+import type { TileSource } from '../lib/tiles'
+import { OSM_TILE_SOURCE } from '../lib/tiles'
 import type { TimelineData } from '../lib/types'
 
 export type DataSource = 'none' | 'user' | 'sample'
@@ -37,11 +39,14 @@ interface TimelineStore {
   errorMsg: string | null
   parseProgress: number
   dateRange: DateRange
+  tileSource: TileSource
   importFiles: (files: File[]) => void
   loadSample: () => Promise<boolean>
   clearData: () => void
   setDateRange: (startMs: number | null, endMs: number | null) => void
   resetDateRange: () => void
+  setTileSource: (url: string, attribution?: string) => void
+  resetTileSource: () => void
 }
 
 function parseErrorMessage(err: unknown): string {
@@ -60,6 +65,7 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   errorMsg: null,
   parseProgress: 0,
   dateRange: RESET_RANGE,
+  tileSource: OSM_TILE_SOURCE,
 
   importFiles: (files) => {
     if (files.length === 0) return
@@ -139,4 +145,18 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   setDateRange: (startMs, endMs) => set({ dateRange: { startMs, endMs } }),
 
   resetDateRange: () => set({ dateRange: RESET_RANGE }),
+
+  // Tile source is intentionally in-memory only: refreshing the page resets it
+  // to the OpenStreetMap default. Persisting it would require localStorage,
+  // which the product deliberately avoids for every piece of mutable state.
+  setTileSource: (url, attribution) =>
+    set({
+      tileSource: {
+        name: '自定义',
+        url: url.trim(),
+        attribution: attribution ?? '',
+      },
+    }),
+
+  resetTileSource: () => set({ tileSource: OSM_TILE_SOURCE }),
 }))

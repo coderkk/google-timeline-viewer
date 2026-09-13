@@ -12,6 +12,7 @@ import L from 'leaflet'
 import type { CircleMarker as LeafletCircleMarker } from 'leaflet'
 import type { Segment, Visit } from '../lib/types'
 import { activityColor, fmtDateTime, fmtDuration } from '../lib/trips'
+import { useTimelineStore } from '../store/timelineStore'
 
 type LatLngExpression = [number, number]
 export type LatLngBoundsMatrix = [[number, number], [number, number]]
@@ -119,6 +120,10 @@ export default function TripMap(props: TripMapProps) {
 
   const hasSelection = highlightedSegments.size > 0
 
+  // Read the active tile source from the store so settings changes apply to
+  // maps that are already open; a changed TileLayer url rebuilds the layer.
+  const tileSource = useTimelineStore((state) => state.tileSource)
+
   // Canvas circles do not fire DOM hover events, so a selection's tooltip must
   // be opened/closed imperatively instead of relying on mouseover.
   const circles = useRef(new Map<number, LeafletCircleMarker>())
@@ -138,10 +143,7 @@ export default function TripMap(props: TripMapProps) {
       scrollWheelZoom
       maxZoom={19}
     >
-      <TileLayer
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="&copy; OpenStreetMap contributors"
-      />
+      <TileLayer url={tileSource.url} attribution={tileSource.attribution} />
       <FitController
         fitBounds={fitBounds}
         fitKey={fitKey}
