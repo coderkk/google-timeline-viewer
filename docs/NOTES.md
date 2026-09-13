@@ -294,3 +294,14 @@ format3（Semantic Location History）两个兼容性缺口补齐（依据 commu
 
 ## 2026-09-14 07:56 — Dev
 Reviewer 一般项 1：`budgetRoutePoints` 预算上限可被击穿（Math.max(1, round(len*ratio)) 逐段 floor 1，12000 段×2 点 → 12000 > ROUTE_POINT_CAP）。修复：展平所有 path 点后整体 strideTake（保两端），总点数保证 ≤ cap；更新 docstring。新增回归测试（3000 段×2 点，断言输出 ≤5000）。test 97 passed / build ✅ / lint 0 error。
+
+## 2026-09-14 14:30 — CEO 验收 T13.3
+用户反馈 2026-01-30 移动点不够 + 路线点要显示。
+
+**根因（CEO 定位）**：Google timelinePath 是 2 小时窗口连续轨迹（平均 ~10 点），activity 是其中一段短途行程。旧 `findStitchCandidate` 要求 activity 端点≡trace 首末点 → 中途行程（约 64%，如 16:15-16:33 落在 16:00-18:00 trace 的第 0-4 点）缝合失败 path=0。另确认 2026-01-30 **无 rawSignals**（该导出仅 2026-07/08 有原始信号），轨迹只能靠 timelinePath。
+
+**修复**（33b2e13 + 918a57a）：
+- 改动 1：`findStitchCandidate` 改语义——trace 内找与 activity start/end 最近的点对（MAX_STITCH_DEG=0.02°），取子段 `slice(i,j+1)` 返回；i==j 拒绝单点退化；反向极端配对兼容；时间重叠闸门保留防跨时段误缝。16:15 实测 path=0 → **path=5**（精确 16:15→16:33），16:42 path=10（16:42→17:19），17:57 path=4。
+- 改动 2：`trips.ts:budgetRoutePoints` 拍平 path 点 + ROUTE_POINT_CAP=5000 整体 strideTake 保两端（严格 ≤cap，修复逐段 floor 击穿）；`TripMap.tsx` Polyline 之上、停留 marker 之下渲染 CircleMarker（radius 3 同色系，选中降透明度）；`TripsPage` 顶栏「显示/隐藏轨迹点」toggle 默认开。
+
+**验证**：97 tests（87 回归 + 9 缝合 + 1 预算）✅ / build ✅ / lint ✅。Reviewer 两轮：首轮通过（5 条一般/建议记录放行），预算上限一般项已由 918a57a 修复。已部署，线上 200。
