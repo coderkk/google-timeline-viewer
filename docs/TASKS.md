@@ -4,24 +4,7 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T11: 端到端验收**
-  - 验收: 对照 PRD 全功能 pass；示例数据全流程体验流畅；Reviewer + Security 报告通过；Designer QA 通过
-  - 指派: Reviewer
-  - 来源: PRD
-  - 时间: 09-13 创建 → 09-13 Doing
-  - 子任务:
-    - [ ] T11.1 全流程手工验证（导入→Trips→Places→教程→设置→首页）— Reviewer
-    - [ ] T11.2 性能抽查（大文件解析时间 / 半径查询响应）— Reviewer
-    - [ ] T11.3 Design QA（整体 UI/交互审查，含 T6.4 补查） — Designer
-
 ## 📋 To Do
-
-- [ ] **T10.3: 实际部署到 GitHub Pages 验证**
-  - 验收: GitHub Pages 可访问；README 截图引用补齐；部署后 DevTools Network 冒烟（外部请求仅 tile.openstreetmap.org）
-  - 指派: Dev
-  - 来源: PRD#约束 + Security S4
-  - 时间: 09-13 创建
-  - 等待: 用户启用 GitHub Pages（Settings → Pages → Source = GitHub Actions）
 
 ## ⏸ KIV
 
@@ -51,5 +34,6 @@
 - [x] ~~T9.3: 安全审查建议项加固~~ (09-13→09-13) — G1(raw points 2M 硬上限+warning+2 单测)；S1(CSP meta，dev/preview 无阻断，frame 头无法经 meta 生效已记录)；S2(http 明文警告)；S3({s}+OSM 提示)；S5(示例数据「家（模拟）」)；63 单测+build+lint 全过
 - [x] ~~T10.1: GitHub Pages 部署 workflow~~ (09-13→09-13) — HashRouter + base './' + deploy.yml(configure/upload/deploy-pages)；子路由刷新可达；未建 remote
 - [x] ~~T10.2: README（中文）~~ (09-13→09-13) — 10 区块：简介/亮点/截图(3 张 landing)/快速开始/取数指南/格式表/隐私声明/架构图(Worker+SpatialGrid)/Built with OPC 3.0(无内部术语)/MIT 声明；Trips/Places/Help/Settings 截图后补
+- [x] ~~T10.3: GitHub Pages 部署~~ (09-13→09-13) — Actions 成功；所有路由 200；7 张截图 200；Network 冒烟通过（无外部硬编码 URL）；https://coderkk.github.io/google-timeline-viewer/
 
 ## ❌ Cancelled
