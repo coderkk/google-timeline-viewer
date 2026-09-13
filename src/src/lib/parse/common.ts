@@ -7,6 +7,18 @@ import { e7ToLat, e7ToLng, toMs } from '../types'
 /** Upper bound on accumulated raw trajectory points (per file and merged). */
 export const MAX_RAW_POINTS = 2_000_000
 
+/**
+ * A coarse GPS trace: a flat `timelinePath` segment (2-hour buckets in the
+ * 2026+ device export) that carries polyline points but no activity label.
+ * The device export keeps the real trajectory here, while the matching
+ * `activity` record only has start/end coordinates.
+ */
+export interface TimelinePathCandidate {
+  startMs: number
+  endMs: number
+  points: Point[]
+}
+
 export interface ParseState {
   points: RawPoint[]
   visits: Visit[]
@@ -14,10 +26,16 @@ export interface ParseState {
   warnings: string[]
   /** Set once a truncation warning for the raw-point cap has been emitted. */
   rawTruncated: boolean
+  /**
+   * Coarse traces collected while parsing, kept roughly sorted by startMs
+   * (format-1 exports are time-ordered). Scanned when a path-less activity
+   * segment needs a polyline; see `stitchSegments`.
+   */
+  timelinePathPool: TimelinePathCandidate[]
 }
 
 export function createState(warnings: string[]): ParseState {
-  return { points: [], visits: [], segments: [], warnings, rawTruncated: false }
+  return { points: [], visits: [], segments: [], warnings, rawTruncated: false, timelinePathPool: [] }
 }
 
 export function emptyTimelineData(): TimelineData {
@@ -210,6 +228,81 @@ export function firstPath(segment: Record<string, unknown>, keys: string[]): Poi
   return []
 }
 
+// -- Timeline-path stitching -------------------------------------------------
+
+/** Max degrees of latitude/longitude drift allowed between an activity
+ * endpoint and the matched trace endpoint. ~0.02° ≈ 2 km. */
+const MAX_STITCH_DEG = 0.02
+
+function isNear(a: Point, b: Point): boolean {
+  return Math.abs(a.lat - b.lat) <= MAX_STITCH_DEG && Math.abs(a.lng - b.lng) <= MAX_STITCH_DEG
+}
+
+/** Overlap duration in ms; 0 when the windows do not intersect. */
+function overlapMs(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
+  return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart))
+}
+
+/**
+ * Pick the coarse trace that best describes a short candidate segment: its
+ * window must genuinely overlap the segment and both segment endpoints must
+ * sit near the trace's first/last points. The pool is sorted by startMs, so a
+ * binary search plus a bounded linear fan-out keeps this O(log n + overlap
+ * width) instead of a full scan (device exports can hold ~30k traces).
+ */
+export function findStitchCandidate(
+  segment: Pick<Segment, 'start' | 'end' | 'startMs' | 'endMs'>,
+  pool: TimelinePathCandidate[],
+): TimelinePathCandidate | null {
+  if (pool.length === 0) return null
+  let lo = 0
+  let hi = pool.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (pool[mid].startMs < segment.startMs) lo = mid + 1
+    else hi = mid
+  }
+  let best: TimelinePathCandidate | null = null
+  let bestOverlap = 0
+  const consider = (candidate: TimelinePathCandidate): void => {
+    const overlap = overlapMs(segment.startMs, segment.endMs, candidate.startMs, candidate.endMs)
+    if (overlap <= 0) return
+    const first = candidate.points[0]
+    const last = candidate.points[candidate.points.length - 1]
+    if (!isNear(segment.start, first) || !isNear(segment.end, last)) return
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap
+      best = candidate
+    }
+  }
+  // Traces starting before the segment can still reach into it; scan left while
+  // their windows are long enough (buckets here are near-contiguous, so the
+  // neighborhood stays small).
+  for (let i = lo - 1; i >= 0 && pool[i].endMs >= segment.startMs; i--) consider(pool[i])
+  // Traces starting at/after the segment only match while they begin before it
+  // ends (exact scan boundary given a startMs-sorted pool).
+  for (let i = lo; i < pool.length && pool[i].startMs <= segment.endMs; i++) consider(pool[i])
+  return best
+}
+
+/**
+ * Backfill polyline geometry for segments produced by short `activity`
+ * records (start/end coordinates but no path) using the covering coarse
+ * `timelinePath` trace. Runs as a final pass so a trace that appears *after*
+ * its activity in the export can still be matched; only touches segments that
+ * still have no path. The chosen trace's activity type is left untouched — the
+ * activity's own label (IN_BUS, WALKING, ...) stays authoritative.
+ */
+export function stitchSegments(state: ParseState): void {
+  if (state.timelinePathPool.length === 0) return
+  state.timelinePathPool.sort((a, b) => a.startMs - b.startMs)
+  for (const segment of state.segments) {
+    if (segment.path.length >= 2) continue
+    const candidate = findStitchCandidate(segment, state.timelinePathPool)
+    if (candidate) segment.path = candidate.points
+  }
+}
+
 /** Append a raw trajectory point, skipping records with missing fields. */
 export function addRawPoint(
   record: Record<string, unknown>,
@@ -305,6 +398,9 @@ export function addSegment(segmentObject: unknown, state: ParseState, ctx: strin
   const PATH_KEYS = ['timelinePath', 'waypointPath', 'path', 'simplifiedRawPath', 'transitPath']
   let path = firstPath(record, PATH_KEYS)
   if (path.length === 0) path = firstPath(activityRec ?? {}, PATH_KEYS)
+  const isTimelinePathTrace =
+    record['timelinePath'] !== undefined ||
+    (activityRec !== null && activityRec['timelinePath'] !== undefined)
   const effectiveStart = start ?? path[0]
   const effectiveEnd = end ?? path[path.length - 1]
   if (!effectiveStart || !effectiveEnd) {
@@ -329,6 +425,17 @@ export function addSegment(segmentObject: unknown, state: ParseState, ctx: strin
     stringField(asRecord(asRecord(record['activity'])?.['topCandidate']) ?? {}, ['type'])
   if (activityType) segment.activityType = activityType
   state.segments.push(segment)
+  if (isTimelinePathTrace && path.length >= 2) {
+    // Keep the trace for later stitching; exports are time-ordered so this
+    // stays sorted by startMs.
+    state.timelinePathPool.push({ startMs: duration.startMs, endMs: duration.endMs, points: segment.path })
+  } else if (segment.path.length < 2) {
+    // Short activity record: try to borrow the trajectory of an already-seen
+    // covering trace right away (the `stitchSegments` pass re-checks segments
+    // whose trace only shows up later in the file).
+    const candidate = findStitchCandidate(segment, state.timelinePathPool)
+    if (candidate) segment.path = candidate.points
+  }
 }
 
 /**

@@ -6,7 +6,7 @@
 // flat `activity` wrapper with `start`/`end` latLng strings) and place-visits
 // (`location` + `duration`, or the flat `visit` wrapper carrying a
 // `topCandidate.placeLocation`).
-import { asRecord, parseSemanticElement, type ParseState } from './common'
+import { asRecord, parseSemanticElement, stitchSegments, type ParseState } from './common'
 
 export function parseFormat1(root: unknown, state: ParseState, ctx: string): void {
   if (!Array.isArray(root)) {
@@ -36,4 +36,8 @@ export function parseFormat1(root: unknown, state: ParseState, ctx: string): voi
       parseSemanticElement(element, state, `${ctx} 条目[${index}]`)
     }
   })
+  // Stitch coarse timelinePath traces into path-less activity records. A final
+  // pass is used so an activity that precedes its covering trace in the export
+  // still gets a polyline.
+  stitchSegments(state)
 }
