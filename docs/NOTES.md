@@ -2,6 +2,9 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-14 20:05 — CEO T16–T17 验收通过 + 已部署
+用户确认「現在我可以回想我旅行的時間和路線」。提交 `b4ed89b`（14 files, +947/−72）并 push `origin/main`，GitHub Actions 部署成功：线上 `assets/index-CBgmSybv.js`（本地构建 hash 一致），bundle 含「在 Google Maps 開啟 / 时间线（ / 行程段轨迹 / 轨迹点（行程段）」。线上冒烟：Landing 正常 →「立即体验」载入示例数据 → Trips 时间轴 `1,335 轨迹点（GPS+行程段）· 191 停留`、左側「时间线（621）」。https://coderkk.github.io/google-timeline-viewer/
+
 ## 2026-09-14 19:20 — Dev T17 路径点时间 + 去重 + 大 marker + 左侧时间线
 
 **用户反馈**：①「行程段轨迹」要顯示時間，才知道幾點經過那地方；②marker 大一點；③「感覺連接的線還是很多」；④左邊要顯示時間線，不是只有 13 個停留點。
