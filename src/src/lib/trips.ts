@@ -2,7 +2,7 @@
 // simplification, render caps (per-segment Douglas-Peucker + global point /
 // marker budget), activity styling and stop<->segment linkage. Everything here
 // stays framework-agnostic so it is easy to unit test.
-import type { Point, RawPoint, Segment, TimelineData, Visit } from './types'
+import { haversineKm, type Point, type RawPoint, type Segment, type TimelineData, type Visit } from './types'
 
 export interface DateRangeFilter {
   startMs: number | null
@@ -319,6 +319,19 @@ export function prepareTripsForData(data: TimelineData, range: DateRangeFilter):
 export const BRIDGE_CAP = 1000
 
 /**
+ * Maximum distance (meters) between the visual endpoints of two TIME-OVERLAPPING
+ * consecutive segments for a bridge to be drawn. A driving leg commonly ends a
+ * minute or two *after* the following walking leg starts (GPS recording
+ * granularity), so their windows overlap while the transfer point is only a
+ * short walk away — those are genuine connections and must be bridged. Segments
+ * that overlap in time but whose endpoints are far apart are *parallel records*
+ * of the same window (e.g. a flight leg alongside a ground leg) and must stay
+ * unconnected (honesty principle). Calibrated against the real device exports —
+ * see docs/DATA-FINDINGS.md §7.
+ */
+export const BRIDGE_OVERLAP_MAX_M = 1000
+
+/**
  * Gaps at or above this duration get a human-readable "衔接 +…" tooltip label;
  * shorter gaps (already visually connected legs) are just tagged "衔接".
  */
@@ -342,7 +355,13 @@ export interface BridgeLine {
   to: Point
   fromMs: number
   toMs: number
-  /** `toMs - fromMs`; always positive (overlap / zero-gap pairs are skipped). */
+  /**
+   * Signed time delta `toMs - fromMs` between the consecutive segments:
+   * positive = a real no-record forward gap; negative = the legs' windows
+   * overlap (a transfer where GPS granularity makes leg A end after leg B
+   * starts); zero = temporally contiguous. Tooltips must never render this raw
+   * number when negative (see `bridgeGapLabel`).
+   */
   gapMs: number
 }
 
@@ -355,16 +374,22 @@ function polylineEndpoints(s: Segment): { first: Point; last: Point } {
 
 /**
  * Link consecutive segments of an already timeline-ordered list with bridge
- * lines. Bridges are only emitted for real forward gaps:
- *  - a negative gap (time-overlapping segments, e.g. a leg tucked inside a
- *    longer trace) needs no bridge — the traces already touch;
- *  - a zero gap (segments are temporally contiguous) has nothing to bridge;
- *  - a bridge whose two endpoints are the exact same coordinate is degenerate
- *    and dropped.
- * All input must already be orderered ascending by `startMs` — `prepareTrips`
- * guarantees this — so consecutive pairs ARE the timeline sequence. When more
- * than `BRIDGE_CAP` legs exist, the bridges are evenly stride-sampled (both
- * ends kept) so bridge geometry stays inside the render budget.
+ * lines. Two gates decide whether a pair gets a bridge:
+ *  - a FORWARD gap (`gapMs > 0`) is a real no-record interval and is always
+ *    bridged (regardless of where the traces started/ended, matching the "可知
+ *   无记录时段如实呈现" contract);
+ *  - a NON-POSITIVE gap means the legs' windows overlap or are contiguous —
+ *    usually a transfer where GPS granularity makes them overlap by minutes.
+ *    Such pairs are bridged only when the two visual endpoints are within
+ *    `BRIDGE_OVERLAP_MAX_M` (a walking-distance transfer point). Far-apart
+ *    overlapping legs are parallel records of one window (a flight alongside a
+ *    ground leg) and get NO bridge — connecting them would fake a movement the
+ *    data never shows.
+ * A bridge whose two endpoints are the exact same coordinate is degenerate and
+ * dropped. All input must already be ordered ascending by `startMs` —
+ * `prepareTrips` guarantees this — so consecutive pairs ARE the timeline
+ * sequence. When more than `BRIDGE_CAP` legs exist, the bridges are evenly
+ * stride-sampled (both ends kept).
  */
 export function bridgeLines(segments: readonly Segment[]): BridgeLine[] {
   const out: BridgeLine[] = []
@@ -372,10 +397,10 @@ export function bridgeLines(segments: readonly Segment[]): BridgeLine[] {
     const prev = segments[i - 1]
     const cur = segments[i]
     const gapMs = cur.startMs - prev.endMs
-    if (gapMs <= 0) continue
     const prevEnd = polylineEndpoints(prev).last
     const curStart = polylineEndpoints(cur).first
     if (prevEnd.lat === curStart.lat && prevEnd.lng === curStart.lng) continue
+    if (gapMs <= 0 && haversineKm(prevEnd, curStart) * 1000 > BRIDGE_OVERLAP_MAX_M) continue
     out.push({
       fromIndex: i - 1,
       toIndex: i,
@@ -394,6 +419,9 @@ export function bridgeLines(segments: readonly Segment[]): BridgeLine[] {
  * Short Chinese tooltip for a bridge: "衔接" for gaps under the annotation
  * threshold, otherwise "衔接 +N 分钟/小时/天" so the user can judge whether
  * the dashed link is a minute-long transfer or an unrecorded multi-day gap.
+ * Overlapping legs bridged by T14.2 carry a NEGATIVE `gapMs` — the label must
+ * never show a negative duration, so any gap below the annotation threshold
+ * (including overlap transfers) renders as the plain "衔接".
  */
 export function bridgeGapLabel(gapMs: number): string {
   if (gapMs < BRIDGE_ANNOTATE_MIN_MS) return '衔接'

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { existsSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import type { RawPoint, Segment, TimelineData, Visit } from './types'
 import {
   activityColor,
   boundsOf,
   BRIDGE_CAP,
+  BRIDGE_OVERLAP_MAX_M,
   bridgeGapLabel,
   bridgeLines,
   budgetRoutePoints,
@@ -29,6 +32,8 @@ import {
   toInputDate,
   type DateRangeFilter,
 } from './trips'
+import { haversineKm } from './types'
+import { parseTimelineFile } from './parse'
 
 function point(lat: number, lng: number) {
   return { lat, lng }
@@ -393,12 +398,71 @@ describe('timeline bridges (T14)', () => {
     }
   })
 
-  it('skips time-overlapping and temporally contiguous pairs', () => {
+  it('skips time-overlapping and temporally contiguous pairs that are FAR apart (parallel records)', () => {
+    // Real parallel records: two legs overlapping the same window but on
+    // different ends of town (~11 km apart) — bridging would fake a movement.
     const overlapA = segment({ id: 'o-a', startMs: Date.UTC(2026, 6, 1, 8), endMs: Date.UTC(2026, 6, 1, 10) })
     const overlapB = segment({ id: 'o-b', startMs: Date.UTC(2026, 6, 1, 9), endMs: Date.UTC(2026, 6, 1, 11) })
     const contiguous = segment({ id: 'c', startMs: Date.UTC(2026, 6, 1, 11), endMs: Date.UTC(2026, 6, 1, 12) })
     expect(bridgeLines([overlapA, overlapB])).toEqual([])
     expect(bridgeLines([overlapB, contiguous])).toEqual([])
+  })
+
+  it('bridges time-overlapping legs whose endpoints are CLOSE (a walking-distance transfer, T14.2)', () => {
+    // Driving leg ends 08:31, walking (sub)leg starts 08:25 — windows overlap
+    // by 6 minutes (GPS granularity). The transfer point is a ~70 m walk away,
+    // so this is a real transfer that the old pure-time gate silently dropped.
+    const drive = segment({
+      id: 'drive',
+      activityType: 'IN_PASSENGER_VEHICLE',
+      startMs: Date.UTC(2026, 6, 1, 8, 0),
+      endMs: Date.UTC(2026, 6, 1, 8, 31),
+      start: point(25.0, 121.5),
+      end: point(25.045, 121.548),
+      path: [point(25.01, 121.51), point(25.02, 121.52), point(25.045, 121.548)],
+    })
+    const walk = segment({
+      id: 'walk',
+      activityType: 'WALKING',
+      startMs: Date.UTC(2026, 6, 1, 8, 25),
+      endMs: Date.UTC(2026, 6, 1, 8, 45),
+      start: point(25.0456, 121.5484),
+      end: point(25.05, 121.55),
+      path: [point(25.0456, 121.5484), point(25.046, 121.5486)],
+    })
+    const bridges = bridgeLines([drive, walk])
+    expect(bridges).toHaveLength(1)
+    const b = bridges[0]
+    // gapMs keeps the real (negative) overlap; the label must render "衔接",
+    // never a negative duration.
+    expect(b.gapMs).toBe(Date.UTC(2026, 6, 1, 8, 25) - Date.UTC(2026, 6, 1, 8, 31))
+    expect(b.gapMs).toBeLessThan(0)
+    expect(bridgeGapLabel(b.gapMs)).toBe('衔接')
+    // Bridge hugs the drawn polyline endpoints of both legs.
+    expect(b.from).toEqual({ lat: 25.045, lng: 121.548 })
+    expect(b.to).toEqual({ lat: 25.0456, lng: 121.5484 })
+  })
+
+  it('skips time-overlapping legs that are far apart even when close to the threshold (T14.2)', () => {
+    // ~2.4 km apart: beyond BRIDGE_OVERLAP_MAX_M — these windows merely overlap
+    // without sharing a transfer point, so no bridge.
+    const a = segment({
+      id: 'a',
+      startMs: Date.UTC(2026, 6, 1, 9, 0),
+      endMs: Date.UTC(2026, 6, 1, 9, 30),
+      start: point(25.0, 121.5),
+      end: point(25.01, 121.51),
+      path: [point(25.0, 121.5), point(25.01, 121.51)],
+    })
+    const b = segment({
+      id: 'b',
+      startMs: Date.UTC(2026, 6, 1, 9, 10),
+      endMs: Date.UTC(2026, 6, 1, 9, 40),
+      start: point(25.025, 121.53),
+      end: point(25.03, 121.54),
+      path: [point(25.025, 121.53), point(25.03, 121.54)],
+    })
+    expect(bridgeLines([a, b])).toEqual([])
   })
 
   it('skips a bridge whose drawn polyline endpoints coincide (degenerate zero-length)', () => {
@@ -427,6 +491,10 @@ describe('timeline bridges (T14)', () => {
 
   it('labels bridges honestly: short gaps are just "衔接", real gaps carry "衔接 +N …"', () => {
     expect(bridgeGapLabel(30_000)).toBe('衔接')
+    // Overlapping transfer bridges (T14.2) carry a negative gapMs — the tooltip
+    // must show "衔接", never a negative duration like 衔接 +-6 分钟.
+    expect(bridgeGapLabel(-6 * 60_000)).toBe('衔接')
+    expect(bridgeGapLabel(0)).toBe('衔接')
     // Exactly the annotation threshold (60s) is included in the annotated
     // range: `< BRIDGE_ANNOTATE_MIN_MS` gates the plain "衔接" tag.
     expect(bridgeGapLabel(60_000)).toBe('衔接 +1 分钟')
@@ -490,6 +558,60 @@ describe('timeline bridges (T14)', () => {
     ])
     expect(bridgeLines(withPoints.segments)).toHaveLength(2)
   })
+})
+
+// Real device export (129MB, gitignored). Skipped automatically when the file
+// is absent so CI and fresh clones stay green. Pins the T14.2 behavioural fix:
+// overlapping / contiguous transfer legs that the old pure-time gate silently
+// dropped must now be bridged on real data.
+const LIVEDATA_2026 = new URL('../../../docs/livedata/Timeline-20260820.json', import.meta.url)
+const hasLivedata = existsSync(LIVEDATA_2026)
+
+describe.skipIf(!hasLivedata)('timeline bridges on real device export (docs/livedata)', () => {
+  it('bridges overlapping transfer legs on the busiest local day (T14.2)', () => {
+    const json = readFileSync(fileURLToPath(LIVEDATA_2026), 'utf8')
+    const { data } = parseTimelineFile('Timeline.json', json)
+
+    // Busiest LOCAL day = the calendar day with the most segments.
+    const byDay = new Map<string, Segment[]>()
+    for (const s of data.segments) {
+      const key = dayKeyOf(s.startMs)
+      const list = byDay.get(key)
+      if (list) list.push(s)
+      else byDay.set(key, [s])
+    }
+    let busiest = ''
+    let maxCount = 0
+    for (const [key, list] of byDay) {
+      if (list.length > maxCount) {
+        busiest = key
+        maxCount = list.length
+      }
+    }
+    expect(maxCount).toBeGreaterThan(1)
+
+    const daySegs = [...(byDay.get(busiest) ?? [])].sort((a, b) => a.startMs - b.startMs)
+    const bridges = bridgeLines(daySegs)
+    expect(bridges.length).toBeGreaterThan(0)
+
+    // The old pure-time rule bridged ONLY forward gaps; anything more now proves
+    // the double gate actually connects overlapping/contiguous transfer legs.
+    const oldRuleCount = daySegs.reduce((acc, _, i) => {
+      if (i === 0) return acc
+      return daySegs[i].startMs - daySegs[i - 1].endMs > 0 ? acc + 1 : acc
+    }, 0)
+    const overlapBridges = bridges.filter((b) => b.gapMs <= 0)
+    expect(overlapBridges.length).toBeGreaterThan(0)
+    expect(bridges.length).toBeGreaterThan(oldRuleCount)
+
+    // Gate contract: no non-positive-gap bridge may connect endpoints farther
+    // apart than BRIDGE_OVERLAP_MAX_M — those pairs stay honestly unconnected.
+    for (const b of overlapBridges) {
+      expect(haversineKm(b.from, b.to) * 1000).toBeLessThanOrEqual(BRIDGE_OVERLAP_MAX_M)
+    }
+    // And every such bridge's label is the plain "衔接" (never a negative number).
+    for (const b of overlapBridges) expect(bridgeGapLabel(b.gapMs)).toBe('衔接')
+  }, 180_000)
 })
 
 describe('budgetRoutePoints', () => {

@@ -221,7 +221,7 @@ export default function TripMap(props: TripMapProps) {
           <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip">
             <span className="trip-tip-title">{bridgeGapLabel(bridge.gapMs)}</span>
             <span className="trip-tip-meta">
-              {fmtDateTime(bridge.fromMs)} → {fmtDateTime(bridge.toMs)}
+              {fmtDateTime(bridge.fromMs)} {bridge.gapMs <= 0 ? '↔' : '→'} {fmtDateTime(bridge.toMs)}
             </span>
           </Tooltip>
         </Polyline>
