@@ -324,3 +324,44 @@ Reviewer 一般项 1：`budgetRoutePoints` 预算上限可被击穿（Math.max(1
 **⑤ 解析器现状 bug（KIV T13.6）**：`parseFormat1` 只收 `semanticSegments`，**rawSignals 整段丢弃**（两文件各 5 万+条 position 全丢）；且 `getLatLng` 不认识大写 `LatLng`、`addRawPoint` 拿不到嵌套 `position.timestamp`。
 
 **建档**：docs/DATA-FINDINGS.md（全部领域知识沉淀）。
+## 2026-09-14 18:00 — Dev 收尾 T13.6 / T13.7
+完成 format1 rawSignals 解析接入 + 本地时区分组修复，自测全绿后交 Reviewer。
+
+**改动清单**：
+- `src/lib/parse/common.ts`：`getLatLng` 坐标 key 增加大写 `LatLng`（`['latLng','LatLng','coordinates']`）；`addRawPoint` 优先从嵌套 `position` 包装解析坐标/时间/精度，回退扁平 record；`parseSemanticElement` 对 `timelineMemory` 静默跳过（文档化"忽略"类型，不再每条误报 `无法识别的语义段`）。
+- `src/lib/parse/formatTimelineArray.ts`：支持对象根 `{semanticSegments, rawSignals}` 与 per-day 数组元素；`parseRawSignals`/`parseRawSignal` 路由：position→点、wifiScan/activityRecord→静默跳过、旧式扁平兜底；仅含 rawSignals 的元素也可解析；末尾仍 stitchSegments 缝合。
+- `src/lib/parse/index.ts`：对象根改传整个 record 给 parseFormat1（原只传数组 → rawSignals 全丢）。
+- `src/lib/trips.ts`：`startOfDayMs` 本地时区 `new Date(y,m,d)`、`dayKeyOf=toInputDate(ms)` 对齐日期筛选器；`RAW_POINT_CAP=20000`（超出抽稀 + `downsampled` 标记）、`filterRawPoints`、`PreparedTrips.points`、`prepareTrips(points=[])`。
+- `src/components/TripMap.tsx`：`rawPoints` prop，Polyline 之下灰点 CircleMarker（r=2，#9ca3af，选中停留时降透明度），`showRoutePoints` 可关。
+- `src/pages/TripsPage.tsx`：`prepareTrips(data.segments, data.visits, dateRange, data.points)` 第 4 参接入；两个 TripMap 实例传 `rawPoints`；summary 增 `· N 原始点`。
+- 测试：`trips.test.ts`（旧 UTC 日测试改本地断言+理由注释；T13.7 三用例：22:00→前一日、00:30/04:00/06:00→当日且 startOfDayMs==parseInputDate、地图同日本地分组；raw 点四用例：筛选/携带/抽稀/范围外排除）、`parse/__tests__/rawSignals.test.ts`（新建：位置类目大写 LatLng+嵌套 timestamp+精度、扁平兼容、静默跳过类目、缺坐标告警、direct array、livedata 精确计数）、`parse.test.ts`（timelineMemory 静默）、`sample.test.ts`（样例 432 扁平点全进点流）。
+
+**关键数据**（真实验证）：
+- `docs/livedata/Timeline-20250213.json`：rawSignals=50662 → position 11773 / activityRecord 28028 / wifiScan 10861；解析出 **11773 个原始点**，0 warning。
+- `docs/livedata/Timeline-20260820.json`：rawSignals=55509 → position 15479；解析出 **15479 个原始点**，0 warning。
+- 时区核对：2025 文件全量 **17284** 段旧 UTC 分组错日（全部为本地凌晨 00:00–07:59 段）；2025-01-30 凌晨实测 04:00、06:00 两段此前标成 01-29，现归 01-30；22:00 段归属不变（合法属 01-29）。
+
+**验证**：`npm run test` 97 → **111** passed（+rawSignals 6、+T13.7/raw 点 7、+timelineMemory 1）/ `npm run build`（tsc + vite）✅ / `npm run lint` 0 error。未 commit、未部署 —— 待 Reviewer 审查。
+
+**额外发现（供评审参考）**：① 未被识别的语义段全部是 `timelineMemory`（记忆，无坐标），已修复为静默跳过；② trips.test.ts 保留的 `toInputDate(Date.UTC(...))`/`fmtRangeLabel(Date.UTC(...))` 断言在负时区 CI 会漂移（+08 通过）—— 现有遗留，未动。
+## 2026-09-14 18:30 — Dev 修复 T13.6 S1（Reviewer 打回）
+Reviewer 结论：T13.7 通过；T13.6 打回，S1 必须修。
+
+**S1（必须修）**：`TripsPage.tsx:107` `prepareTrips(data.segments, data.visits, dateRange)` 漏传第 4 参 `data.points` → `prepared.points` 恒空 → 两个 TripMap 的 `rawPoints` 空、summary「· N 原始点」永不显示，UI 渲染链路为死代码。
+
+**修复**：
+- `src/lib/trips.ts` 新增 `prepareTripsForData(data, range)` —— 页面级唯一接线入口，内部 `prepareTrips(data.segments, data.visits, range, data.points)`，注释写明回归风险。
+- `src/pages/TripsPage.tsx:107` 改用 `prepareTripsForData(data, dateRange)`（依赖数组 `[data, dateRange]` 已含 data，未动）。
+
+**链路断言（防复发）**：`trips.test.ts` 新增 describe「TripsPage wiring (prepareTripsForData)」——构造带 points 的完整 `TimelineData`，断言页面消费的 payload：范围内 2 点穿透进 `prepared.points`（TripMap `rawPoints` 与 summary「原始点」的非空前提），范围外点不入。若今后接线再丢 `data.points`，此测试即失败。
+
+**回归**：`npm run test` 111 → **112** passed / build（tsc+vite）✅ / lint 0 error。未 commit、未部署。
+
+**归档（本轮不修，供后续参考）**：
+- A1: `RAW_POINT_CAP=20000` 整量渲染 1.5 万+ marker 潜在卡顿 → 建议降 cap 或分层预算（raw 点与路线点共预算）。
+- A2: `formatTimelineArray` 对象分支无 semanticSegments 但有 rawSignals 时丢弃 → 与 rawSignals 独立解析的行为不一致。
+- N1: 既有 `toInputDate(Date.UTC(...))` / `fmtRangeLabel(Date.UTC(...))` 断言在负时区 CI 漂移（+08 通过）。
+- N2: `endOfDayMs` 用 `startOfDayMs + DAY_MS - 1`，跨夏令时转换地区日长断言会有 ±1h 偏差。
+- N3: `parseSemanticElement` 顶部 `timelineMemory` 提前 return，若未来需统计忽略段数要在此加计数。
+- N4: 无组件级/DOM 测试（vitest node 环境、无 jsdom/RTL）——本轮以纯函数接线条目 `prepareTripsForData` + 链路断言替代；系统性补组件测试需新增测试依赖，另行评估。
+- N5: 源文件末尾换行风格（`\n`结尾）保持一致。

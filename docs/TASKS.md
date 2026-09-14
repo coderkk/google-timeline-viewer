@@ -4,9 +4,6 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T13.6: rawSignals 解析接入** (09-14→09-14 Doing) — 来源: T-K2①拆分 / DATA-FINDINGS⑤，PRD 功能1 v1.6；format1 接入 `rawSignals`（position/activityRecord，兼容大写 `LatLng` + 嵌套 `position.timestamp`）——否则两文件 5 万+条原始 GPS 点全丢；验收: 含 rawSignals 的真实导出 raw 点数 > 0 且 Trips 轨迹可用
-- [ ] **T13.7: 时区分组修复** (09-14→09-14 Doing) — 来源: T-K2②拆分 / DATA-FINDINGS④，PRD 功能2 正确性；`startOfDayMs`/`dayKeyOf` 改本地时区，对齐日期筛选器（凌晨 00:00-07:59 +08 段被归错日）；验收: 2025-01-30 凌晨 3 段不再标错日
-
 ## 📋 To Do
 
 ## ⏸ KIV
@@ -24,6 +21,7 @@
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [ ] [P2] 多语言（英文为主，可换中文）— 需要 i18n 依赖，v2 加入（→ PRD 约束）(09-13)
 - [ ] [P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）(09-14)
+- [ ] [P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算 (09-14)
 
 ## ✅ Done
 
@@ -46,5 +44,7 @@
 - [x] ~~T13.1: Trips/Places marker 细节修复~~ (09-14→09-14) — ① marker 日期 tooltip 加年份（fmtDateTime YYYY-MM-DD）② Places popup 加 Google Maps 链接 ③ 解析器新增 `path` fallback key；df24db2；71→71 单测
 - [x] ~~T13.2: 真实 livedata 车辆 GPS 轨迹合并~~ (09-14→09-14) — 根因：新版 Timeline.json 的 activity 段（IN_BUS/IN_PASSENGER_VEHICLE）只带 start/end、无轨迹点，完整 GPS 在同时间 timelinePath 段；实现 stitchSegments 终 pass 把重叠 trace 轨迹缝合进 activity 段（maxEnd 前缀左扫 + 单次排序 pass + format1/2/3 覆盖 + 反向配对 + slice 防别名）；Reviewer 两轮（S1/S2/S3 + A1/A2/A3/A5）后通过；802ddf7；80 单测
 - [x] ~~T13.3: Trips 轨迹缝合改进 + 路线点显示~~ (09-14→09-14) — ①缝合匹配从"端点≡trace首末点"改为"trace 中存在与 activity start/end 分别接近的点（子段轨迹）"，修 16:15/17:57 类中途行程失败（16:15 path=0→5 实测）；②Trips 视图把 segment.path 的点渲染为小圆点（默认开，顶栏可切换，ROUTE_POINT_CAP=5000 整体 strideTake 保两端）；③记录 rawSignals 评估（2026-01-30 无 rawSignals，条目仅为记录）；CEO 验收通过，已部署
+- [x] ~~T13.6: rawSignals 解析接入~~ (09-14→09-14) — format1 接入 rawSignals：position 类目解析为点（大写 `LatLng`+嵌套 `timestamp`+精度），activityRecord/wifiScan 静默跳过，旧式扁平 shape 兜底（样例 432 条全进点流）；全局点流经 prepareTrips 进 Trips 视图渲染（灰色小点，showRoutePoints 可关）；单测 + livedata 真实文件精确计数 11773/15479；另修 timelineMemory 文档化"忽略"类型不再误报 warning（2025 文件 22 条假警告清零）；111 单测全绿；已自测待 Reviewer
+- [x] ~~T13.7: 时区分组修复~~ (09-14→09-14) — startOfDayMs/dayKeyOf 改本地(+08)时区并对齐日期筛选器 parseInputDate；真实 2025 文件 17284 段旧 UTC 分组错日全修正；凌晨跨 UTC 日边界用例（22:00→前一日，00:30/04:00/06:00→当日）覆盖；111 单测全绿；已自测待 Reviewer
 
 ## ❌ Cancelled

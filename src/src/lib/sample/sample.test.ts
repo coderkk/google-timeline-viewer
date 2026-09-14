@@ -14,6 +14,8 @@ describe('sample timeline data', () => {
     expect(pathPointCount(data)).toBeLessThanOrEqual(2500)
     expect(data.segments.length).toBeGreaterThan(50)
     expect(data.visits.length).toBeGreaterThan(50)
+    // The bundled rawSignals stream (432 fixes) flows into the point data.
+    expect(data.points.length).toBeGreaterThan(0)
   })
 
   it('spans several weeks with a realistic time range', () => {

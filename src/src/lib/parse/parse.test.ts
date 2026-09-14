@@ -107,6 +107,24 @@ describe('format 1: 2026 device export (semanticSegments object, flat records)',
     expect(path.start).toEqual(path.path[0])
     expect(path.end).toEqual(path.path[1])
   })
+
+  it('consumes timelineMemory records silently (documented ignore-only type)', () => {
+    const json = JSON.stringify({
+      semanticSegments: [
+        {
+          startTime: '2013-02-12T07:25:57.000+08:00',
+          endTime: '2013-02-12T16:49:21.000+08:00',
+          startTimeTimezoneUtcOffsetMinutes: 480,
+          endTimeTimezoneUtcOffsetMinutes: 480,
+          timelineMemory: { trip: { distanceMeters: 1021 } },
+        },
+      ],
+    })
+    const { data, warnings } = parseTimelineFile('Timeline.json', json)
+    expect(warnings).toEqual([])
+    expect(data.segments).toHaveLength(0)
+    expect(data.visits).toHaveLength(0)
+  })
 })
 
 describe('format 2: Records.json', () => {

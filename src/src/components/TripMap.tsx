@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { CircleMarker as LeafletCircleMarker } from 'leaflet'
-import type { Segment, Visit } from '../lib/types'
+import type { RawPoint, Segment, Visit } from '../lib/types'
 import {
   activityColor,
   budgetRoutePoints,
@@ -26,6 +26,8 @@ export type LatLngBoundsMatrix = [[number, number], [number, number]]
 export interface TripMapProps {
   segments: readonly Segment[]
   markers: readonly Visit[]
+  /** Raw GPS fixes (rawSignals) to draw as a faint dense trail. */
+  rawPoints?: readonly RawPoint[]
   /** Segment indices (into `segments`) to emphasize when a stop is selected. */
   highlightedSegments: ReadonlySet<number>
   /** Index into `markers` that is currently selected, or null. */
@@ -108,6 +110,7 @@ export default function TripMap(props: TripMapProps) {
   const {
     segments,
     markers,
+    rawPoints = [],
     highlightedSegments,
     selectedMarkerIndex,
     onSelectMarker,
@@ -167,6 +170,25 @@ export default function TripMap(props: TripMapProps) {
         invalidateKey={invalidateKey}
         flyTarget={flyTarget}
       />
+      {/* Raw GPS fixes (rawSignals) render as a faint dense trail underneath
+          the stitched/activity polylines. Gated by the same trajectory-points
+          toggle since both are raw dot trails. */}
+      {showRoutePoints &&
+        rawPoints.map((point, index) => (
+          <CircleMarker
+            key={`raw-${index}`}
+            center={[point.lat, point.lng]}
+            radius={2}
+            pathOptions={{
+              color: '#9ca3af',
+              weight: 1,
+              opacity: hasSelection ? 0.12 : 0.4,
+              fillColor: '#9ca3af',
+              fillOpacity: hasSelection ? 0.08 : 0.35,
+            }}
+            renderer={canvasRenderer}
+          />
+        ))}
       {segments.map((segment, index) => {
         const latLngs = positions[index]
         if (latLngs.length < 2) return null

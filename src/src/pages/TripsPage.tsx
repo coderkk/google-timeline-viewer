@@ -8,7 +8,7 @@ import {
   fmtRangeLabel,
   legendTypes,
   LIST_LIMIT,
-  prepareTrips,
+  prepareTripsForData,
   startOfDayMs,
   type DateRangeFilter,
 } from '../lib/trips'
@@ -84,6 +84,7 @@ function MapPane({
         <TripMap
           segments={prepared.segments}
           markers={prepared.markers}
+          rawPoints={prepared.points}
           highlightedSegments={highlightedSegments}
           selectedMarkerIndex={selectedMarkerIndex}
           onSelectMarker={(_, visit) => setSelectedVisit(visit)}
@@ -103,7 +104,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   const [showRoutePoints, setShowRoutePoints] = useState(true)
 
   const prepared = useMemo(
-    () => prepareTrips(data.segments, data.visits, dateRange),
+    () => prepareTripsForData(data, dateRange),
     [data, dateRange],
   )
 
@@ -130,6 +131,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
         <span className="trips-summary">
           {fmtRangeLabel(dateRange)} · {prepared.segments.length} 段 · {prepared.visits.length} 停留 ·{' '}
           {prepared.totalPathPoints.toLocaleString()} 点
+          {prepared.points.length > 0 && ` · ${prepared.points.length.toLocaleString()} 原始点`}
         </span>
         {prepared.downsampled && <span className="trips-note">已降采样显示</span>}
         {legend.length > 1 && (
@@ -172,6 +174,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             <TripMap
               segments={prepared.segments}
               markers={prepared.markers}
+              rawPoints={prepared.points}
               highlightedSegments={new Set<number>()}
               selectedMarkerIndex={null}
               onSelectMarker={() => undefined}

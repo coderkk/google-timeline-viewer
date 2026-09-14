@@ -166,7 +166,9 @@ export function getLatLng(location: unknown): Point | null {
   const lat = numField(record, ['latitude', 'lat'])
   const lng = numField(record, ['longitude', 'lng'])
   if (lat !== undefined && lng !== undefined) return { lat, lng }
-  const latLng = stringField(record, ['latLng', 'coordinates'])
+  // rawSignals `position` entries spell the combined coordinate with a capital
+  // L (`LatLng`) in both real 2025/2026 device exports.
+  const latLng = stringField(record, ['latLng', 'LatLng', 'coordinates'])
   if (latLng !== undefined) {
     const point = parseLatLngString(latLng)
     if (point) return point
@@ -395,12 +397,22 @@ export function stitchSegments(state: ParseState): void {
   }
 }
 
-/** Append a raw trajectory point, skipping records with missing fields. */
+/**
+ * Append a raw trajectory point, skipping records with missing fields. The
+ * 2026+ format-1 exports wrap each GPS fix in a nested `position` object
+ * (whose `LatLng` capitalizes the coordinate string and whose `timestamp`
+ * lives inside the wrapper), so coordinates/time/accuracy are resolved from
+ * the wrapper first and fall back to the record itself for the legacy flat
+ * spellings (Records / Location History / sample data).
+ */
 export function addRawPoint(
   record: Record<string, unknown>,
   state: ParseState,
   ctx: string,
 ): void {
+  const position = asRecord(record['position'])
+  const coordSource = position ?? record
+  const timeSource = position ?? record
   if (state.points.length >= MAX_RAW_POINTS) {
     if (!state.rawTruncated) {
       state.rawTruncated = true
@@ -408,17 +420,17 @@ export function addRawPoint(
     }
     return
   }
-  const coordinate = getLatLng(record)
+  const coordinate = getLatLng(coordSource)
   if (!coordinate) {
     state.warnings.push(`${ctx}: 缺少坐标字段`)
     return
   }
-  const timestampMs = timeField(record, ['timestampMs', 'timestamp', 'time'])
+  const timestampMs = timeField(timeSource, ['timestampMs', 'timestamp', 'time'])
   if (timestampMs === undefined) {
     state.warnings.push(`${ctx}: 缺少时间戳`)
     return
   }
-  const accuracyMeters = numField(record, ['accuracyMeters', 'accuracy'])
+  const accuracyMeters = numField(coordSource, ['accuracyMeters', 'accuracy'])
   state.points.push({
     lat: coordinate.lat,
     lng: coordinate.lng,
@@ -539,6 +551,9 @@ export function parseSemanticElement(element: unknown, state: ParseState, ctx: s
     state.warnings.push(`${ctx}: 语义段结构无效`)
     return
   }
+  // timelineMemory trip memories carry no coordinates and are documented as
+  // ignore-only — consumed silently instead of warning per record.
+  if (record['timelineMemory'] !== undefined) return
   const placeVisit = asRecord(record['placeVisit'])
   if (placeVisit) {
     addVisit(placeVisit, state, ctx)

@@ -15,3 +15,6 @@
 
 ## 2026-09-14 17:00 — PRD v1.6: rawSignals 与时区 bug 定性
 决定: ①rawSignals 解析 = 功能 1 声明格式的半兑现 → 修，PRD 功能 1 补验收项；②时区分组 bug = 功能 2 显性缺陷 → 修，不入「不做」；③merge 去重 = PRD「不做」明确排除 → 保持 Backlog（跨设备多 Takeout 合并去重），不随 bug 混修。理由: PRD 核对结论——rawSignals 字段名在功能 1 中声明、验收未强制；时区错误违反功能 2 验收语义；merge 是已排除的新功能。
+
+## 2026-09-14 18:30 — T13.6 / T13.7 验收通过
+决定: rawSignals 解析接入（T13.6）与本地时区分组修复（T13.7）验收通过，代码可提交部署。理由: Review 首轮打回 S1（TripsPage 漏接 data.points 使 UI 渲染为死代码）→ Dev 补 prepareTripsForData 接线 + 链路断言 → 复验通过；真实导出 raw 点精确入库（11773/15479）、2025 文件 17284 段 UTC 错日全修正、112 单测 + build + lint 全绿。遗留 A1（1.5 万点渲染性能）与 A2/N1-N5 记录不修，A1 转 Backlog 发布前压测。

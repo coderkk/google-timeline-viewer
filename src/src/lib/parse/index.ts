@@ -61,7 +61,8 @@ export function parseTimelineFile(name: string, text: string): ParseResult {
     } else if (Array.isArray(record['semanticSegments'])) {
       // Format 1 also ships as a plain object whose semanticSegments array is
       // the top-level element list ({ semanticSegments, rawSignals, ... }).
-      parseFormat1(record['semanticSegments'], state, ctx(name))
+      // The WHOLE record is handed over so `rawSignals` is not dropped.
+      parseFormat1(record, state, ctx(name))
     } else if (Array.isArray(record['locations'])) {
       if (Array.isArray(record['activitySegments']) || Array.isArray(record['savedPlaces'])) {
         parseFormat2(root, state, ctx(name))

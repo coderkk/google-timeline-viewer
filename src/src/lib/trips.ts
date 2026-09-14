@@ -2,7 +2,7 @@
 // simplification, render caps (per-segment Douglas-Peucker + global point /
 // marker budget), activity styling and stop<->segment linkage. Everything here
 // stays framework-agnostic so it is easy to unit test.
-import type { Point, Segment, Visit } from './types'
+import type { Point, RawPoint, Segment, TimelineData, Visit } from './types'
 
 export interface DateRangeFilter {
   startMs: number | null
@@ -23,6 +23,8 @@ export interface PreparedTrips {
   visits: Visit[]
   /** Visits actually drawn on the map (decimated when over the marker cap). */
   markers: Visit[]
+  /** Filtered raw GPS fixes (from rawSignals), decimated to the draw cap. */
+  points: RawPoint[]
   totalPathPoints: number
   /** True when a rendering cap kicked in and the map shows a subset. */
   downsampled: boolean
@@ -35,24 +37,36 @@ export const GLOBAL_PATH_POINT_CAP = 30000
 export const MAX_SEGMENTS = 12000
 export const MARKER_CAP = 4000
 export const ROUTE_POINT_CAP = 5000
+/** Render budget for raw `rawSignals` GPS fixes (dense trail dots). */
+export const RAW_POINT_CAP = 20000
 export const LIST_LIMIT = 500
 
 // -- Date helpers ------------------------------------------------------------
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Anchor a timestamp to the start of its LOCAL calendar day (00:00 local wall
+ * clock). The date filter (`parseInputDate`) already selects by local (+08)
+ * day, so grouping must use the same frame: a 04:00 +08 GPS fix falls on the
+ * PREVIOUS UTC day and would otherwise be binned "yesterday".
+ */
 export function startOfDayMs(ms: number): number {
   const d = new Date(ms)
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 }
 
 export function endOfDayMs(ms: number): number {
   return startOfDayMs(ms) + DAY_MS - 1
 }
 
-/** UTC day key like "2026-08-07"; stable across timezone-sensitive views. */
+/**
+ * Local-timezone day key like "2026-08-07". Matches the `YYYY-MM-DD` the date
+ * inputs produce via `toInputDate` / `parseInputDate`, so grouping is aligned
+ * with the filter that drives the same views.
+ */
 export function dayKeyOf(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10)
+  return toInputDate(ms)
 }
 
 function pad2(n: number): string {
@@ -114,6 +128,11 @@ export function filterSegments(segments: Segment[], range: DateRangeFilter): Seg
 
 export function filterVisits(visits: Visit[], range: DateRangeFilter): Visit[] {
   return visits.filter((v) => overlapsRange(v.startMs, v.endMs, range))
+}
+
+/** Raw GPS fixes whose timestamp falls inside the date range. */
+export function filterRawPoints(points: readonly RawPoint[], range: DateRangeFilter): RawPoint[] {
+  return points.filter((p) => overlapsRange(p.timestampMs, p.timestampMs, range))
 }
 
 /** Bounding box across segments + visits; null when there is no geometry. */
@@ -223,6 +242,7 @@ export function prepareTrips(
   segments: Segment[],
   visits: Visit[],
   range: DateRangeFilter,
+  points: RawPoint[] = [],
 ): PreparedTrips {
   const filteredSegments = filterSegments(segments, range)
   const filteredVisits = filterVisits(visits, range)
@@ -256,14 +276,31 @@ export function prepareTrips(
   const markers = filteredVisits.length > MARKER_CAP ? strideTake(filteredVisits, MARKER_CAP) : filteredVisits
   if (markers.length !== filteredVisits.length) downsampled = true
 
+  const filteredRaw = filterRawPoints(points, range)
+  const rawDrawn =
+    filteredRaw.length > RAW_POINT_CAP ? strideTake(filteredRaw, RAW_POINT_CAP) : filteredRaw
+  if (rawDrawn.length !== filteredRaw.length) downsampled = true
+
   const newestFirst = [...filteredVisits].sort((a, b) => b.startMs - a.startMs)
   return {
     segments: prepared,
     visits: newestFirst,
     markers,
+    points: rawDrawn,
     totalPathPoints: sumPathLengths(prepared),
     downsampled,
   }
+}
+
+/**
+ * Page-level wiring entry: the single way the Trips view derives its renderable
+ * payload from a parsed `TimelineData`. Every consumer layer that needs the raw
+ * GPS stream — TripMap's `rawPoints`, the "N 原始点" summary — reads `points`
+ * off the returned payload, so dropping `data.points` here would silently kill
+ * the whole rendering path (regression guarded by a link-level test).
+ */
+export function prepareTripsForData(data: TimelineData, range: DateRangeFilter): PreparedTrips {
+  return prepareTrips(data.segments, data.visits, range, data.points)
 }
 
 // -- Route point rendering ---------------------------------------------------

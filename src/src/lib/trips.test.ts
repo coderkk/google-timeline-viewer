@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { Segment, Visit } from './types'
+import type { RawPoint, Segment, TimelineData, Visit } from './types'
 import {
   activityColor,
   boundsOf,
   budgetRoutePoints,
+  dayKeyOf,
   endOfDayMs,
+  filterRawPoints,
   filterSegments,
   filterVisits,
   fmtDuration,
@@ -12,7 +14,10 @@ import {
   legendTypes,
   LIST_LIMIT,
   MARKER_CAP,
+  parseInputDate,
   prepareTrips,
+  prepareTripsForData,
+  RAW_POINT_CAP,
   ROUTE_POINT_CAP,
   segmentsOnSameDay,
   segmentsOverlappingVisit,
@@ -52,10 +57,16 @@ function visit(over: Partial<Visit> & { id: string }): Visit {
 const DAY = 24 * 60 * 60 * 1000
 
 describe('date helpers', () => {
-  it('anchors a timestamp to its UTC day boundaries', () => {
-    const ms = Date.UTC(2026, 7, 7, 10, 30)
-    expect(startOfDayMs(ms)).toBe(Date.UTC(2026, 7, 7))
-    expect(endOfDayMs(ms)).toBe(Date.UTC(2026, 7, 7) + DAY - 1)
+  it('anchors a timestamp to its LOCAL day boundaries (previous UTC-day behavior)', () => {
+    // Constructed through the local-timezone constructor on purpose: grouping
+    // must follow the local calendar day — the same frame `parseInputDate`
+    // selects with. On +08 a 00:30 local timestamp is UTC the day before, and
+    // it must still bin to the local day.
+    const local = new Date(2026, 7, 7, 0, 30).getTime()
+    const midnight = new Date(2026, 7, 7).getTime()
+    expect(startOfDayMs(local)).toBe(midnight)
+    expect(endOfDayMs(local)).toBe(midnight + DAY - 1)
+    expect(toInputDate(startOfDayMs(local))).toBe('2026-08-07')
   })
 
   it('formats inputs and durations', () => {
@@ -68,6 +79,39 @@ describe('date helpers', () => {
   it('renders an open-ended range label', () => {
     expect(fmtRangeLabel({ startMs: null, endMs: null })).toBe('不限 ~ 不限')
     expect(fmtRangeLabel({ startMs: Date.UTC(2026, 6, 20), endMs: null })).toBe('2026-07-20 ~ 不限')
+  })
+})
+
+describe('local-timezone day grouping (T13.7)', () => {
+  it('bins pre-08:00 local segments on their local calendar day, aligned with the filter', () => {
+    // The CEO-flagged 2025-01-30 morning segments (04:00 / 06:00 local, plus
+    // a 00:30 edge). Instants built through the local constructor so the test
+    // pins behavior in any runner timezone: the UTC day may be 2025-01-29
+    // (that is exactly the +08 pipeline), but grouping must say 2025-01-30.
+    const early = new Date(2025, 0, 30, 4, 0).getTime()
+    expect(dayKeyOf(early)).toBe('2025-01-30')
+    expect(startOfDayMs(early)).toBe(parseInputDate('2025-01-30'))
+
+    for (const hour of [0, 4, 6]) {
+      const ms = new Date(2025, 0, 30, hour).getTime()
+      expect(dayKeyOf(ms)).toBe('2025-01-30')
+      expect(startOfDayMs(ms)).toBe(startOfDayMs(early))
+    }
+  })
+
+  it('keeps late-evening segments on their own (previous) local day', () => {
+    const prevEvening = new Date(2025, 0, 29, 22, 0).getTime()
+    expect(dayKeyOf(prevEvening)).toBe('2025-01-29')
+    expect(startOfDayMs(prevEvening)).toBe(parseInputDate('2025-01-29'))
+  })
+
+  it('groups the map highlight by the local calendar day', () => {
+    // A visit and a segment that both fall on 2025-01-30 local must share one
+    // startOfDayMs boundary even if their UTC instants straddle midnight.
+    const visitMs = new Date(2025, 0, 30, 0, 30).getTime()
+    const segMs = new Date(2025, 0, 30, 7, 45).getTime()
+    expect(startOfDayMs(visitMs)).toBe(startOfDayMs(segMs))
+    expect(startOfDayMs(visitMs)).toBe(parseInputDate('2025-01-30'))
   })
 })
 
@@ -151,6 +195,93 @@ describe('simplifyPath / caps', () => {
     ])
     expect(prepared.visits).toHaveLength(3)
     expect(LIST_LIMIT).toBeGreaterThan(0)
+  })
+})
+
+describe('raw GPS points (rawSignals) in the Trips flow', () => {
+  const rawPoint = (lat: number, lng: number, timestampMs: number): RawPoint => ({
+    lat,
+    lng,
+    timestampMs,
+  })
+
+  it('filters raw fixes to the selected date range', () => {
+    const points = [
+      rawPoint(1, 2, Date.UTC(2026, 0, 1)),
+      rawPoint(3, 4, Date.UTC(2026, 6, 1)),
+    ]
+    const out = filterRawPoints(points, {
+      startMs: Date.UTC(2026, 5, 1),
+      endMs: Date.UTC(2026, 6, 30),
+    })
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ lat: 3, lng: 4 })
+  })
+
+  it('carries the filtered fixes into the prepared payload', () => {
+    const points = Array.from({ length: 30 }, (_, i) =>
+      rawPoint(0.1, 0.2 + i * 0.001, Date.UTC(2026, 6, 1, 0, i * 2)),
+    )
+    const prepared = prepareTrips(
+      [],
+      [],
+      { startMs: Date.UTC(2026, 6, 1), endMs: Date.UTC(2026, 6, 2) },
+      points,
+    )
+    expect(prepared.points).toHaveLength(30)
+    expect(prepared.downsampled).toBe(false)
+  })
+
+  it('decimates raw fixes to RAW_POINT_CAP and flags downsampled', () => {
+    const many = Array.from({ length: RAW_POINT_CAP + 500 }, (_, i) =>
+      rawPoint(0.1, 0.2 + i * 1e-5, i),
+    )
+    const prepared = prepareTrips([], [], { startMs: null, endMs: null }, many)
+    expect(prepared.points).toHaveLength(RAW_POINT_CAP)
+    expect(prepared.downsampled).toBe(true)
+  })
+
+  it('excludes raw fixes outside the range', () => {
+    const points = [rawPoint(1, 2, Date.UTC(2026, 0, 1))]
+    const prepared = prepareTrips([], [], { startMs: Date.UTC(2026, 6, 1), endMs: null }, points)
+    expect(prepared.points).toHaveLength(0)
+  })
+})
+
+describe('TripsPage wiring (prepareTripsForData)', () => {
+  const rawPoint = (lat: number, lng: number, timestampMs: number): RawPoint => ({
+    lat,
+    lng,
+    timestampMs,
+  })
+
+  it('carries data.points into the payload the map and summary layers consume', () => {
+    const range: DateRangeFilter = {
+      startMs: Date.UTC(2026, 0, 1),
+      endMs: Date.UTC(2026, 0, 31),
+    }
+    const data: TimelineData = {
+      segments: [segment({ id: 's', startMs: Date.UTC(2026, 0, 1, 1), endMs: Date.UTC(2026, 0, 1, 2) })],
+      visits: [visit({ id: 'v', startMs: Date.UTC(2026, 0, 1, 2), endMs: Date.UTC(2026, 0, 1, 3) })],
+      points: [
+        rawPoint(25.0, 121.5, Date.UTC(2026, 0, 1, 0, 5)),
+        rawPoint(24.0, 120.5, Date.UTC(2026, 0, 2, 0, 5)),
+        rawPoint(23.0, 119.5, Date.UTC(2026, 6, 1)), // outside the range
+      ],
+      meta: { fileCount: 1, pointCount: 3, visitCount: 1, segmentCount: 1, timeRange: { minMs: Date.UTC(2026, 0, 1), maxMs: Date.UTC(2026, 6, 1) } },
+    }
+
+    const prepared = prepareTripsForData(data, range)
+
+    // The exact contract the page renders from: TripMap receives
+    // `rawPoints={prepared.points}` and the summary shows "N 原始点" only when
+    // `prepared.points.length > 0`. If the wiring ever drops `data.points`
+    // (regression: S1), `points` is empty here and this test fails.
+    expect(prepared.points).toHaveLength(2)
+    expect(prepared.points[0]).toMatchObject({ lat: 25.0, lng: 121.5 })
+    expect(prepared.points[1].lng).toBe(120.5)
+    expect(prepared.segments).toHaveLength(1)
+    expect(prepared.visits).toHaveLength(1)
   })
 })
 
