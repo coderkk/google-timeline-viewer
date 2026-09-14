@@ -2,6 +2,20 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-14 21:10 — Dev T18 + T19（双月历日期选择 + 更换数据）
+
+**需求来源**：用户三条——①DatePicker 难用（选 A：双月历范围选择器）②选 2025-01-30 却出现 2025-01-29（**用户暂缓决定**，见下）③选了 JSON 后能否换（→ 放日期范围上方：按钮 + 文件名）。
+
+**流程**：按新规则先写 PRD（功能 2 修订 + 新增功能 9、v1.14）再拆 T18/T19，再动手。
+
+**实现**：
+- **T18 `DateRangePicker` 重写**：双月历（当前月 + 下月并排），点起始日 → 点结束日；区间高亮（`is-start`/`is-end`/`in-range`）、标今日、前后翻月（‹ ›）与翻年（« »）；保留 全部/近 30 天/近 1 年 快捷（应用时同步把视图跳到该月）；底部「起始 → 结束」文字 + 「清除」；单边 = 只点一天即从该日起。CSS 以 `.drp-cal-*` 取代旧 `.drp-fields/.drp-field`。
+- **T19 `dataLabel` + `DataBar`**：store 增 `dataLabel`（`importFiles` 记文件名/多档「X 等 N 个文件」、`loadSample` 记「模拟数据」、`clearData` 置 null）；新增 `DataBar` 组件（「当前数据」+ 文件名 + 「更换数据」按钮 → `clearData`），放在日期范围**上方**（Trips 与 Places 共用）。`clearData` 此前从未被任何 UI 调用，本次首次接线。
+
+**验证**（用 sample data，秒级——遵守新规则「UI 用 sample」）：DataBar 显示「模拟数据」；双月历点 09-10 → 09-14，标签「2026-09-10 → 2026-09-14」、start/end 高亮 + 3 个 in-range、地图过滤为「68 轨迹点 · 8 停留」；点「更换数据」→ 回空状态（导入按钮出现、DataBar 消失）；Places 侧栏同样有 DataBar + 双月历。141 单测 + build + lint 全绿。
+
+**暂缓（待用户决定）**：选 2025-01-30 出现 2025-01-29，根因是**跨午夜记录**（visit 01-29 16:58→01-30 08:47、timelinePath 01-29 22:00→01-30 00:00）被 overlap 语义纳入，且段的路径点整段带入。已提供 A/B/C 方案，用户表示「再想想」。
+
 ## 2026-09-14 20:05 — CEO T16–T17 验收通过 + 已部署
 用户确认「現在我可以回想我旅行的時間和路線」。提交 `b4ed89b`（14 files, +947/−72）并 push `origin/main`，GitHub Actions 部署成功：线上 `assets/index-CBgmSybv.js`（本地构建 hash 一致），bundle 含「在 Google Maps 開啟 / 时间线（ / 行程段轨迹 / 轨迹点（行程段）」。线上冒烟：Landing 正常 →「立即体验」载入示例数据 → Trips 时间轴 `1,335 轨迹点（GPS+行程段）· 191 停留`、左側「时间线（621）」。https://coderkk.github.io/google-timeline-viewer/
 

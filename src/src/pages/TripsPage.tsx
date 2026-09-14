@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import DataBar from '../components/DataBar'
 import DateRangePicker from '../components/DateRangePicker'
 import StopList from '../components/StopList'
 import TimelineList from '../components/TimelineList'
@@ -83,6 +84,7 @@ function MapPane({
   return (
     <>
       <div className="trips-side">
+        <DataBar />
         <DateRangePicker />
         {mode === 'timeline' ? (
           <TimelineList

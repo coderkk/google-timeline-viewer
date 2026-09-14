@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import DataBar from '../components/DataBar'
 import DateRangePicker from '../components/DateRangePicker'
 import PlacesMap from '../components/PlacesMap'
 import VisitHistoryPanel from '../components/VisitHistoryPanel'
@@ -156,6 +157,7 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
 
   const sidebar = (
     <aside className="trips-side">
+      <DataBar />
       <DateRangePicker />
       <div className="places-help">点击地图任意位置，查看该处历史上的停留点及访问时间。</div>
       <div className="places-controls">

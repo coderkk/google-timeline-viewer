@@ -54,4 +54,7 @@
 
 - [x] ~~T17: 路径点时间 + 轨迹去重 + 大 marker + 左侧时间线~~ (09-14→09-14) — 用户：①路徑點要顯示時間（幾點經過哪）②marker 大一點③「線還是很多」④左邊要時間線不只停留點。根因：`timelinePath` 每點有 `time` 但解析器丟掉；「線多」= T13.2 縫合把同一 trace 複製進 activity 段，舊 route 逐段拼接畫兩次。改：`PathPoint{timestampMs?}`（types）+ 解析器讀 `time`；`buildTimelineRoute` 重寫為「raw 點 + 語義段點按時間排序合併」——raw 覆蓋的段跳過（不重畫）、連續重複點（同位置±1m/同時間±1s）折疊、無時間點用段內插值僅作排序鍵；marker 2.5→4 / 6→8（選中 12）；popup 顯示真實時間；新增 `TimelineList`（點+停留按時間排序、按日分組、可點飛）取代 timeline 模式的 StopList。驗證：2025-01-30 172→115 軌跡點（去重）；左側「时间线（122）」=109 有時間點+13 停留；popup「2025-01-30 11:10」；2026-08-01 = 537 軌跡點（523 raw + 14 補點）；141 單測+build+lint 全綠；已部署
 
+- [x] ~~T18: 双月历范围选择器~~ (09-14→09-14) — 用户反馈原生 date input 难用，选 A 方案；`DateRangePicker` 重写为双月历：点起始日→点结束日、区间高亮、前后翻月/年（«‹›»）、标今日、清除、范围文字（起始→结束）；保留 全部/近30天/近1年 快捷（应用时同步跳到该月）；单边=只点一天即从该日起。CSS 以 .drp-cal-* 取代 .drp-fields/.drp-field。验证（sample data）：点 09-10→09-14 → 标签「2026-09-10 → 2026-09-14」、start/end 高亮 + 3 个 in-range、地图过滤为 68 点；Trips/Places 共用。141 单测+build+lint 全绿
+- [x] ~~T19: 更换数据 + 显示文件名~~ (09-14→09-14) — store 增 `dataLabel`（importFiles=文件名/多档「等 N 个文件」、loadSample=模拟数据、clearData=null）；新增 `DataBar`（「当前数据」+ 文件名 + 「更换数据」按钮 → clearData），置于日期范围**上方**（Trips + Places）；`clearData` 首次被接线。验证（sample data）：显示「模拟数据」、点更换数据回空状态（导入按钮出现、DataBar 消失）。141 单测+build+lint 全绿
+
 ## ❌ Cancelled

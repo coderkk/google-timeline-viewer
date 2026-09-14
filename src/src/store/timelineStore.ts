@@ -37,6 +37,8 @@ interface TimelineStore {
   data: TimelineData | null
   status: TimelineStatus
   dataSource: DataSource
+  /** Human-readable label of the loaded dataset (file name(s) or "模拟数据"). */
+  dataLabel: string | null
   errorMsg: string | null
   parseProgress: number
   dateRange: DateRange
@@ -52,6 +54,12 @@ interface TimelineStore {
   setThemeMode: (mode: ThemeMode) => void
 }
 
+/** Short label for the imported file(s), shown above the date range. */
+function fileLabel(files: File[]): string {
+  if (files.length === 1) return files[0].name
+  return `${files[0].name} 等 ${files.length} 个文件`
+}
+
 function parseErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
@@ -65,6 +73,7 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   data: null,
   status: 'empty',
   dataSource: 'none',
+  dataLabel: null,
   errorMsg: null,
   parseProgress: 0,
   dateRange: RESET_RANGE,
@@ -85,7 +94,13 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
     }
 
     const warnings: string[] = []
-    set({ status: 'parsing', parseProgress: 0, errorMsg: null, dataSource: 'user' })
+    set({
+      status: 'parsing',
+      parseProgress: 0,
+      errorMsg: null,
+      dataSource: 'user',
+      dataLabel: fileLabel(files),
+    })
     parseFilesInWorker(files, {
       onProgress: (event) => {
         if (event.type === 'large') return
@@ -117,7 +132,13 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   },
 
   loadSample: async () => {
-    set({ status: 'parsing', parseProgress: 0, errorMsg: null, dataSource: 'sample' })
+    set({
+      status: 'parsing',
+      parseProgress: 0,
+      errorMsg: null,
+      dataSource: 'sample',
+      dataLabel: '模拟数据',
+    })
     try {
       const data = await loadSampleTimeline()
       set({
@@ -140,6 +161,7 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
       data: null,
       status: 'empty',
       dataSource: 'none',
+      dataLabel: null,
       errorMsg: null,
       parseProgress: 0,
       dateRange: RESET_RANGE,
