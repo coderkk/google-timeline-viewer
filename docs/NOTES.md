@@ -2,6 +2,110 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-14 19:20 — Dev T17 路径点时间 + 去重 + 大 marker + 左侧时间线
+
+**用户反馈**：①「行程段轨迹」要顯示時間，才知道幾點經過那地方；②marker 大一點；③「感覺連接的線還是很多」；④左邊要顯示時間線，不是只有 13 個停留點。
+
+**根因**：`semanticSegments[].timelinePath` 每個點其實都有 `time`（真實 GPS 時間），但解析器 `pointFromPathElement` 只取座標、丟掉時間 → 時間軸只能顯示「行程段軌跡」。而「線很多」是因為 T13.2 縫合把 timelinePath trace 複製進無 path 的 activity 段，兩者時間+座標完全相同，舊 route 逐段拼接 → 同一條軌跡畫兩次。
+
+**实现**：
+1. **`src/lib/types.ts`**：新增 `PathPoint extends Point { timestampMs?: number }`；`Segment.path` 改 `PathPoint[]`。
+2. **`src/lib/parse/common.ts`**：`pointFromPathElement` 讀 `time`/`timestampMs`/`timestamp`（`timelinePath` 的 `time` 為 ISO）→ 路徑點帶真實時間；`pathToPoints`/`firstPath`/`TimelinePathCandidate` 改 `PathPoint[]`。
+3. **`src/lib/trips.ts` `buildTimelineRoute` 重写**：不再按日分桶拼接，而是把 raw 點 + 語義段路徑點合成**一條按時間排序的軌跡**：
+   - 段的路徑點帶自身時間；無時間者用段內插值作**排序鍵**（僅排序，不顯示）。
+   - **已被 raw 覆蓋的段跳過**（段 span 內有 raw 點 → 用更精細的 raw），避免同一段路畫兩次；raw 視窗外才用語義段。
+   - 連續重複點（同位置 ~1m 且同時 ±1s）折疊 → 消除縫合重複。
+   - `source` 依實際來源給 raw/segments/mixed。
+4. **`TripMap.tsx`**：路線點半徑 2.5→4、停留 marker 6/9→8/12；popup 顯示真實時間（有時間時），無時間才標「行程段軌跡」；`flyTarget` 型別放寬為 `Point`。
+5. **新增 `TimelineList.tsx` + CSS**：左側時間線——把路線點（有時間者）與停留點合併按時間排序、按本地日分組；每列 `HH:mm` + 座標 / 停留時段+時長；點擊飛到該點。timeline 模式用 TimelineList，activityType 模式保留 StopList。
+
+**测试**（`trips.test.ts` 等，139 → **141**）：更新縫合/解析用例納入 `timestampMs`；新增「帶 timelinePath 逐點時間」「raw 覆蓋的段被跳過（不重畫）」；cap 用例點距改 >1e-5 避免被去重。buildTimelineRoute describe 更名 T16/T17。
+
+**验证**（浏览器，clean reload + 真实 123.4MB 文件）：
+- 2025-01-30：summary 由 172 → **115 轨迹点**（去重掉縫合重複）；左側「时间线（122）」= 109 有時間的點 + 13 停留；點地圖藍點 popup 顯示真實時間「35.45121, 138.81386 / **2025-01-30 11:10** / 在 Google Maps 開啟」；canvas 藍 3344px、紅（大 marker）873px。
+- 2026-08-01（raw 窗口）：523 原始點 → 537 軌跡點（523 raw + 14 個未被 raw 覆蓋段的補點），label 誠實為「GPS+行程段」。
+- 141 單測 + build + lint 全綠。未 commit、未部署。
+
+## 2026-09-14 18:40 — Dev T16.2 停留点配色 + 点选 GPS 弹窗（Google Maps 链接）
+
+**用户反馈**：①13 個停留點不用連（確認：visits 本就不在 route 折線內，屬獨立 marker）；②停留點 marker 換顏色（原本和路線同藍色 #3b82f6，難分辨）；③172 軌跡點連線正確；④每個點（marker）可點擊看 GPS，並附連結開 Google Maps。
+
+**实现**（`src/components/TripMap.tsx` + `src/index.css`）：
+- **停留 marker 配色**：`fillColor` 由 `selected ? #f87171 : #3b82f6` 改為 `selected ? #f59e0b : #ef4444`（琥珀/紅），與路線藍明確區分；停留點本就不參與折線，維持不連。
+- **點擊看 GPS + Google Maps 連結**：
+  - 路線頂點：移除只在 hover 生效（canvas 圓點不觸發 DOM hover，實際無效）的 `<Tooltip>`，改為 `click` → `map.openPopup(...)`。新增模組級 `pointPopupContent()` 用 **真實 DOM**（非 HTML 字串，座標不可能被當 markup）建構 popup：座標 + 時間（語義段頂點顯示「行程段軌跡」）+ `<a>` Google Maps 連結（`target=_blank rel=noopener`）。用 `MapContainer ref` 取得 map 後 `openPopup(content, latlng)`，**單一共享 popup**，避免為每個頂點掛一個 `<Popup>`（路線可達數萬點）。
+  - 停留 marker：tooltip 增座標 + Google Maps 連結；CSS `.trip-tip-link { pointer-events: auto }` 讓 Leaflet 預設 `pointer-events:none` 的 tooltip 內連結仍可點。
+  - 座標去重：popup/tooltip 僅在有「名稱」時才另起一行顯示座標（路線頂點標題即座標，不重複）。
+
+**验证**（浏览器，clean reload + 真实 123.4MB 文件，2025-01-30 时间轴）：
+- 停留 marker 紅色：canvas 檢出 482 個紅色像素（#ef4444）；路線藍 4786。
+- 點路線點 → `.leaflet-popup` 內容「35.46409, 138.80301 / 行程段軌跡 / 在 Google Maps 開啟」，href `https://www.google.com/maps?q=35.4640884,138.8030056`、target `_blank` ✅
+- 點停留點 → tooltip「35.03430, 137.22202 / 2025-01-30 15:00 · 15m / 在 Google Maps 開啟」，link `pointer-events: auto`、實際點擊開啟新分頁 ✅
+- 139 單測 + build + lint 全綠。未 commit、未部署。
+
+## 2026-09-14 18:10 — Dev T16.1 时间轴轨迹点跟随路线（每个路径点都显示）
+
+**用户反馈**：2025-01-30 时间轴只看到 13 个点（停留 marker），但「按活动类型」有 165 个路径点。用户要求：时间轴要把**全部**走过的点放出来、按时间排、再连起来——「每個點都是走過的痕跡」。
+
+**根因**：T16 把语义段轨迹接进了 `route` 折线，但 TripMap 的圆点仍只遍历 `rawPoints`（2025-01-30 为 0），所以只有 13 个 visit marker。折线画了、点没画。
+
+**实现**：
+- `TimelinePayload.route` 类型由 `Point[]` 改为 `TimelineVertex[]`（`TimelineVertex extends Point { timestampMs?: number }`，新增导出；注意与既有 `RoutePoint`（budgetRoutePoints 用，带 `color`）区分，避免命名冲突）。`buildTimelineRoute` 的 raw 顶点带 `timestampMs`，语义段顶点不带（导出无逐点时间，不伪造）。
+- `TripMap` timeline 模式圆点改为遍历 `timelineRoute`（`route` 或回退 `rawPoints`），每个顶点一个圆点；tooltip 有 `timestampMs` 显示时间，否则显示「行程段轨迹」。
+- `TripsPage.showPointsToggle` 修正：timeline 模式只要 `route.length > 0` 就显示开关（T16 曾误判为「无 raw 点即无点可切」而隐藏；现在点跟随路线，开关有效）。
+
+**验证**（浏览器，clean reload + 真实 123.4MB 文件）：
+- 2025-01-30 时间轴 → summary「172 轨迹点（行程段）· 13 停留」；overlay canvas 单实例；开点蓝像素 5302、关点 4634（差 668 = 172 个路线圆点，密集处重叠；折线 4634 保留）→ 证明圆点随路线绘制且开关有效。
+- 2026-08-01（raw 窗口）→「523 原始点」不变。
+- 139 单测 + build + lint 全绿。未 commit、未部署。
+
+## 2026-09-14 17:40 — Reviewer + Dev T16 复审轮（PASS-WITH-CONDITIONS）
+
+**Reviewer 结论**：PASS-WITH-CONDITIONS，无 S1/S2 阻塞。确认：本地日分桶与筛选器同时区（`dayKeyOf`=本地）、范围过滤、`[start,end]` 回退、全局 cap + downsampled、`prepareTimeline` 第 4 参向后兼容（3 参调用全过）、`route` 四组合渲染正确、`fitBounds` 依赖数组无 stale closure、summary 三源诚实、无 O(n²)；139/139 单测 + build + lint 全绿。
+
+**已修（本轮）**：
+- **A1** `buildTimelineRoute` 契约不对称 → 函数内自行 `filterRawPoints` + 按 `timestampMs` 排序（调用方仍可传全量流）；docstring 明确。
+- **A2** `DateRangePicker.tsx` 混入无关改动（行为等价的重构 + 描述不存在的 bug 的注释）→ **整文件 revert 到 HEAD**，T16 diff 只含相关文件。
+- **A4** 措辞纠正：NOTES/DECISIONS 原称「分桶规避段间时间重叠导致的乱序」不准确——分桶只解决**跨日 source 选择**；日内重叠段仍按 `startMs` 顺序全部拼接，这与 T14.3「跟時間連」一致（粗/细双记录照连、不去重），已在 docstring 写明。
+- **N1** `trips.test.ts` 补文件末尾换行。
+- **N3** 时间轴模式下无 raw 点时「轨迹点」开关无可见效果 → 该模式下无 raw 点则**隐藏**开关（`showPointsToggle`）。
+
+**记录不修（advisory）**：A3（`preparedTimeline` 在 activityType 模式下也重算 route，线性但可懒算）、A5（测试缺口：单点 raw 无段分支、route cap→downsampled 传播、跨零点排序、DST 日界——DST 为既有问题）。均记入 Backlog 待发布前评估。
+
+**浏览器复验（reload 后）**：2025-01-30 时间轴 → 「172 轨迹点（行程段）· 13 停留」、开关隐藏、canvas 4634 蓝像素（路线在）；切「按活动类型」→「20 段 · 165 点 · 13 停留 · 17 处衔接」、开关恢复；2026-08-01 时间轴 →「523 原始点 · 18 停留」（raw 窗口无回归）。未 commit、未部署。
+
+## 2026-09-14 17:10 — Dev T16 时间轴路线回退语义段（raw 仅存 ~30 天）
+
+**用户反馈**：Google Timeline 的用法就是选一段时间、看那段时间去过哪、路径怎么走。rawSignals 只保留 ~30 天，所以旧日期本来就没有 raw 点；不能因此让地图空着。实测 `Timeline-20260820.json` 的 2025-01-30。
+
+**根因**：T15 的时间轴模式把路线**只**绑定到 `rawSignals`（`TripMap` 里 `timelinePath = rawPoints.map(...)`）。2025-01-30 的 raw 点为 0 → 无 polyline，summary 显示「0 原始点」，地图只剩 13 个 visit marker。但该日 `semanticSegments` 有 33 段（其中多段带 `timelinePath`），解析后 `segment.path` 已有完整行程轨迹——数据在，只是时间轴模式没用。
+
+**实现**：
+
+1. **`src/lib/trips.ts`**：
+   - `TimelinePayload` 增 `route: Point[]`（折线顶点，时间序）与 `routeSource: 'raw' | 'segments' | 'mixed'`。
+   - 新增 `buildTimelineRoute(rawPoints, segments, range)`：按**本地日**分桶——当日 raw ≥2 用 raw（保留 ~30 天窗口内的原始观感与精度）；否则用该日语义段 `path`（`<2` 回退 `[start,end]`）按 `startMs` 时间序拼接；跨天自然形成时间线。全局 30000 点预算（`GLOBAL_PATH_POINT_CAP`，超限 `strideTake` 保两端并置 `downsampled`）。分桶避免了段间时间重叠（同程粗细双记录）导致的乱序/重复。
+   - `prepareTimeline(visits, range, points, segments = [])` 增第 4 参（向后兼容：既有 3 参调用 segments 为空 → route 回退 raw/空）。
+   - `boundsIncludeRawPoints` 入参放宽为 `readonly Point[]`（route 是 `Point[]`）。
+
+2. **`src/components/TripMap.tsx`**：新增 `route?: readonly Point[]` prop；timeline 折线改用 `route`（缺省回退 `rawPoints`）；折线**不再受** `showRoutePoints` 门控——该开关只控逐点圆点（「轨迹点」语义），路线本身始终绘制。
+
+3. **`src/pages/TripsPage.tsx`**：`prepareTimeline(...)` 传入 `data.segments`；`fitBounds` 与 summary 改用 `route`；summary 诚实标注来源（`原始点` / `轨迹点（行程段）` / `轨迹点（GPS+行程段）`）；`MapPane`/直连两处 `TripMap` 传 `route`。
+
+**测试**（`trips.test.ts`，131 → **139**，+8）：
+- `prepareTimeline`：无 raw 时回退语义段路径（route 非空、source='segments'）；同日优先 raw。
+- `buildTimelineRoute`：语义段按时间序拼接、跨天 mixed 源、范围筛选、空 path 回退 `[start,end]`、超预算 cap 保两端 + downsampled、无几何时 source='raw' 且 route 空。
+
+**验证**：
+- `npm run test` trips 56 passed（其余 parse 用例 22 passed 隔离复跑通过；全量并发下 `parse.test.ts` 一条 2M 点 cap 用例超 5s 为既有 flaky，非本次改动）。
+- `npm run build`（tsc+vite）✅ / `npm run lint` 0 error ✅。
+- livedata 浏览器实测（`Timeline-20260820.json` 123.4MB）：
+  - 2025-01-30 时间轴模式 → summary「172 轨迹点（行程段） · 13 停留」，overlay canvas 检出 4634 个 #3b82f6 蓝色像素（路线已绘）；旧行为为「0 原始点」+ 0 蓝。
+  - 2026-08-01（raw 窗口内）→「523 原始点 · 18 停留」，与文件 rawSignals 精确计数一致（无回归）。
+  - 「轨迹点」开关关闭 → 蓝像素 5525→4474（圆点消失、路线保留）。
+  - 「按活动类型」模式不受影响（19 段 · 149 点 · 18 停留 · 523 原始点 · 18 处衔接）。
+- 未 commit、未部署。
+
 ## 2026-09-14 16:00 — Dev T15 Trip 时间轴视图（纯 GPS 轨迹线）
 
 用户反馈 T14 系列（bridge lines）仍未解决——他们要的不是虚线桥，而是一条纯时间线：所有 rawSignals（GPS 点）按时间排序连成一条线（单色），停驻点用不同颜色标记，移动点 tooltip 显示 GPS 坐标。

@@ -1,7 +1,7 @@
 // Shared defensive helpers used by all four format parsers. Every record read
 // from user-provided JSON is validated field-by-field; malformed entries are
 // skipped with a warning instead of throwing.
-import type { Point, RawPoint, Segment, TimelineData, TimelineMeta, Visit } from '../types'
+import type { PathPoint, Point, RawPoint, Segment, TimelineData, TimelineMeta, Visit } from '../types'
 import { e7ToLat, e7ToLng, toMs } from '../types'
 
 /** Upper bound on accumulated raw trajectory points (per file and merged). */
@@ -16,7 +16,7 @@ export const MAX_RAW_POINTS = 2_000_000
 export interface TimelinePathCandidate {
   startMs: number
   endMs: number
-  points: Point[]
+  points: PathPoint[]
 }
 
 export interface ParseState {
@@ -190,15 +190,28 @@ export function getDuration(record: Record<string, unknown> | null): Duration | 
   return { startMs, endMs }
 }
 
-/** Convert a single path element (waypoint or timeline-path row) to a point. */
-function pointFromPathElement(element: unknown): Point | null {
+/**
+ * Convert a single path element (waypoint or timeline-path row) to a point.
+ * `timelinePath` rows are `{ point: "lat°, lng°", time: "..." }`, so the
+ * per-vertex time is carried through when present.
+ */
+function pointFromPathElement(element: unknown): PathPoint | null {
   const record = asRecord(element)
   if (record) {
     const pointLabel = record['point']
     if (typeof pointLabel === 'string') {
       const point = parseLatLngString(pointLabel)
-      if (point) return point
+      if (point) {
+        const timestampMs = timeField(record, ['time', 'timestampMs', 'timestamp'])
+        return timestampMs === undefined ? point : { ...point, timestampMs }
+      }
     }
+    const fallback = getLatLng(element)
+    if (fallback) {
+      const timestampMs = timeField(record, ['time', 'timestampMs', 'timestamp'])
+      return timestampMs === undefined ? fallback : { ...fallback, timestampMs }
+    }
+    return null
   }
   return getLatLng(element)
 }
@@ -209,7 +222,7 @@ function pointFromPathElement(element: unknown): Point | null {
  * the stop list under `transitStops` (each element is a plain location record
  * with latitudeE7/longitudeE7), so it is treated as a point source too.
  */
-export function pathToPoints(value: unknown, maxPoints = 1_000_000): Point[] {
+export function pathToPoints(value: unknown, maxPoints = 1_000_000): PathPoint[] {
   let items: unknown[]
   if (Array.isArray(value)) {
     items = value
@@ -226,7 +239,7 @@ export function pathToPoints(value: unknown, maxPoints = 1_000_000): Point[] {
     if (!Array.isArray(nested)) return []
     items = nested
   }
-  const points: Point[] = []
+  const points: PathPoint[] = []
   for (let i = 0; i < items.length && points.length < maxPoints; i++) {
     const point = pointFromPathElement(items[i])
     if (point) points.push(point)
@@ -235,7 +248,7 @@ export function pathToPoints(value: unknown, maxPoints = 1_000_000): Point[] {
 }
 
 /** First non-empty path among the candidate keys (ordered by preference). */
-export function firstPath(segment: Record<string, unknown>, keys: string[]): Point[] {
+export function firstPath(segment: Record<string, unknown>, keys: string[]): PathPoint[] {
   for (const key of keys) {
     const value = segment[key]
     if (value !== undefined) {

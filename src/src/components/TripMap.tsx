@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { CircleMarker as LeafletCircleMarker } from 'leaflet'
-import type { RawPoint, Segment, Visit } from '../lib/types'
+import type { Point, RawPoint, Segment, Visit } from '../lib/types'
 import {
   activityColor,
   bridgeGapLabel,
@@ -19,6 +19,7 @@ import {
   fmtDuration,
   ROUTE_POINT_CAP,
   type BridgeLine,
+  type TimelineVertex,
 } from '../lib/trips'
 import { useTimelineStore } from '../store/timelineStore'
 
@@ -30,6 +31,13 @@ export interface TripMapProps {
   markers: readonly Visit[]
   /** Raw GPS fixes (rawSignals) to draw as a faint dense trail. */
   rawPoints?: readonly RawPoint[]
+  /**
+   * Timeline-mode route vertices (T16). Already time-ordered by
+   * `prepareTimeline`; may come from rawSignals or, for dates outside Google's
+   * ~30-day raw retention, from semantic segment paths. Every vertex is drawn
+   * as a dot. Falls back to `rawPoints` when omitted.
+   */
+  route?: readonly TimelineVertex[]
   /**
    * Dashed "no-record" links between consecutive timeline segments, aligned
    * with `segments` (indices point into that same list, which must therefore
@@ -47,7 +55,7 @@ export interface TripMapProps {
   /** Bumped (e.g. sidebar collapse) to force a Leaflet re-layout. */
   invalidateKey: string
   /** Visit to fly the camera onto (list or marker click). */
-  flyTarget: Visit | null
+  flyTarget: Point | null
   /** Draw a small circle at every route vertex. Defaults to true. */
   showRoutePoints?: boolean
   /**
@@ -61,14 +69,14 @@ interface ControllerProps {
   fitBounds: LatLngBoundsMatrix | null
   fitKey: string | null
   invalidateKey: string
-  flyTarget: Visit | null
+  flyTarget: Point | null
 }
 
 function FitController({ fitBounds, fitKey, invalidateKey, flyTarget }: ControllerProps) {
   const map = useMap()
   const lastFitKey = useRef<string | null>(null)
   const lastInvalidate = useRef<string>(invalidateKey)
-  const lastTarget = useRef<Visit | null>(null)
+  const lastTarget = useRef<Point | null>(null)
 
   // The map often mounts mid-layout (EmptyState -> view swap), when its
   // container may not have real pixels yet. Deferring the fit until a size is
@@ -119,11 +127,75 @@ function FitController({ fitBounds, fitKey, invalidateKey, flyTarget }: Controll
 // it is a one-time import side effect, never a render-time mutation.
 const canvasRenderer = L.canvas({ padding: 0.5 })
 
+/** Google Maps deep link for a coordinate. */
+function googleMapsUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps?q=${lat},${lng}`
+}
+
+/**
+ * Build the popup DOM for a picked map point. Built as real DOM (not an HTML
+ * string) so the coordinate text can never be interpreted as markup, and so the
+ * Google Maps link is a genuine anchor. Canvas circle markers do not fire DOM
+ * hover events, so a click-opened popup is the reliable way to expose the GPS
+ * fix — one shared popup is opened imperatively to avoid mounting a Popup
+ * element per vertex (routes can hold tens of thousands of them).
+ */
+function pointPopupContent(opts: {
+  lat: number
+  lng: number
+  title?: string
+  address?: string
+  meta?: string
+}): HTMLElement {
+  const wrap = document.createElement('div')
+  wrap.className = 'trip-popup'
+
+  const hasTitle = opts.title !== undefined
+  const title = document.createElement('div')
+  title.className = 'trip-popup-title'
+  title.textContent = opts.title ?? `${opts.lat.toFixed(5)}, ${opts.lng.toFixed(5)}`
+  wrap.appendChild(title)
+
+  if (opts.address) {
+    const addr = document.createElement('div')
+    addr.className = 'trip-popup-addr'
+    addr.textContent = opts.address
+    wrap.appendChild(addr)
+  }
+
+  // Only repeat the coordinates when a distinct title (e.g. a place name) was
+  // given; for a bare route vertex the title already IS the coordinate.
+  if (hasTitle) {
+    const coords = document.createElement('div')
+    coords.className = 'trip-popup-meta'
+    coords.textContent = `${opts.lat.toFixed(5)}, ${opts.lng.toFixed(5)}`
+    wrap.appendChild(coords)
+  }
+
+  if (opts.meta) {
+    const meta = document.createElement('div')
+    meta.className = 'trip-popup-meta'
+    meta.textContent = opts.meta
+    wrap.appendChild(meta)
+  }
+
+  const link = document.createElement('a')
+  link.className = 'trip-popup-link'
+  link.href = googleMapsUrl(opts.lat, opts.lng)
+  link.target = '_blank'
+  link.rel = 'noopener noreferrer'
+  link.textContent = '在 Google Maps 開啟'
+  wrap.appendChild(link)
+
+  return wrap
+}
+
 export default function TripMap(props: TripMapProps) {
   const {
     segments,
     markers,
     rawPoints = [],
+    route,
     bridges = [],
     highlightedSegments,
     selectedMarkerIndex,
@@ -136,11 +208,18 @@ export default function TripMap(props: TripMapProps) {
     mode = 'activityType',
   } = props
 
-  // Timeline mode: single polyline connecting all rawSignals points.
+  // Timeline mode: single polyline through the prepared route, plus a dot for
+  // every vertex (the "trail of points"). The route may be raw GPS fixes or
+  // semantic segment paths (older dates), so it falls back to `rawPoints` when
+  // no explicit route is supplied.
+  const timelineRoute = useMemo(
+    () => (route && route.length > 0 ? route : rawPoints),
+    [route, rawPoints],
+  )
+
   const timelinePath = useMemo(
-    () =>
-      rawPoints.map((p): LatLngExpression => [p.lat, p.lng]),
-    [rawPoints],
+    () => timelineRoute.map((p): LatLngExpression => [p.lat, p.lng]),
+    [timelineRoute],
   )
 
   const positions = useMemo(
@@ -170,6 +249,9 @@ export default function TripMap(props: TripMapProps) {
   // be opened/closed imperatively instead of relying on mouseover.
   const circles = useRef(new Map<number, LeafletCircleMarker>())
   const lastOpened = useRef<LeafletCircleMarker | null>(null)
+  // Map instance for imperative one-off popups (route-point GPS fixes). Avoids
+  // mounting a <Popup> element for every route vertex.
+  const mapRef = useRef<L.Map | null>(null)
   useEffect(() => {
     lastOpened.current?.closeTooltip()
     const next = selectedMarkerIndex === null ? null : (circles.current.get(selectedMarkerIndex) ?? null)
@@ -179,6 +261,7 @@ export default function TripMap(props: TripMapProps) {
 
   return (
     <MapContainer
+      ref={mapRef}
       className="trip-map"
       center={[14, 112]}
       zoom={5}
@@ -192,8 +275,10 @@ export default function TripMap(props: TripMapProps) {
         invalidateKey={invalidateKey}
         flyTarget={flyTarget}
       />
-      {/* Timeline mode: single continuous polyline of rawSignals + GPS tooltip dots. */}
-      {showRoutePoints && mode === 'timeline' && timelinePath.length >= 2 && (
+      {/* Timeline mode: single continuous route line + a dot at every vertex
+          (the trail of points). The line is drawn regardless of the
+          "trajectory points" toggle — that toggle only controls the dots. */}
+      {mode === 'timeline' && timelinePath.length >= 2 && (
         <>
           <Polyline
             positions={timelinePath}
@@ -205,27 +290,35 @@ export default function TripMap(props: TripMapProps) {
             renderer={canvasRenderer}
           />
           {showRoutePoints &&
-            rawPoints.map((point, index) => (
+            timelineRoute.map((point, index) => (
               <CircleMarker
                 key={`tl-${index}`}
                 center={[point.lat, point.lng]}
-                radius={2.5}
+                radius={4}
                 pathOptions={{
                   color: '#3b82f6',
                   weight: 1,
-                  opacity: 0.5,
+                  opacity: 0.6,
                   fillColor: '#3b82f6',
-                  fillOpacity: 0.4,
+                  fillOpacity: 0.5,
                 }}
                 renderer={canvasRenderer}
-              >
-                <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip">
-                  <span className="trip-tip-title">
-                    {point.lat.toFixed(4)}, {point.lng.toFixed(4)}
-                  </span>
-                  <span className="trip-tip-meta">{fmtDateTime(point.timestampMs)}</span>
-                </Tooltip>
-              </CircleMarker>
+                eventHandlers={{
+                  click: () => {
+                    mapRef.current?.openPopup(
+                      pointPopupContent({
+                        lat: point.lat,
+                        lng: point.lng,
+                        meta:
+                          point.timestampMs !== undefined
+                            ? fmtDateTime(point.timestampMs)
+                            : '行程段轨迹',
+                      }),
+                      [point.lat, point.lng],
+                    )
+                  },
+                }}
+              />
             ))}
         </>
       )}
@@ -318,12 +411,14 @@ export default function TripMap(props: TripMapProps) {
 <CircleMarker
               key={index}
               center={[visit.lat, visit.lng]}
-              radius={selected ? 9 : 6}
+              radius={selected ? 12 : 8}
               pathOptions={{
                 color: '#fff',
-                weight: 1.5,
-                fillColor: selected ? '#f87171' : '#3b82f6',
-                fillOpacity: selected ? 1 : 0.75,
+                weight: 2,
+                // Stops are deliberately NOT the route blue: they are places,
+                // not movement, and must be distinguishable from the trail.
+                fillColor: selected ? '#f59e0b' : '#ef4444',
+                fillOpacity: selected ? 1 : 0.9,
                 opacity: 0.95,
               }}
               renderer={canvasRenderer}
@@ -335,9 +430,23 @@ export default function TripMap(props: TripMapProps) {
             <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip" permanent={selected}>
               <span className="trip-tip-title">{title}</span>
               {visit.address !== undefined && <span className="trip-tip-addr">{visit.address}</span>}
+              {visit.name !== undefined && (
+                <span className="trip-tip-meta">
+                  {visit.lat.toFixed(5)}, {visit.lng.toFixed(5)}
+                </span>
+              )}
               <span className="trip-tip-meta">
                 {fmtDateTime(visit.startMs)} · {fmtDuration(visit.endMs - visit.startMs)}
               </span>
+              <a
+                className="trip-tip-link"
+                href={googleMapsUrl(visit.lat, visit.lng)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                在 Google Maps 開啟
+              </a>
             </Tooltip>
           </CircleMarker>
         )

@@ -446,6 +446,92 @@ body {
   color: var(--color-text-dim);
 }
 
+/* --- Timeline list (Trips timeline mode) --------------------------------- */
+
+.timeline-list {
+  padding: 14px;
+  min-height: 0;
+}
+
+.timeline-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-day {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  padding: 10px 4px 4px;
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+}
+
+.timeline-item {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.timeline-item:hover {
+  background: var(--color-bg);
+}
+
+.timeline-item.selected {
+  border-color: var(--color-accent);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.timeline-time {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-dim);
+}
+
+.timeline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.timeline-title {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Stops stand out from the movement points. */
+.timeline-item.visit .timeline-title {
+  font-weight: 600;
+  color: #ef4444;
+}
+
+.timeline-item.visit .timeline-time {
+  color: #ef4444;
+}
+
+.timeline-meta {
+  font-size: 11px;
+  color: var(--color-text-dim);
+}
+
 /* --- Places view --------------------------------------------------------- */
 
 .places-help {
@@ -655,6 +741,51 @@ body {
   font-size: 11px;
   color: var(--color-text-dim);
   margin-top: 2px;
+}
+
+.trip-tip-link {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-accent);
+  text-decoration: underline;
+  /* Leaflet tooltips are pointer-events:none; re-enable on the link only so it
+     stays clickable without making the whole tooltip capture map gestures. */
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Click-opened GPS popup for a map point (TripMap pointPopupContent). */
+.trip-popup {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.trip-popup-title {
+  font-weight: 600;
+}
+
+.trip-popup-addr {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-popup-meta {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  margin-top: 2px;
+}
+
+.trip-popup-link {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-accent);
+  text-decoration: underline;
 }
 
 .page h1,

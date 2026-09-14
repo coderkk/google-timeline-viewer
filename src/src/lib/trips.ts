@@ -33,12 +33,31 @@ export interface PreparedTrips {
 export interface TimelinePayload {
   /** All filtered rawSignals sorted by timestampMs (may be decimated). */
   points: RawPoint[]
+  /**
+   * Polyline vertices for the timeline route, in time order. Sourced from raw
+   * fixes where they exist and from semantic segment paths elsewhere, because
+   * rawSignals are only retained ~30 days (see `buildTimelineRoute`). Every
+   * vertex is also drawn as a dot, so this is the "trail of points" the view
+   * shows. `timestampMs` is only set on raw-derived vertices.
+   */
+  route: TimelineVertex[]
+  /** Where the route geometry came from, for an honest summary label. */
+  routeSource: 'raw' | 'segments' | 'mixed'
   /** All filtered visits, newest first. */
   visits: Visit[]
   /** Visits actually drawn on the map (decimated when over the marker cap). */
   markers: Visit[]
   /** True when a rendering cap kicked in and the map shows a subset. */
   downsampled: boolean
+}
+
+/**
+ * A timeline-route vertex. `timestampMs` is present only when the vertex came
+ * from a raw GPS fix; semantic-segment vertices carry no per-point time (the
+ * export does not provide one), so the UI must not fabricate it.
+ */
+export interface TimelineVertex extends Point {
+  timestampMs?: number
 }
 
 // --- Rendering budget -------------------------------------------------------
@@ -164,6 +183,26 @@ export function boundsOf(segments: Segment[], visits: Visit[]): Bounds | null {
     for (const p of s.path) grow(p.lat, p.lng)
   }
   for (const v of visits) grow(v.lat, v.lng)
+  if (!Number.isFinite(minLat)) return null
+  return { minLat, minLng, maxLat, maxLng }
+}
+
+/** Extend an existing bounds object to also include the given points. */
+export function boundsIncludeRawPoints(
+  base: Bounds | null,
+  points: readonly Point[],
+): Bounds | null {
+  let minLat = base?.minLat ?? Infinity
+  let minLng = base?.minLng ?? Infinity
+  let maxLat = base?.maxLat ?? -Infinity
+  let maxLng = base?.maxLng ?? -Infinity
+  const grow = (lat: number, lng: number): void => {
+    if (lat < minLat) minLat = lat
+    if (lat > maxLat) maxLat = lat
+    if (lng < minLng) minLng = lng
+    if (lng > maxLng) maxLng = lng
+  }
+  for (const p of points) grow(p.lat, p.lng)
   if (!Number.isFinite(minLat)) return null
   return { minLat, minLng, maxLat, maxLng }
 }
@@ -318,20 +357,138 @@ export function prepareTripsForData(data: TimelineData, range: DateRangeFilter):
   return prepareTrips(data.segments, data.visits, range, data.points)
 }
 
-// -- Timeline mode (T15) -----------------------------------------------------
+// -- Timeline mode (T15/T16) -------------------------------------------------
 
 /**
- * Build the renderable timeline payload: all rawSignals within the date range,
- * sorted by timestampMs, decimated to the draw cap when dense. Visits are
- * also filtered and sorted newest-first.
+ * Build the timeline route geometry (T16/T17).
  *
- * This is the "pure timeline" view the user asked for — a single continuous
- * line of GPS fixes with visit markers, no activity-type coloring, no bridges.
+ * rawSignals are only retained by Google for ~30 days, so a range that reaches
+ * further back has no raw fixes at all — the timeline would otherwise be empty
+ * even though the semantic segments still describe the journey. This merges
+ * every available vertex — raw fixes and semantic segment paths
+ * (`timelinePath` / `waypointPath`, already stitched into `segment.path`) —
+ * into ONE time-ordered trail:
+ *
+ * 1. Expand every segment path into vertices, carrying the export's per-vertex
+ *    `time` when present. Vertices without a time get an interpolation sort key
+ *    so they still land in segment order (their displayed time stays absent).
+ * 2. Sort by time.
+ * 3. Drop consecutive duplicates (same place, same time). This is what removes
+ *    the "many lines" artefact: T13.2 stitching copies a coarse `timelinePath`
+ *    trace into the path-less activity segment that borrowed it, so without
+ *    dedup the exact same trace is drawn twice.
+ *
+ * Self-contained: filters both inputs to `range` and sorts them, so callers may
+ * pass the full streams.
+ */
+export function buildTimelineRoute(
+  rawPoints: readonly RawPoint[],
+  segments: Segment[],
+  range: DateRangeFilter,
+): { points: TimelineVertex[]; source: 'raw' | 'segments' | 'mixed'; downsampled: boolean } {
+  const inRangeRaw = [...filterRawPoints(rawPoints, range)].sort(
+    (a, b) => a.timestampMs - b.timestampMs,
+  )
+  const inRangeSegments = filterSegments(segments, range).sort((a, b) => a.startMs - b.startMs)
+
+  // Raw retention window: a segment whose span already contains a raw fix is
+  // represented by that finer raw trail, so its (coarser) path is skipped —
+  // otherwise the same journey would be drawn twice. Outside the window (no raw
+  // fix in span) the semantic path is all we have and is used.
+  const rawTimes = inRangeRaw.map((p) => p.timestampMs)
+  const coveredByRaw = (startMs: number, endMs: number): boolean => {
+    let lo = 0
+    let hi = rawTimes.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (rawTimes[mid] < startMs) lo = mid + 1
+      else hi = mid
+    }
+    return lo < rawTimes.length && rawTimes[lo] <= endMs
+  }
+
+  interface TimedVertex extends TimelineVertex {
+    /** Ordering key: real time when known, otherwise interpolated across the segment. */
+    sortMs: number
+  }
+
+  const candidates: TimedVertex[] = []
+  let rawCount = 0
+  for (const p of inRangeRaw) {
+    candidates.push({ lat: p.lat, lng: p.lng, timestampMs: p.timestampMs, sortMs: p.timestampMs })
+    rawCount++
+  }
+
+  let segmentCount = 0
+  for (const s of inRangeSegments) {
+    if (coveredByRaw(s.startMs, s.endMs)) continue
+    const path: TimelineVertex[] =
+      s.path.length >= 2 ? s.path : [{ lat: s.start.lat, lng: s.start.lng }, { lat: s.end.lat, lng: s.end.lng }]
+    const span = s.endMs - s.startMs
+    for (let i = 0; i < path.length; i++) {
+      const p = path[i]
+      const hasTime = typeof p.timestampMs === 'number' && Number.isFinite(p.timestampMs)
+      const sortMs = hasTime
+        ? (p.timestampMs as number)
+        : path.length > 1
+          ? s.startMs + (span * i) / (path.length - 1)
+          : s.startMs
+      candidates.push({ lat: p.lat, lng: p.lng, timestampMs: hasTime ? p.timestampMs : undefined, sortMs })
+      segmentCount++
+    }
+  }
+
+  candidates.sort((a, b) => a.sortMs - b.sortMs)
+
+  // Consecutive-duplicate collapse: same place (~1m) within a second. The
+  // stitched duplicate carries the identical time + coordinate, so it folds.
+  const DEDUP_DEG = 1e-5
+  const DEDUP_MS = 1000
+  const out: TimelineVertex[] = []
+  for (const c of candidates) {
+    const last = out[out.length - 1]
+    if (last) {
+      const samePlace = Math.abs(last.lat - c.lat) < DEDUP_DEG && Math.abs(last.lng - c.lng) < DEDUP_DEG
+      const closeInTime =
+        last.timestampMs === undefined ||
+        c.timestampMs === undefined ||
+        Math.abs(c.timestampMs - last.timestampMs) <= DEDUP_MS
+      if (samePlace && closeInTime) continue
+    }
+    const vertex: TimelineVertex = { lat: c.lat, lng: c.lng }
+    if (c.timestampMs !== undefined) vertex.timestampMs = c.timestampMs
+    out.push(vertex)
+  }
+
+  let downsampled = false
+  let points = out
+  if (out.length > GLOBAL_PATH_POINT_CAP) {
+    points = strideTake(out, GLOBAL_PATH_POINT_CAP)
+    downsampled = true
+  }
+
+  const source: 'raw' | 'segments' | 'mixed' =
+    rawCount > 0 && segmentCount > 0
+      ? 'mixed'
+      : rawCount > 0 || segmentCount === 0
+        ? 'raw'
+        : 'segments'
+
+  return { points, source, downsampled }
+}
+
+/**
+ * Build the renderable timeline payload: a single continuous route through the
+ * selected range plus visit markers. Route geometry comes from rawSignals where
+ * they exist and falls back to the semantic segment paths for older dates
+ * (`buildTimelineRoute`), so the route is always drawn even outside Google's
+ * ~30-day raw retention window. No activity-type coloring, no bridges.
  */
 export function prepareTimeline(
   visits: Visit[],
   range: DateRangeFilter,
   points: RawPoint[] = [],
+  segments: Segment[] = [],
 ): TimelinePayload {
   const filteredVisits = filterVisits(visits, range)
 
@@ -346,9 +503,14 @@ export function prepareTimeline(
   const markers = filteredVisits.length > MARKER_CAP ? strideTake(filteredVisits, MARKER_CAP) : filteredVisits
   if (markers.length !== filteredVisits.length) downsampled = true
 
+  const route = buildTimelineRoute(drawnRaw, segments, range)
+  if (route.downsampled) downsampled = true
+
   const newestFirst = [...filteredVisits].sort((a, b) => b.startMs - a.startMs)
   return {
     points: drawnRaw,
+    route: route.points,
+    routeSource: route.source,
     visits: newestFirst,
     markers,
     downsampled,

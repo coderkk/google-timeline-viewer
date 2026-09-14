@@ -9,6 +9,7 @@ import {
   bridgeGapLabel,
   bridgeLines,
   budgetRoutePoints,
+  buildTimelineRoute,
   dayKeyOf,
   endOfDayMs,
   filterRawPoints,
@@ -16,6 +17,7 @@ import {
   filterVisits,
   fmtDuration,
   fmtRangeLabel,
+  GLOBAL_PATH_POINT_CAP,
   legendTypes,
   LIST_LIMIT,
   MARKER_CAP,
@@ -868,5 +870,151 @@ describe('prepareTimeline (T15)', () => {
     expect(result.markers.length).toBeLessThan(manyVisits.length)
     expect(result.markers.length).toBe(MARKER_CAP)
     expect(result.downsampled).toBe(true)
+  })
+
+  // T16: rawSignals are only retained ~30 days, so older ranges must fall back
+  // to the semantic segment paths or the timeline route is empty.
+  it('falls back to segment paths when the range has no rawSignals', () => {
+    const start = new Date(2025, 0, 30, 10).getTime()
+    const segs = [
+      segment({ id: 'a', startMs: start, endMs: start + 3600_000, path: [point(35, 138), point(35.5, 138.5)] }),
+    ]
+    const visits = [visit({ id: 'v', startMs: start, endMs: start + 3600_000 })]
+    const result = prepareTimeline(visits, { startMs: null, endMs: null }, [], segs)
+    expect(result.points).toHaveLength(0)
+    expect(result.route).toEqual([{ lat: 35, lng: 138 }, { lat: 35.5, lng: 138.5 }])
+    expect(result.routeSource).toBe('segments')
+    expect(result.downsampled).toBe(false)
+  })
+
+  it('prefers raw fixes over segment paths on the same day', () => {
+    const start = new Date(2026, 6, 1, 8).getTime()
+    const segs = [
+      segment({ id: 'a', startMs: start, endMs: start + 3600_000, path: [point(0, 0), point(1, 1)] }),
+    ]
+    const raw = [
+      { lat: 10, lng: 10, timestampMs: start + 60_000 },
+      { lat: 11, lng: 11, timestampMs: start + 120_000 },
+    ]
+    const result = prepareTimeline([], { startMs: null, endMs: null }, raw, segs)
+    expect(result.routeSource).toBe('raw')
+    expect(result.route).toEqual([
+      { lat: 10, lng: 10, timestampMs: start + 60_000 },
+      { lat: 11, lng: 11, timestampMs: start + 120_000 },
+    ])
+  })
+})
+
+describe('buildTimelineRoute (T16/T17)', () => {
+  const localNoon = (y: number, m: number, d: number, h = 12): number => new Date(y, m - 1, d, h).getTime()
+
+  it('merges semantic segment paths into one time-ordered trail, deduping shared vertices', () => {
+    const segs = [
+      segment({ id: 'a', startMs: localNoon(2025, 1, 30, 10), endMs: localNoon(2025, 1, 30, 11), path: [point(35, 138), point(35.1, 138.1)] }),
+      segment({ id: 'b', startMs: localNoon(2025, 1, 30, 12), endMs: localNoon(2025, 1, 30, 13), path: [point(35.1, 138.1), point(35.2, 138.2)] }),
+    ]
+    const r = buildTimelineRoute([], segs, { startMs: null, endMs: null })
+    expect(r.source).toBe('segments')
+    // Segment A's last vertex == segment B's first vertex → collapsed once.
+    expect(r.points).toEqual([
+      { lat: 35, lng: 138 },
+      { lat: 35.1, lng: 138.1 },
+      { lat: 35.2, lng: 138.2 },
+    ])
+  })
+
+  it('carries the per-vertex time of timelinePath points', () => {
+    const t0 = localNoon(2025, 1, 30, 10)
+    const segs = [
+      segment({
+        id: 'a',
+        startMs: t0,
+        endMs: t0 + 3600_000,
+        path: [
+          { lat: 35, lng: 138, timestampMs: t0 + 60_000 },
+          { lat: 35.1, lng: 138.1, timestampMs: t0 + 120_000 },
+        ],
+      }),
+    ]
+    const r = buildTimelineRoute([], segs, { startMs: null, endMs: null })
+    expect(r.points).toEqual([
+      { lat: 35, lng: 138, timestampMs: t0 + 60_000 },
+      { lat: 35.1, lng: 138.1, timestampMs: t0 + 120_000 },
+    ])
+  })
+
+  it('skips a segment path already covered by raw fixes (no double-drawn trace)', () => {
+    const t0 = localNoon(2026, 7, 1, 8)
+    const raw = [
+      { lat: 10, lng: 10, timestampMs: t0 },
+      { lat: 11, lng: 11, timestampMs: t0 + 60_000 },
+    ]
+    // Same journey also present as a semantic segment inside the raw window.
+    const segs = [
+      segment({ id: 'covered', startMs: t0, endMs: t0 + 3600_000, path: [point(10, 10), point(11, 11)] }),
+    ]
+    const r = buildTimelineRoute(raw, segs, { startMs: null, endMs: null })
+    expect(r.source).toBe('raw')
+    expect(r.points).toEqual([
+      { lat: 10, lng: 10, timestampMs: t0 },
+      { lat: 11, lng: 11, timestampMs: t0 + 60_000 },
+    ])
+  })
+
+  it('mixes raw and segment sources across days', () => {
+    const raw = [
+      { lat: 1, lng: 1, timestampMs: localNoon(2026, 7, 1, 8) },
+      { lat: 2, lng: 2, timestampMs: localNoon(2026, 7, 1, 9) },
+    ]
+    const segs = [
+      segment({ id: 'old', startMs: localNoon(2025, 1, 30, 10), endMs: localNoon(2025, 1, 30, 11), path: [point(35, 138), point(35.5, 138.5)] }),
+    ]
+    const r = buildTimelineRoute(raw, segs, { startMs: null, endMs: null })
+    expect(r.source).toBe('mixed')
+    // Oldest day first (ascending), raw day last. Segment vertices carry no
+    // per-point time; raw vertices do.
+    expect(r.points[0]).toEqual({ lat: 35, lng: 138 })
+    expect(r.points[0]).not.toHaveProperty('timestampMs')
+    expect(r.points[r.points.length - 1]).toEqual({
+      lat: 2,
+      lng: 2,
+      timestampMs: localNoon(2026, 7, 1, 9),
+    })
+  })
+
+  it('filters segments to the date range', () => {
+    const segs = [
+      segment({ id: 'in', startMs: localNoon(2025, 1, 30), endMs: localNoon(2025, 1, 30) + 3600_000, path: [point(1, 1), point(2, 2)] }),
+      segment({ id: 'out', startMs: localNoon(2025, 3, 30), endMs: localNoon(2025, 3, 30) + 3600_000, path: [point(9, 9), point(8, 8)] }),
+    ]
+    const range = { startMs: new Date(2025, 0, 30).getTime(), endMs: new Date(2025, 0, 30, 23, 59, 59, 999).getTime() }
+    const r = buildTimelineRoute([], segs, range)
+    expect(r.points).toEqual([{ lat: 1, lng: 1 }, { lat: 2, lng: 2 }])
+  })
+
+  it('uses [start, end] when a segment has no path points', () => {
+    const segs = [
+      segment({ id: 'a', startMs: localNoon(2025, 1, 30), endMs: localNoon(2025, 1, 30) + 3600_000, start: point(1, 2), end: point(3, 4), path: [] }),
+    ]
+    const r = buildTimelineRoute([], segs, { startMs: null, endMs: null })
+    expect(r.points).toEqual([{ lat: 1, lng: 2 }, { lat: 3, lng: 4 }])
+  })
+
+  it('caps the route and flags downsampled', () => {
+    // Spacing must exceed the consecutive-duplicate threshold (~1e-5°).
+    const path = Array.from({ length: GLOBAL_PATH_POINT_CAP + 100 }, (_, i) => point(1, 2 + i * 1e-4))
+    const segs = [
+      segment({ id: 'a', startMs: localNoon(2025, 1, 30), endMs: localNoon(2025, 1, 30) + 3600_000, path }),
+    ]
+    const r = buildTimelineRoute([], segs, { startMs: null, endMs: null })
+    expect(r.points).toHaveLength(GLOBAL_PATH_POINT_CAP)
+    expect(r.downsampled).toBe(true)
+  })
+
+  it('reports no source when there is no geometry at all', () => {
+    const r = buildTimelineRoute([], [], { startMs: null, endMs: null })
+    expect(r.points).toHaveLength(0)
+    expect(r.source).toBe('raw')
+    expect(r.downsampled).toBe(false)
   })
 })

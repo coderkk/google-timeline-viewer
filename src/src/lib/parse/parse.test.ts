@@ -103,7 +103,17 @@ describe('format 1: 2026 device export (semanticSegments object, flat records)',
     const path = data.segments[1]
     expect(path.activityType).toBeUndefined()
     expect(path.path).toHaveLength(2)
-    expect(path.path[0]).toEqual({ lat: expect.closeTo(6.0611385, 6), lng: expect.closeTo(116.1557205, 6) })
+    // timelinePath rows carry a per-vertex time; it must survive parsing.
+    expect(path.path[0]).toEqual({
+      lat: expect.closeTo(6.0611385, 6),
+      lng: expect.closeTo(116.1557205, 6),
+      timestampMs: Date.parse('2013-01-02T09:40:00.000+08:00'),
+    })
+    expect(path.path[1]).toEqual({
+      lat: expect.closeTo(6.01, 6),
+      lng: expect.closeTo(116.12, 6),
+      timestampMs: Date.parse('2013-01-02T09:50:00.000+08:00'),
+    })
     expect(path.start).toEqual(path.path[0])
     expect(path.end).toEqual(path.path[1])
   })

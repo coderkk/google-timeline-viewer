@@ -257,7 +257,9 @@ describe('stitch: timelinePath GPS into path-less activity segments', () => {
     expect(morning?.start).toEqual({ lat: 34.999, lng: 135.7594 })
     expect(morning?.end).toEqual({ lat: 34.9957, lng: 135.7793 })
     expect(morning?.path).toHaveLength(3)
-    expect(morning?.path[1]).toEqual({ lat: 34.9995, lng: 135.77 })
+    // Stitched trace vertices keep their per-vertex time from the timelinePath.
+    expect(morning?.path[1]).toMatchObject({ lat: 34.9995, lng: 135.77 })
+    expect(typeof morning?.path[1].timestampMs).toBe('number')
   })
 
   it('merges the covering trace even when it precedes the activity (final pass)', () => {

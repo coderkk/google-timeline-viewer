@@ -14,6 +14,16 @@ export interface RawPoint extends Point {
   accuracyMeters?: number
 }
 
+/**
+ * A vertex of a segment polyline. The new device export's `timelinePath`
+ * carries a per-point `time`, so movement vertices can be time-stamped;
+ * formats without per-point time (e.g. `waypointPath`) leave it undefined.
+ */
+export interface PathPoint extends Point {
+  /** Epoch milliseconds when this vertex was recorded, when the export has it. */
+  timestampMs?: number
+}
+
 export interface Visit extends Point {
   name?: string
   address?: string
@@ -29,7 +39,7 @@ export interface Segment {
   startMs: number
   endMs: number
   /** Simplified polyline points from waypointPath / timelinePath. */
-  path: Point[]
+  path: PathPoint[]
 }
 
 export interface TimeRange {

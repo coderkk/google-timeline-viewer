@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
 import DateRangePicker from '../components/DateRangePicker'
 import StopList from '../components/StopList'
+import TimelineList from '../components/TimelineList'
 import TripMap, { type LatLngBoundsMatrix } from '../components/TripMap'
 import {
   boundsOf,
+  boundsIncludeRawPoints,
   bridgeLines,
   dayKeyOf,
   fmtRangeLabel,
@@ -15,8 +17,8 @@ import {
   type DateRangeFilter,
 } from '../lib/trips'
 import { SAMPLE_LABEL } from '../lib/sample'
-import type { PreparedTrips, BridgeLine, TimelinePayload } from '../lib/trips'
-import type { TimelineData, Visit, Segment } from '../lib/types'
+import type { PreparedTrips, BridgeLine, TimelinePayload, TimelineVertex } from '../lib/trips'
+import type { TimelineData, Visit, Segment, Point } from '../lib/types'
 import { useTimelineStore } from '../store/timelineStore'
 import EmptyState from './EmptyState'
 
@@ -39,6 +41,7 @@ function MapPane({
   bridges,
   mode,
   segments,
+  route,
 }: {
   prepared: PreparedTrips | TimelinePayload
   fitBounds: LatLngBoundsMatrix | null
@@ -47,8 +50,11 @@ function MapPane({
   bridges: readonly BridgeLine[]
   mode: 'activityType' | 'timeline'
   segments: readonly Segment[]
+  route: readonly TimelineVertex[]
 }) {
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
+  // Generic camera target: a stop or a timeline point (both just need lat/lng).
+  const [flyTarget, setFlyTarget] = useState<Point | null>(null)
 
   const highlightedSegments = useMemo(() => {
     const set = new Set<number>()
@@ -78,12 +84,29 @@ function MapPane({
     <>
       <div className="trips-side">
         <DateRangePicker />
-        <StopList
-          visits={prepared.visits}
-          limit={LIST_LIMIT}
-          selectedVisitIndex={selectedVisitIndex}
-          onSelect={(_, visit) => setSelectedVisit(visit)}
-        />
+        {mode === 'timeline' ? (
+          <TimelineList
+            points={route}
+            visits={prepared.visits}
+            limit={LIST_LIMIT}
+            selectedVisitIndex={selectedVisitIndex}
+            onSelectPoint={(point) => setFlyTarget({ lat: point.lat, lng: point.lng })}
+            onSelectVisit={(_, visit) => {
+              setSelectedVisit(visit)
+              setFlyTarget(visit)
+            }}
+          />
+        ) : (
+          <StopList
+            visits={prepared.visits}
+            limit={LIST_LIMIT}
+            selectedVisitIndex={selectedVisitIndex}
+            onSelect={(_, visit) => {
+              setSelectedVisit(visit)
+              setFlyTarget(visit)
+            }}
+          />
+        )}
       </div>
       <div className="trips-map-wrap">
         {segments.length === 0 && prepared.visits.length === 0 && (
@@ -93,6 +116,7 @@ function MapPane({
           segments={segments}
           markers={prepared.markers}
           rawPoints={prepared.points}
+          route={route}
           bridges={bridges}
           highlightedSegments={highlightedSegments}
           selectedMarkerIndex={selectedMarkerIndex}
@@ -100,7 +124,7 @@ function MapPane({
           fitBounds={fitBounds}
           fitKey={fitKey}
           invalidateKey="static"
-          flyTarget={selectedVisit}
+          flyTarget={flyTarget}
           showRoutePoints={showRoutePoints}
           mode={mode}
         />
@@ -120,7 +144,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   )
 
   const preparedTimeline = useMemo(
-    () => prepareTimeline(data.visits, dateRange, data.points),
+    () => prepareTimeline(data.visits, dateRange, data.points, data.segments),
     [data, dateRange],
   )
 
@@ -131,9 +155,16 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   const currentPrepared = mode === 'timeline' ? preparedTimeline : preparedTrips
 
   const fitBounds = useMemo<LatLngBoundsMatrix | null>(() => {
-    const bounds = boundsOf(preparedTrips.segments, currentPrepared.markers)
+    const baseBounds = boundsOf(preparedTrips.segments, currentPrepared.markers)
+    // In timeline mode, also include the route vertices in the bounds so the
+    // map auto-fits to the actual trace (raw or semantic) instead of staying at
+    // the default [14, 112] centre.
+    const bounds =
+      mode === 'timeline' && preparedTimeline.route.length > 0
+        ? boundsIncludeRawPoints(baseBounds, preparedTimeline.route)
+        : baseBounds
     return bounds ? [[bounds.minLat, bounds.minLng], [bounds.maxLat, bounds.maxLng]] : null
-  }, [preparedTrips.segments, currentPrepared.markers])
+  }, [preparedTrips.segments, currentPrepared.markers, mode, preparedTimeline.route])
 
   const fitKey = useMemo(() => {
     const minMs = dateRange.startMs ?? data.meta.timeRange.minMs
@@ -145,13 +176,30 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   const noData = preparedTrips.segments.length === 0 && currentPrepared.visits.length === 0
   const legend = useMemo(() => (mode === 'activityType' ? legendTypes(preparedTrips.segments) : []), [preparedTrips.segments, mode])
 
+  // Timeline summary is honest about where the route came from: rawSignals are
+  // only kept ~30 days, so older ranges fall back to the semantic segment paths.
+  const timelineSummary = useMemo(() => {
+    const n = preparedTimeline.route.length.toLocaleString()
+    if (preparedTimeline.routeSource === 'segments') return `${n} 轨迹点（行程段）`
+    if (preparedTimeline.routeSource === 'mixed') return `${n} 轨迹点（GPS+行程段）`
+    return `${n} 原始点`
+  }, [preparedTimeline.route.length, preparedTimeline.routeSource])
+
+  // The "trajectory points" toggle only has something to toggle when the
+  // current view actually draws per-point dots: the timeline route (raw or
+  // semantic), or the activity-type segments/raw fixes.
+  const showPointsToggle =
+    mode === 'timeline'
+      ? preparedTimeline.route.length > 0
+      : preparedTrips.segments.length > 0 || preparedTrips.points.length > 0
+
   return (
     <section className="trips-shell">
       <div className="trips-topbar">
         <h2 className="trips-title">Trips</h2>
         {dataSource === 'sample' && <span className="badge-sample">{SAMPLE_LABEL}</span>}
         <span className="trips-summary">
-          {fmtRangeLabel(dateRange)} · {mode === 'timeline' ? `${currentPrepared.points.length.toLocaleString()} 原始点` : `${preparedTrips.segments.length} 段 · ${preparedTrips.totalPathPoints.toLocaleString()} 点`} · {currentPrepared.visits.length} 停留
+          {fmtRangeLabel(dateRange)} · {mode === 'timeline' ? timelineSummary : `${preparedTrips.segments.length} 段 · ${preparedTrips.totalPathPoints.toLocaleString()} 点`} · {currentPrepared.visits.length} 停留
           {mode === 'activityType' && preparedTrips.points.length > 0 && ` · ${preparedTrips.points.length.toLocaleString()} 原始点`}
           {mode === 'activityType' && bridges.length > 0 && ` · ${bridges.length} 处衔接`}
         </span>
@@ -182,13 +230,15 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             按活动类型
           </button>
         </div>
-        <button
-          type="button"
-          className="trips-toggle trips-toggle--plain"
-          onClick={() => setShowRoutePoints((visible) => !visible)}
-        >
-          {showRoutePoints ? '隐藏轨迹点 ●' : '显示轨迹点 ○'}
-        </button>
+        {showPointsToggle && (
+          <button
+            type="button"
+            className="trips-toggle trips-toggle--plain"
+            onClick={() => setShowRoutePoints((visible) => !visible)}
+          >
+            {showRoutePoints ? '隐藏轨迹点 ●' : '显示轨迹点 ○'}
+          </button>
+        )}
         <button
           type="button"
           className="trips-toggle"
@@ -208,6 +258,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             bridges={bridges}
             mode={mode}
             segments={preparedTrips.segments}
+            route={preparedTimeline.route}
           />
         ) : (
           <div className="trips-map-wrap">
@@ -216,6 +267,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
               segments={preparedTrips.segments}
               markers={currentPrepared.markers}
               rawPoints={currentPrepared.points}
+              route={preparedTimeline.route}
               bridges={bridges}
               highlightedSegments={new Set<number>()}
               selectedMarkerIndex={null}
