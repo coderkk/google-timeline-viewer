@@ -6,7 +6,6 @@ import {
   activityColor,
   boundsOf,
   BRIDGE_CAP,
-  BRIDGE_OVERLAP_MAX_M,
   bridgeGapLabel,
   bridgeLines,
   budgetRoutePoints,
@@ -32,7 +31,6 @@ import {
   toInputDate,
   type DateRangeFilter,
 } from './trips'
-import { haversineKm } from './types'
 import { parseTimelineFile } from './parse'
 
 function point(lat: number, lng: number) {
@@ -398,20 +396,26 @@ describe('timeline bridges (T14)', () => {
     }
   })
 
-  it('skips time-overlapping and temporally contiguous pairs that are FAR apart (parallel records)', () => {
-    // Real parallel records: two legs overlapping the same window but on
-    // different ends of town (~11 km apart) — bridging would fake a movement.
+  it('bridges time-overlapping and temporally contiguous pairs even when FAR apart (T14.3 跟時間連)', () => {
+    // Parallel records overlapping the same window or contiguous in time are
+    // bridged regardless of distance — the "跟時間連" contract bridges EVERY
+    // time-adjacent pair. Visual endpoints here are ~11 km apart (town-scale).
     const overlapA = segment({ id: 'o-a', startMs: Date.UTC(2026, 6, 1, 8), endMs: Date.UTC(2026, 6, 1, 10) })
     const overlapB = segment({ id: 'o-b', startMs: Date.UTC(2026, 6, 1, 9), endMs: Date.UTC(2026, 6, 1, 11) })
     const contiguous = segment({ id: 'c', startMs: Date.UTC(2026, 6, 1, 11), endMs: Date.UTC(2026, 6, 1, 12) })
-    expect(bridgeLines([overlapA, overlapB])).toEqual([])
-    expect(bridgeLines([overlapB, contiguous])).toEqual([])
+    const bridges = bridgeLines([overlapA, overlapB, contiguous])
+    expect(bridges).toHaveLength(2)
+    // overlapA→overlapB windows overlap; overlapB→contiguous are contiguous.
+    expect(bridges[0].gapMs).toBeLessThan(0)
+    expect(bridges[1].gapMs).toBe(0)
+    expect(bridges.map((b) => b.fromIndex + '->' + b.toIndex)).toEqual(['0->1', '1->2'])
   })
 
-  it('bridges time-overlapping legs whose endpoints are CLOSE (a walking-distance transfer, T14.2)', () => {
+  it('bridges time-overlapping legs whose endpoints are CLOSE (a walking-distance transfer)', () => {
     // Driving leg ends 08:31, walking (sub)leg starts 08:25 — windows overlap
-    // by 6 minutes (GPS granularity). The transfer point is a ~70 m walk away,
-    // so this is a real transfer that the old pure-time gate silently dropped.
+    // by 6 minutes (GPS granularity). The transfer point is a ~70 m walk away.
+    // Pin the bridge metadata contract: negative gapMs kept intact, label is
+    // the plain "衔接" (never a negative duration), knots hug drawn polylines.
     const drive = segment({
       id: 'drive',
       activityType: 'IN_PASSENGER_VEHICLE',
@@ -443,11 +447,14 @@ describe('timeline bridges (T14)', () => {
     expect(b.to).toEqual({ lat: 25.0456, lng: 121.5484 })
   })
 
-  it('skips time-overlapping legs that are far apart even when close to the threshold (T14.2)', () => {
-    // ~2.4 km apart: beyond BRIDGE_OVERLAP_MAX_M — these windows merely overlap
-    // without sharing a transfer point, so no bridge.
+  it('bridges time-overlapping legs even when tens of km apart (T14.2 distance gate revoked in T14.3)', () => {
+    // ~60 km apart: the old BRIDGE_OVERLAP_MAX_M gate would have dropped this
+    // pair, but the "跟時間連" contract bridges every time-adjacent pair. This
+    // is the exact user-reported case (驾车 13:54→15:00 alongside a coarse 移動
+    // 14:00→16:00 segment a whole city away) that T14.2 broke and T14.3 fixes.
     const a = segment({
       id: 'a',
+      activityType: 'IN_PASSENGER_VEHICLE',
       startMs: Date.UTC(2026, 6, 1, 9, 0),
       endMs: Date.UTC(2026, 6, 1, 9, 30),
       start: point(25.0, 121.5),
@@ -458,11 +465,70 @@ describe('timeline bridges (T14)', () => {
       id: 'b',
       startMs: Date.UTC(2026, 6, 1, 9, 10),
       endMs: Date.UTC(2026, 6, 1, 9, 40),
-      start: point(25.025, 121.53),
-      end: point(25.03, 121.54),
-      path: [point(25.025, 121.53), point(25.03, 121.54)],
+      start: point(25.5, 122.0),
+      end: point(25.55, 122.05),
+      path: [point(25.5, 122.0), point(25.55, 122.05)],
     })
-    expect(bridgeLines([a, b])).toEqual([])
+    const bridges = bridgeLines([a, b])
+    expect(bridges).toHaveLength(1)
+    expect(bridges[0].gapMs).toBeLessThan(0)
+    expect(bridges[0].fromIndex).toBe(0)
+    expect(bridges[0].toIndex).toBe(1)
+  })
+
+  it('regression: the 2025-01-30 user report ("13:45 後沒有連去移動") now bridges one continuous line (T14.3 跟時間連)', () => {
+    // This is the exact case that made the CEO revoke T14.2's distance gate:
+    // a coarse 移動 segment (14:00→16:00) that overlaps both a 驾车 13:54→15:00
+    // leg and a 驾车 15:15→16:35 leg while its endpoints sit tens of km away.
+    // Under "跟時間連" every time-adjacent pair is bridged, so the four legs
+    // render as one unbroken dashed sequence. Synthetic — no livedata needed.
+    const driveA = segment({
+      id: 'driveA',
+      activityType: 'IN_PASSENGER_VEHICLE',
+      startMs: Date.UTC(2026, 6, 1, 12, 42),
+      endMs: Date.UTC(2026, 6, 1, 13, 45),
+      start: point(24.98, 121.48),
+      end: point(25.0, 121.5),
+    })
+    const driveB = segment({
+      id: 'driveB',
+      activityType: 'IN_PASSENGER_VEHICLE',
+      startMs: Date.UTC(2026, 6, 1, 13, 54),
+      endMs: Date.UTC(2026, 6, 1, 15, 0),
+      start: point(25.002, 121.502),
+      end: point(25.05, 121.55),
+    })
+    const coarseMove = segment({
+      id: 'coarseMove', // 移動: no activityType
+      startMs: Date.UTC(2026, 6, 1, 14, 0),
+      endMs: Date.UTC(2026, 6, 1, 16, 0),
+      start: point(25.5, 122.0), // ~60 km from driveB's end — far-overlap pair
+      end: point(25.55, 122.05),
+    })
+    const driveD = segment({
+      id: 'driveD',
+      activityType: 'IN_PASSENGER_VEHICLE',
+      startMs: Date.UTC(2026, 6, 1, 15, 15),
+      endMs: Date.UTC(2026, 6, 1, 16, 35),
+      start: point(25.8, 122.4), // ~48 km from coarseMove's end
+      end: point(25.85, 122.45),
+    })
+    const bridges = bridgeLines([driveA, driveB, coarseMove, driveD])
+    expect(bridges).toHaveLength(3)
+    expect(bridges.map((b) => `${b.fromIndex}->${b.toIndex}`)).toEqual(['0->1', '1->2', '2->3'])
+    // driveA→driveB: +9 min real forward gap; the other two overlap far apart.
+    expect(bridges[0].gapMs).toBe(9 * 60_000)
+    expect(bridges[1].gapMs).toBe(-3_600_000)
+    expect(bridges[2].gapMs).toBe(-2_700_000)
+    expect(bridgeGapLabel(bridges[0].gapMs)).toBe('衔接 +9 分钟')
+    expect(bridgeGapLabel(bridges[1].gapMs)).toBe('衔接')
+    expect(bridgeGapLabel(bridges[2].gapMs)).toBe('衔接')
+    // Every bridge knots exactly onto the drawn polylines of both neighbours.
+    expect(bridges[0].from).toEqual({ lat: 25.0, lng: 121.5 })
+    expect(bridges[0].to).toEqual({ lat: 25.002, lng: 121.502 })
+    expect(bridges[1].to).toEqual({ lat: 25.5, lng: 122.0 })
+    expect(bridges[2].from).toEqual({ lat: 25.55, lng: 122.05 })
+    expect(bridges[2].to).toEqual({ lat: 25.8, lng: 122.4 })
   })
 
   it('skips a bridge whose drawn polyline endpoints coincide (degenerate zero-length)', () => {
@@ -561,18 +627,20 @@ describe('timeline bridges (T14)', () => {
 })
 
 // Real device export (129MB, gitignored). Skipped automatically when the file
-// is absent so CI and fresh clones stay green. Pins the T14.2 behavioural fix:
-// overlapping / contiguous transfer legs that the old pure-time gate silently
-// dropped must now be bridged on real data.
+// is absent so CI and fresh clones stay green. Pins the T14.3 "跟時間連"
+// behavioural fix on real data: EVERY time-adjacent pair on a busy local day is
+// bridged, except degenerate pairs whose visual endpoints are the exact same
+// coordinate (traces already touch on screen).
 const LIVEDATA_2026 = new URL('../../../docs/livedata/Timeline-20260820.json', import.meta.url)
 const hasLivedata = existsSync(LIVEDATA_2026)
 
 describe.skipIf(!hasLivedata)('timeline bridges on real device export (docs/livedata)', () => {
-  it('bridges overlapping transfer legs on the busiest local day (T14.2)', () => {
+  it('bridges every time-adjacent pair on the busiest local day except degenerate coincident endpoints (T14.3)', () => {
     const json = readFileSync(fileURLToPath(LIVEDATA_2026), 'utf8')
     const { data } = parseTimelineFile('Timeline.json', json)
 
-    // Busiest LOCAL day = the calendar day with the most segments.
+    // Busiest LOCAL day = the calendar day with the most segments (well below
+    // BRIDGE_CAP, so no stride sampling interferes with the exact count).
     const byDay = new Map<string, Segment[]>()
     for (const s of data.segments) {
       const key = dayKeyOf(s.startMs)
@@ -594,8 +662,20 @@ describe.skipIf(!hasLivedata)('timeline bridges on real device export (docs/live
     const bridges = bridgeLines(daySegs)
     expect(bridges.length).toBeGreaterThan(0)
 
-    // The old pure-time rule bridged ONLY forward gaps; anything more now proves
-    // the double gate actually connects overlapping/contiguous transfer legs.
+    // Degenerate count: adjacent pairs whose DRAWN visual endpoints are the
+    // exact same coordinate — the only pairs "跟時間連" is allowed to skip.
+    let degenerate = 0
+    for (let i = 1; i < daySegs.length; i++) {
+      const prev = daySegs[i - 1]
+      const cur = daySegs[i]
+      const prevLast = prev.path.length >= 2 ? prev.path[prev.path.length - 1] : prev.end
+      const curFirst = cur.path.length >= 2 ? cur.path[0] : cur.start
+      if (prevLast.lat === curFirst.lat && prevLast.lng === curFirst.lng) degenerate++
+    }
+    expect(bridges.length).toBe(daySegs.length - 1 - degenerate)
+
+    // The old pure-time rule bridged ONLY forward gaps; with every non-positive
+    // pair now bridged the result is strictly more bridges than that rule made.
     const oldRuleCount = daySegs.reduce((acc, _, i) => {
       if (i === 0) return acc
       return daySegs[i].startMs - daySegs[i - 1].endMs > 0 ? acc + 1 : acc
@@ -604,12 +684,7 @@ describe.skipIf(!hasLivedata)('timeline bridges on real device export (docs/live
     expect(overlapBridges.length).toBeGreaterThan(0)
     expect(bridges.length).toBeGreaterThan(oldRuleCount)
 
-    // Gate contract: no non-positive-gap bridge may connect endpoints farther
-    // apart than BRIDGE_OVERLAP_MAX_M — those pairs stay honestly unconnected.
-    for (const b of overlapBridges) {
-      expect(haversineKm(b.from, b.to) * 1000).toBeLessThanOrEqual(BRIDGE_OVERLAP_MAX_M)
-    }
-    // And every such bridge's label is the plain "衔接" (never a negative number).
+    // Every non-positive-gap bridge's label is the plain "衔接" (never negative).
     for (const b of overlapBridges) expect(bridgeGapLabel(b.gapMs)).toBe('衔接')
   }, 180_000)
 })

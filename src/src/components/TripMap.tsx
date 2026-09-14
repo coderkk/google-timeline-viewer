@@ -213,7 +213,7 @@ export default function TripMap(props: TripMapProps) {
             color: '#9ca3af',
             weight: 1.5,
             opacity: hasSelection ? 0.15 : 0.45,
-            dashArray: '4 6',
+            dashArray: '8 8',
             lineCap: 'round',
           }}
           renderer={canvasRenderer}
