@@ -305,3 +305,22 @@ Reviewer 一般项 1：`budgetRoutePoints` 预算上限可被击穿（Math.max(1
 - 改动 2：`trips.ts:budgetRoutePoints` 拍平 path 点 + ROUTE_POINT_CAP=5000 整体 strideTake 保两端（严格 ≤cap，修复逐段 floor 击穿）；`TripMap.tsx` Polyline 之上、停留 marker 之下渲染 CircleMarker（radius 3 同色系，选中降透明度）；`TripsPage` 顶栏「显示/隐藏轨迹点」toggle 默认开。
 
 **验证**：97 tests（87 回归 + 9 缝合 + 1 预算）✅ / build ✅ / lint ✅。Reviewer 两轮：首轮通过（5 条一般/建议记录放行），预算上限一般项已由 918a57a 修复。已部署，线上 200。
+
+## 2026-09-14 16:20 — CEO 数据格式研究（rawSignals 窗口 / 时区 / 双文件对齐）
+用户提供第二份真实导出 `Timeline-20250213.json`（Takeout）。深入研究发现：
+
+**① 两文件 schema 完全一致**（顶层 semanticSegments + rawSignals + userLocationProfile 及其子字段逐项相同）→ Android Timeline Export 与 Takeout 输出**同一种新版扁平格式**。
+
+**② rawSignals = 滚动 ~29 天窗口，semanticSegments = 永久历史**：
+- 20250213: rawSignals 2025-01-14→02-13；semanticSegments 2012-12-30→2025-02-13
+- 20260820: rawSignals 2026-07-21→08-20；semanticSegments 2012-12-30→2026-08-20
+- 同段原始信号（2025-01/02）在后期导出中消失 → Google 服务器滚动清除，任何方式拿不回
+- 推论：定期 ≤30 天导出存档 rawSignals，天然互补可 merge
+
+**③ 2025-01-30/31 双文件可精确对齐**：timelinePath 64=64 逐点相等；两文件仅「导出粒度/字段丰富度/activity 重分类」差异，语义不冲突。
+
+**④ 时区陷阱（未修，KIV）**：`parseInputDate` 用本地(+08)日筛选，但 `startOfDayMs`/`dayKeyOf` 用 UTC 日分组 → 凌晨 00:00-07:59(+08) 段被归到「前一天」。实测 2025-01-30 有 3 段因此标错日。
+
+**⑤ 解析器现状 bug（KIV T13.6）**：`parseFormat1` 只收 `semanticSegments`，**rawSignals 整段丢弃**（两文件各 5 万+条 position 全丢）；且 `getLatLng` 不认识大写 `LatLng`、`addRawPoint` 拿不到嵌套 `position.timestamp`。
+
+**建档**：docs/DATA-FINDINGS.md（全部领域知识沉淀）。

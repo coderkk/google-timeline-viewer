@@ -1,11 +1,11 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T12 -->
+<!-- next: T14 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [x] ~~T12: 产品改动（改名 + Theme + 半径档位 + marker 颜色）~~ (09-13→09-13) — 改名 Timeline Map + Theme Light/Dark/System + 半径 1/5/10/50/100 KM + Places marker 颜色区分 + Places 日期筛选；63 单测 + build + lint 全过
-- [ ] **T13.3: Trips 轨迹缝合改进 + 路线点显示** (09-14→09-14 Doing) — ①✅缝合匹配从"端点≡trace首末点"改为"trace 中存在与 activity start/end 分别接近的点（子段轨迹）"，修 16:15/17:57 类中途行程失败；②✅Trips 视图把 segment.path 的点渲染为小圆点（默认开，顶栏可切换，5000 点预算）；③记录 rawSignals 评估（2026-01-30 无 rawSignals，条目仅为记录）
+- [ ] **T13.6: rawSignals 解析接入** (09-14→09-14 Doing) — 来源: T-K2①拆分 / DATA-FINDINGS⑤，PRD 功能1 v1.6；format1 接入 `rawSignals`（position/activityRecord，兼容大写 `LatLng` + 嵌套 `position.timestamp`）——否则两文件 5 万+条原始 GPS 点全丢；验收: 含 rawSignals 的真实导出 raw 点数 > 0 且 Trips 轨迹可用
+- [ ] **T13.7: 时区分组修复** (09-14→09-14 Doing) — 来源: T-K2②拆分 / DATA-FINDINGS④，PRD 功能2 正确性；`startOfDayMs`/`dayKeyOf` 改本地时区，对齐日期筛选器（凌晨 00:00-07:59 +08 段被归错日）；验收: 2025-01-30 凌晨 3 段不再标错日
 
 ## 📋 To Do
 
@@ -20,7 +20,7 @@
 - [ ] [P2] 行程统计报表 — 总距离/日均运动量/地点频次（→ PRD 不做，发布后）(09-13)
 - [ ] [P2] 离线瓦片 / 自托管瓦片服务器 — 彻底消除瓦片请求隐私（→ PRD 不做）(09-13)
 - [ ] [P2] 行程分享/导出（GeoJSON/KML）— （→ PRD 不做）(09-13)
-- [ ] [P2] 跨设备多 Takeout 合并去重 — （→ PRD 不做）(09-13)
+- [ ] [P2] 跨设备多 Takeout 合并去重 — （→ PRD 不做）(09-13)；含 T-K2③ rawSignals 滚动窗口互补合并（segments/visits 时间指纹去重 + points 互补合并）(09-14)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [ ] [P2] 多语言（英文为主，可换中文）— 需要 i18n 依赖，v2 加入（→ PRD 约束）(09-13)
 - [ ] [P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）(09-14)
@@ -45,5 +45,6 @@
 - [x] ~~T13: Places 停留点点击历史~~ (09-13→09-13) — 点击 marker 弹出浮动面板显示该地点历史访问记录；visitHistory 分组工具 + VisitHistoryPanel 组件 + PlacesMap marker click handler；71 单测 + build + lint 全过
 - [x] ~~T13.1: Trips/Places marker 细节修复~~ (09-14→09-14) — ① marker 日期 tooltip 加年份（fmtDateTime YYYY-MM-DD）② Places popup 加 Google Maps 链接 ③ 解析器新增 `path` fallback key；df24db2；71→71 单测
 - [x] ~~T13.2: 真实 livedata 车辆 GPS 轨迹合并~~ (09-14→09-14) — 根因：新版 Timeline.json 的 activity 段（IN_BUS/IN_PASSENGER_VEHICLE）只带 start/end、无轨迹点，完整 GPS 在同时间 timelinePath 段；实现 stitchSegments 终 pass 把重叠 trace 轨迹缝合进 activity 段（maxEnd 前缀左扫 + 单次排序 pass + format1/2/3 覆盖 + 反向配对 + slice 防别名）；Reviewer 两轮（S1/S2/S3 + A1/A2/A3/A5）后通过；802ddf7；80 单测
+- [x] ~~T13.3: Trips 轨迹缝合改进 + 路线点显示~~ (09-14→09-14) — ①缝合匹配从"端点≡trace首末点"改为"trace 中存在与 activity start/end 分别接近的点（子段轨迹）"，修 16:15/17:57 类中途行程失败（16:15 path=0→5 实测）；②Trips 视图把 segment.path 的点渲染为小圆点（默认开，顶栏可切换，ROUTE_POINT_CAP=5000 整体 strideTake 保两端）；③记录 rawSignals 评估（2026-01-30 无 rawSignals，条目仅为记录）；CEO 验收通过，已部署
 
 ## ❌ Cancelled

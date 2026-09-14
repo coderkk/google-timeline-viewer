@@ -8,7 +8,7 @@ Google 停用 Timeline 网页版后，位置历史只以 JSON 导出（手机可
 
 ## 功能范围
 
-- [ ] **功能 1: 空状态首屏 + 多格式 JSON 导入** — 未导入数据时显示引导页（欢迎语 + 导入按钮 + 「如何导出数据」教程入口 + 隐私承诺）；点击导入后支持以下格式：①新版设备导出 `Timeline.json`（direct-array：`semanticSegments[]`/`rawSignals`/`userLocationProfile`，Android 系统设置导出 / iOS Maps App 导出）②`Records.json`（locations[] + activitySegments[]）③Semantic Location History 的 `YYYY_MM.json`（timelineObjects[]：placeVisit/activitySegment）④旧版 `Location History.json`；支持一次导入多个文件；解析在 Web Worker 中执行，文件过大时给出提示 — 验收: 四类样例文件都能导入并统计出行程/停留点数量；空状态引导页可见且导入后消失
+- [ ] **功能 1: 空状态首屏 + 多格式 JSON 导入** — 未导入数据时显示引导页（欢迎语 + 导入按钮 + 「如何导出数据」教程入口 + 隐私承诺）；点击导入后支持以下格式：①新版设备导出 `Timeline.json`（direct-array：`semanticSegments[]`/`rawSignals`/`userLocationProfile`，Android 系统设置导出 / iOS Maps App 导出）②`Records.json`（locations[] + activitySegments[]）③Semantic Location History 的 `YYYY_MM.json`（timelineObjects[]：placeVisit/activitySegment）④旧版 `Location History.json`；支持一次导入多个文件；解析在 Web Worker 中执行，文件过大时给出提示 — 验收: 四类样例文件都能导入并统计出行程/停留点数量；空状态引导页可见且导入后消失；格式①含 `rawSignals` 时其原始位置点被导入（兼容大写 `LatLng` 与嵌套 `position.timestamp`），Trips 轨迹渲染可用该数据
 - [ ] **功能 2: 日期范围筛选** — 全局时间筛选（起止日期），Trips 与 Places 两个视图共享；按日期过滤行程和停留点 — 验收: 选择 2024 年 5 月，地图只显示该月数据
 - [ ] **功能 3: Trips 视图（行程轨迹）** — 选中日期范围内：绘制行驶路线（activitySegment.waypointPath），标出停留点（placeVisit 位置与时长）；渲染有点数上限保护，超限降采样 — 验收: 导入样例数据后选择日期范围，能看到路线 + 停留点标记
 - [ ] **功能 4: Places 视图（地图点击查历史）** — 无标记的干净地图；点击任一位置 → 显示该点经纬度 + 以该点为中心、可选半径（1/5/10/50/100 KM）内的所有历史停留点列表（地点名/地址/时间/距离）；半径圈可视化并自动调整 zoom 保证圆完整可见；点击结果列表中的地点可跳转到对应位置；点击处 marker 用高亮色，周围停留点用默认色，视觉层次清晰；**点击停留点 marker 显示该地点历史访问记录**（时间线面板：地点名 + 访问次数 + 每次访问日期/时长）；**日期筛选全局共享**（Trips 与 Places 使用同一日期范围） — 验收: 点击地图 → 浮层显示经纬度 + 半径内停留点列表，切换半径档列表实时变化；点击 marker 颜色区分；点击停留点显示访问历史；Trips/Places 日期筛选联动
@@ -41,3 +41,4 @@ Google 停用 Timeline 网页版后，位置历史只以 JSON 导出（手机可
 - v1.3 (2026-09-13): 功能 7 增加「Built with OPC 3.0」section 与 footer "Created by OPC 3.0" 品牌露出
 - v1.4 (2026-09-13): 改名 Google Timeline Viewer → Timeline Map；功能 4 半径档位改为 1/5/10/50/100 KM + marker 颜色区分；约束增加 Theme（Light/Dark/System）+ 多语言（英文为主，中文 KIV）
 - v1.5 (2026-09-13): 功能 4 增加 Places 停留点历史（点击 marker 显示访问记录时间线）+ 日期筛选全局共享（Trips/Places 联动）
+- v1.6 (2026-09-14): 功能 1 验收补充 rawSignals 解析要求（格式①声明字段完整性，来源双文件实测）；修复时区分组 bug（`startOfDayMs`/`dayKeyOf` 对齐本地时区，凌晨段不再归错日，属功能 2 正确性）；merge 去重维持「不做」（仍走 Backlog「跨设备多 Takeout 合并去重」）
