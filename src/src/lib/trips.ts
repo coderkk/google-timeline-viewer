@@ -30,6 +30,17 @@ export interface PreparedTrips {
   downsampled: boolean
 }
 
+export interface TimelinePayload {
+  /** All filtered rawSignals sorted by timestampMs (may be decimated). */
+  points: RawPoint[]
+  /** All filtered visits, newest first. */
+  visits: Visit[]
+  /** Visits actually drawn on the map (decimated when over the marker cap). */
+  markers: Visit[]
+  /** True when a rendering cap kicked in and the map shows a subset. */
+  downsampled: boolean
+}
+
 // --- Rendering budget -------------------------------------------------------
 
 export const SEGMENT_POINT_SIMPLIFY_MAX = 1500
@@ -305,6 +316,43 @@ export function prepareTrips(
  */
 export function prepareTripsForData(data: TimelineData, range: DateRangeFilter): PreparedTrips {
   return prepareTrips(data.segments, data.visits, range, data.points)
+}
+
+// -- Timeline mode (T15) -----------------------------------------------------
+
+/**
+ * Build the renderable timeline payload: all rawSignals within the date range,
+ * sorted by timestampMs, decimated to the draw cap when dense. Visits are
+ * also filtered and sorted newest-first.
+ *
+ * This is the "pure timeline" view the user asked for — a single continuous
+ * line of GPS fixes with visit markers, no activity-type coloring, no bridges.
+ */
+export function prepareTimeline(
+  visits: Visit[],
+  range: DateRangeFilter,
+  points: RawPoint[] = [],
+): TimelinePayload {
+  const filteredVisits = filterVisits(visits, range)
+
+  let downsampled = false
+
+  const filteredRaw = filterRawPoints(points, range)
+  const sortedRaw = [...filteredRaw].sort((a, b) => a.timestampMs - b.timestampMs)
+  const drawnRaw =
+    sortedRaw.length > RAW_POINT_CAP ? strideTake(sortedRaw, RAW_POINT_CAP) : sortedRaw
+  if (drawnRaw.length !== sortedRaw.length) downsampled = true
+
+  const markers = filteredVisits.length > MARKER_CAP ? strideTake(filteredVisits, MARKER_CAP) : filteredVisits
+  if (markers.length !== filteredVisits.length) downsampled = true
+
+  const newestFirst = [...filteredVisits].sort((a, b) => b.startMs - a.startMs)
+  return {
+    points: drawnRaw,
+    visits: newestFirst,
+    markers,
+    downsampled,
+  }
 }
 
 // -- Timeline bridges (T14) --------------------------------------------------

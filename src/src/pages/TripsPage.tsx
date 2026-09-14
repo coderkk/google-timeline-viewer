@@ -9,13 +9,14 @@ import {
   fmtRangeLabel,
   legendTypes,
   LIST_LIMIT,
+  prepareTimeline,
   prepareTripsForData,
   startOfDayMs,
   type DateRangeFilter,
 } from '../lib/trips'
 import { SAMPLE_LABEL } from '../lib/sample'
-import type { PreparedTrips, BridgeLine } from '../lib/trips'
-import type { TimelineData, Visit } from '../lib/types'
+import type { PreparedTrips, BridgeLine, TimelinePayload } from '../lib/trips'
+import type { TimelineData, Visit, Segment } from '../lib/types'
 import { useTimelineStore } from '../store/timelineStore'
 import EmptyState from './EmptyState'
 
@@ -36,26 +37,30 @@ function MapPane({
   fitKey,
   showRoutePoints,
   bridges,
+  mode,
+  segments,
 }: {
-  prepared: PreparedTrips
+  prepared: PreparedTrips | TimelinePayload
   fitBounds: LatLngBoundsMatrix | null
   fitKey: string
   showRoutePoints: boolean
   bridges: readonly BridgeLine[]
+  mode: 'activityType' | 'timeline'
+  segments: readonly Segment[]
 }) {
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
 
   const highlightedSegments = useMemo(() => {
     const set = new Set<number>()
-    if (!selectedVisit) return set
+    if (!selectedVisit || mode !== 'activityType') return set
     const dayStart = startOfDayMs(selectedVisit.startMs)
-    prepared.segments.forEach((segment, index) => {
+    segments.forEach((segment, index) => {
       const sameDay = startOfDayMs(segment.startMs) === dayStart
       const overlaps = segment.startMs <= selectedVisit.endMs && segment.endMs >= selectedVisit.startMs
       if (sameDay || overlaps) set.add(index)
     })
     return set
-  }, [selectedVisit, prepared.segments])
+  }, [selectedVisit, segments, mode])
 
   const selectedMarkerIndex = useMemo(() => {
     if (!selectedVisit) return null
@@ -81,11 +86,11 @@ function MapPane({
         />
       </div>
       <div className="trips-map-wrap">
-        {prepared.segments.length === 0 && prepared.visits.length === 0 && (
+        {segments.length === 0 && prepared.visits.length === 0 && (
           <div className="trips-empty">该日期范围内没有行程数据</div>
         )}
         <TripMap
-          segments={prepared.segments}
+          segments={segments}
           markers={prepared.markers}
           rawPoints={prepared.points}
           bridges={bridges}
@@ -97,6 +102,7 @@ function MapPane({
           invalidateKey="static"
           flyTarget={selectedVisit}
           showRoutePoints={showRoutePoints}
+          mode={mode}
         />
       </div>
     </>
@@ -106,20 +112,28 @@ function MapPane({
 function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showRoutePoints, setShowRoutePoints] = useState(true)
+  const [mode, setMode] = useState<'activityType' | 'timeline'>('timeline')
 
-  const prepared = useMemo(
+  const preparedTrips = useMemo(
     () => prepareTripsForData(data, dateRange),
+    [data, dateRange],
+  )
+
+  const preparedTimeline = useMemo(
+    () => prepareTimeline(data.visits, dateRange, data.points),
     [data, dateRange],
   )
 
   // Dashed links between the consecutive (timeline-sorted) segments that close
   // the visual breaks between separate legs of a trip.
-  const bridges = useMemo(() => bridgeLines(prepared.segments), [prepared.segments])
+  const bridges = useMemo(() => bridgeLines(preparedTrips.segments), [preparedTrips.segments])
+
+  const currentPrepared = mode === 'timeline' ? preparedTimeline : preparedTrips
 
   const fitBounds = useMemo<LatLngBoundsMatrix | null>(() => {
-    const bounds = boundsOf(prepared.segments, prepared.markers)
+    const bounds = boundsOf(preparedTrips.segments, currentPrepared.markers)
     return bounds ? [[bounds.minLat, bounds.minLng], [bounds.maxLat, bounds.maxLng]] : null
-  }, [prepared.segments, prepared.markers])
+  }, [preparedTrips.segments, currentPrepared.markers])
 
   const fitKey = useMemo(() => {
     const minMs = dateRange.startMs ?? data.meta.timeRange.minMs
@@ -128,8 +142,8 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
     return `${dayKeyOf(minMs)}:${dayKeyOf(maxMs)}:${days}`
   }, [dateRange, data.meta.timeRange])
 
-  const noData = prepared.segments.length === 0 && prepared.visits.length === 0
-  const legend = useMemo(() => legendTypes(prepared.segments), [prepared.segments])
+  const noData = preparedTrips.segments.length === 0 && currentPrepared.visits.length === 0
+  const legend = useMemo(() => (mode === 'activityType' ? legendTypes(preparedTrips.segments) : []), [preparedTrips.segments, mode])
 
   return (
     <section className="trips-shell">
@@ -137,12 +151,11 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
         <h2 className="trips-title">Trips</h2>
         {dataSource === 'sample' && <span className="badge-sample">{SAMPLE_LABEL}</span>}
         <span className="trips-summary">
-          {fmtRangeLabel(dateRange)} · {prepared.segments.length} 段 · {prepared.visits.length} 停留 ·{' '}
-          {prepared.totalPathPoints.toLocaleString()} 点
-          {prepared.points.length > 0 && ` · ${prepared.points.length.toLocaleString()} 原始点`}
-          {bridges.length > 0 && ` · ${bridges.length} 处衔接`}
+          {fmtRangeLabel(dateRange)} · {mode === 'timeline' ? `${currentPrepared.points.length.toLocaleString()} 原始点` : `${preparedTrips.segments.length} 段 · ${preparedTrips.totalPathPoints.toLocaleString()} 点`} · {currentPrepared.visits.length} 停留
+          {mode === 'activityType' && preparedTrips.points.length > 0 && ` · ${preparedTrips.points.length.toLocaleString()} 原始点`}
+          {mode === 'activityType' && bridges.length > 0 && ` · ${bridges.length} 处衔接`}
         </span>
-        {prepared.downsampled && <span className="trips-note">已降采样显示</span>}
+        {currentPrepared.downsampled && <span className="trips-note">已降采样显示</span>}
         {legend.length > 1 && (
           <span className="trips-legend">
             {legend.map((entry) => (
@@ -153,6 +166,22 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             ))}
           </span>
         )}
+        <div className="trips-mode-toggle">
+          <button
+            type="button"
+            className={`trips-mode-btn ${mode === 'timeline' ? 'active' : ''}`}
+            onClick={() => setMode('timeline')}
+          >
+            时间轴
+          </button>
+          <button
+            type="button"
+            className={`trips-mode-btn ${mode === 'activityType' ? 'active' : ''}`}
+            onClick={() => setMode('activityType')}
+          >
+            按活动类型
+          </button>
+        </div>
         <button
           type="button"
           className="trips-toggle trips-toggle--plain"
@@ -172,19 +201,21 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
         {sidebarOpen ? (
           <MapPane
             key={fitKey}
-            prepared={prepared}
+            prepared={currentPrepared}
             fitBounds={fitBounds}
             fitKey={fitKey}
             showRoutePoints={showRoutePoints}
             bridges={bridges}
+            mode={mode}
+            segments={preparedTrips.segments}
           />
         ) : (
           <div className="trips-map-wrap">
             {noData && <div className="trips-empty">该日期范围内没有行程数据</div>}
             <TripMap
-              segments={prepared.segments}
-              markers={prepared.markers}
-              rawPoints={prepared.points}
+              segments={preparedTrips.segments}
+              markers={currentPrepared.markers}
+              rawPoints={currentPrepared.points}
               bridges={bridges}
               highlightedSegments={new Set<number>()}
               selectedMarkerIndex={null}
@@ -194,6 +225,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
               invalidateKey="static"
               flyTarget={null}
               showRoutePoints={showRoutePoints}
+              mode={mode}
             />
           </div>
         )}

@@ -50,6 +50,11 @@ export interface TripMapProps {
   flyTarget: Visit | null
   /** Draw a small circle at every route vertex. Defaults to true. */
   showRoutePoints?: boolean
+  /**
+   * Rendering mode: "activityType" (default) = segments colored by activity + bridges;
+   * "timeline" = single continuous polyline of rawSignals + visit markers.
+   */
+  mode?: 'activityType' | 'timeline'
 }
 
 interface ControllerProps {
@@ -128,7 +133,15 @@ export default function TripMap(props: TripMapProps) {
     invalidateKey,
     flyTarget,
     showRoutePoints = true,
+    mode = 'activityType',
   } = props
+
+  // Timeline mode: single polyline connecting all rawSignals points.
+  const timelinePath = useMemo(
+    () =>
+      rawPoints.map((p): LatLngExpression => [p.lat, p.lng]),
+    [rawPoints],
+  )
 
   const positions = useMemo(
     () =>
@@ -179,10 +192,47 @@ export default function TripMap(props: TripMapProps) {
         invalidateKey={invalidateKey}
         flyTarget={flyTarget}
       />
+      {/* Timeline mode: single continuous polyline of rawSignals + GPS tooltip dots. */}
+      {showRoutePoints && mode === 'timeline' && timelinePath.length >= 2 && (
+        <>
+          <Polyline
+            positions={timelinePath}
+            pathOptions={{
+              color: '#3b82f6',
+              weight: 2,
+              opacity: 1,
+            }}
+            renderer={canvasRenderer}
+          />
+          {showRoutePoints &&
+            rawPoints.map((point, index) => (
+              <CircleMarker
+                key={`tl-${index}`}
+                center={[point.lat, point.lng]}
+                radius={2.5}
+                pathOptions={{
+                  color: '#3b82f6',
+                  weight: 1,
+                  opacity: 0.5,
+                  fillColor: '#3b82f6',
+                  fillOpacity: 0.4,
+                }}
+                renderer={canvasRenderer}
+              >
+                <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip">
+                  <span className="trip-tip-title">
+                    {point.lat.toFixed(4)}, {point.lng.toFixed(4)}
+                  </span>
+                  <span className="trip-tip-meta">{fmtDateTime(point.timestampMs)}</span>
+                </Tooltip>
+              </CircleMarker>
+            ))}
+        </>
+      )}
       {/* Raw GPS fixes (rawSignals) render as a faint dense trail underneath
           the stitched/activity polylines. Gated by the same trajectory-points
           toggle since both are raw dot trails. */}
-      {showRoutePoints &&
+      {mode === 'activityType' && showRoutePoints &&
         rawPoints.map((point, index) => (
           <CircleMarker
             key={`raw-${index}`}
@@ -202,7 +252,7 @@ export default function TripMap(props: TripMapProps) {
           Deliberately distinct from real traces: thin, light grey, dashed, and
           dimmed with the rest of the geometry when a stop is selected. Each
           carries a tooltip that honestly labels the gap duration. */}
-      {bridges.map((bridge, index) => (
+      {mode === 'activityType' && bridges.map((bridge, index) => (
         <Polyline
           key={`bridge-${index}`}
           positions={[
@@ -226,7 +276,7 @@ export default function TripMap(props: TripMapProps) {
           </Tooltip>
         </Polyline>
       ))}
-      {segments.map((segment, index) => {
+      {mode === 'activityType' && segments.map((segment, index) => {
         const latLngs = positions[index]
         if (latLngs.length < 2) return null
         const highlighted = highlightedSegments.has(index)
@@ -244,7 +294,7 @@ export default function TripMap(props: TripMapProps) {
           />
         )
       })}
-      {routePoints.map((point, index) => (
+      {mode === 'activityType' && routePoints.map((point, index) => (
         <CircleMarker
           key={`rp-${index}`}
           center={[point.lat, point.lng]}

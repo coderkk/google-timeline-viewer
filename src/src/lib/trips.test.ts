@@ -20,6 +20,7 @@ import {
   LIST_LIMIT,
   MARKER_CAP,
   parseInputDate,
+  prepareTimeline,
   prepareTrips,
   prepareTripsForData,
   RAW_POINT_CAP,
@@ -781,5 +782,91 @@ describe('stop <-> segment linkage', () => {
     const hit = segmentsOnSameDay(v, segs)
     expect(hit).toHaveLength(1)
     expect(hit[0].startMs).toBe(Date.UTC(2026, 0, 1, 8))
+  })
+})
+
+describe('prepareTimeline (T15)', () => {
+  const rawPoint = (lat: number, lng: number, timestampMs: number): RawPoint => ({
+    lat,
+    lng,
+    timestampMs,
+  })
+
+  it('sorts rawSignals by timestampMs', () => {
+    const points = [
+      rawPoint(1, 2, Date.UTC(2026, 6, 1, 10)),
+      rawPoint(3, 4, Date.UTC(2026, 6, 1, 8)),
+      rawPoint(5, 6, Date.UTC(2026, 6, 1, 9)),
+    ]
+    const visits = [visit({ id: 'v', startMs: Date.UTC(2026, 6, 1, 9), endMs: Date.UTC(2026, 6, 1, 10) })]
+    const result = prepareTimeline(visits, { startMs: null, endMs: null }, points)
+    expect(result.points).toHaveLength(3)
+    expect(result.points[0].timestampMs).toBe(Date.UTC(2026, 6, 1, 8))
+    expect(result.points[1].timestampMs).toBe(Date.UTC(2026, 6, 1, 9))
+    expect(result.points[2].timestampMs).toBe(Date.UTC(2026, 6, 1, 10))
+  })
+
+  it('filters rawSignals to the date range', () => {
+    const points = [
+      rawPoint(1, 2, Date.UTC(2026, 0, 1)),
+      rawPoint(3, 4, Date.UTC(2026, 6, 1)),
+      rawPoint(5, 6, Date.UTC(2026, 6, 15)),
+    ]
+    const visits = [visit({ id: 'v', startMs: Date.UTC(2026, 6, 1), endMs: Date.UTC(2026, 6, 30) })]
+    const result = prepareTimeline(visits, { startMs: Date.UTC(2026, 6, 1), endMs: Date.UTC(2026, 6, 10) }, points)
+    expect(result.points).toHaveLength(1)
+    expect(result.points[0].lng).toBe(4)
+  })
+
+  it('decimates to RAW_POINT_CAP and flags downsampled', () => {
+    const many = Array.from({ length: RAW_POINT_CAP + 500 }, (_, i) =>
+      rawPoint(0.1, 0.2 + i * 1e-5, i),
+    )
+    const visits = [visit({ id: 'v', startMs: 0, endMs: 1 })]
+    const result = prepareTimeline(visits, { startMs: null, endMs: null }, many)
+    expect(result.points).toHaveLength(RAW_POINT_CAP)
+    expect(result.downsampled).toBe(true)
+  })
+
+  it('returns visits sorted newest-first', () => {
+    const visits = [
+      visit({ id: 'old', startMs: Date.UTC(2026, 0, 1) }),
+      visit({ id: 'new', startMs: Date.UTC(2026, 0, 3) }),
+      visit({ id: 'mid', startMs: Date.UTC(2026, 0, 2) }),
+    ]
+    const result = prepareTimeline(visits, { startMs: null, endMs: null }, [])
+    expect(result.visits.map((v) => v.startMs)).toEqual([
+      Date.UTC(2026, 0, 3),
+      Date.UTC(2026, 0, 2),
+      Date.UTC(2026, 0, 1),
+    ])
+  })
+
+  it('keeps endpoints when decimating', () => {
+    const many = Array.from({ length: RAW_POINT_CAP + 500 }, (_, i) =>
+      rawPoint(0.1 + i * 0.001, 103.8, i),
+    )
+    const visits = [visit({ id: 'v', startMs: 0, endMs: 1 })]
+    const result = prepareTimeline(visits, { startMs: null, endMs: null }, many)
+    expect(result.points[0].lat).toBe(0.1)
+    expect(result.points[result.points.length - 1].lat).toBe(0.1 + (RAW_POINT_CAP + 499) * 0.001)
+  })
+
+  it('returns empty points when no rawSignals', () => {
+    const visits = [visit({ id: 'v', startMs: 0, endMs: 1 })]
+    const result = prepareTimeline(visits, { startMs: null, endMs: null }, [])
+    expect(result.points).toHaveLength(0)
+    expect(result.downsampled).toBe(false)
+    expect(result.visits).toHaveLength(1)
+  })
+
+  it('decimates markers when over MARKER_CAP', () => {
+    const manyVisits = Array.from({ length: MARKER_CAP + 100 }, (_, i) =>
+      visit({ id: String(i), startMs: Date.UTC(2026, 0, i + 1), endMs: Date.UTC(2026, 0, i + 1, 1) }),
+    )
+    const result = prepareTimeline(manyVisits, { startMs: null, endMs: null }, [])
+    expect(result.markers.length).toBeLessThan(manyVisits.length)
+    expect(result.markers.length).toBe(MARKER_CAP)
+    expect(result.downsampled).toBe(true)
   })
 })

@@ -2,6 +2,34 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-14 16:00 — Dev T15 Trip 时间轴视图（纯 GPS 轨迹线）
+
+用户反馈 T14 系列（bridge lines）仍未解决——他们要的不是虚线桥，而是一条纯时间线：所有 rawSignals（GPS 点）按时间排序连成一条线（单色），停驻点用不同颜色标记，移动点 tooltip 显示 GPS 坐标。
+
+**实现**：
+
+1. **`src/lib/trips.ts`**：新增 `TimelinePayload` 接口 + `prepareTimeline(visits, range, points)` 函数：
+   - 收集所有 rawSignals，按 `timestampMs` 排序
+   - 保留 `RAW_POINT_CAP=20000` 降采样逻辑（strideTake，保两端）
+   - visits 过滤 + 倒序排序 + MARKER_CAP 降采样
+   - 现有 `prepareTrips` / `prepareTripsForData` 保留不变
+
+2. **`src/components/TripMap.tsx`**：新增 `mode?: 'activityType' | 'timeline'` prop：
+   - timeline 模式：一条蓝色 polyline（#3b82f6, 2px, 实线）连接所有 rawSignals 点；每个 rawSignal 点渲染为小圆点 + tooltip（`{lat.toFixed(4)}, {lng.toFixed(4)} | {fmtDateTime(timestampMs)}`）
+   - activityType 模式：保留现有行为（segments 按活动着色 + bridges 虚线）
+   - visit markers 两种模式通用（红色）
+
+3. **`src/pages/TripsPage.tsx`**：新增模式切换开关：
+   - 两个按钮：「时间轴」|「按活动类型」，默认选中「时间轴」
+   - timeline 模式调用 `prepareTimeline`，activityType 模式调用 `prepareTripsForData`
+   - summary 行根据模式显示不同信息
+   - 新增 CSS `.trips-mode-toggle` + `.trips-mode-btn`
+
+**测试**（`trips.test.ts`，124 → **131**）：
+- 新增 7 个 `prepareTimeline` 单测：排序、范围筛选、RAW_POINT_CAP 降采样、新近排序、保两端端点、空输入、MARKER_CAP 降采样
+
+**验证**：`npm run test` **131 passed** / `npm run build` ✅ / `npm run lint` 0 error ✅。未 commit、未部署。
+
 ## 2026-09-14 15:17 — Dev T14.3 撤销双闸门：跟時間連纯时间口径
 CEO 决策（DECISIONS.md「T14.2 双闸门撤销」）：`bridgeLines` 回归纯时间语义——**所有时间相邻段不论类型/重叠/距离一律建桥**。
 
