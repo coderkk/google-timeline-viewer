@@ -365,3 +365,32 @@ Reviewer 结论：T13.7 通过；T13.6 打回，S1 必须修。
 - N3: `parseSemanticElement` 顶部 `timelineMemory` 提前 return，若未来需统计忽略段数要在此加计数。
 - N4: 无组件级/DOM 测试（vitest node 环境、无 jsdom/RTL）——本轮以纯函数接线条目 `prepareTripsForData` + 链路断言替代；系统性补组件测试需新增测试依赖，另行评估。
 - N5: 源文件末尾换行风格（`\n`结尾）保持一致。
+## 2026-09-14 19:00 — Dev 实现 T14（Trips 时间线连续轨迹）
+PRD 功能 3 v1.7：范围内所有段按时间连成无断口连续时间线，段间断口补诚实呈现的衔接线。
+
+**改动文件**：
+- `src/lib/trips.ts`：`prepareTrips` 过滤后按 `startMs` 升序排序（filter 返回新数组，不改调用方；时间线语义）；新增 `BridgeLine`（from/to/fromMs/toMs/gapMs/fromIndex/toIndex）、`BRIDGE_CAP=1000`、`BRIDGE_ANNOTATE_MIN_MS=60s`、`bridgeLines(segments)`（衔接连续段，负 gap/零 gap/端点重合几何跳过，超预算 strideTake 保两端）、`bridgeGapLabel(gapMs)`（≤60s →「衔接」；否则「衔接 +N 分钟/小时/天」）。
+- `src/components/TripMap.tsx`：新增 `bridges?: readonly BridgeLine[]` prop，在 raw 灰点之上、实测段之下渲染浅灰细虚线（`#9ca3af` weight1.5 `dashArray '4 6'`，选中停留点降透明度），tooltip = gap 标签 + `fmtDateTime(fromMs) → fmtDateTime(toMs)`；实测段 activityColor 着色不动。
+- `src/pages/TripsPage.tsx`：`bridges = bridgeLines(prepared.segments)` useMemo；MapPane 增加 bridges prop；两个 TripMap 实例传 `bridges`；summary 增「· N 处衔接」。
+- `src/lib/trips.test.ts`：新增「timeline bridges (T14)」desc（7 用例）。
+
+**实现要点**：
+- 衔接线是「无记录时段」的诚实呈现——虚线/浅灰/细与实测段可辨识，tooltip 明确标注 gap 时长而非伪装轨迹。
+- 排序跨零点按绝对 ms（23:50 → 次日 00:10 顺序正确）；重叠/相接段跳过衔接（已经连上），避免画零长度或反向线。
+- 预算：每桥固定 2 顶点，`BRIDGE_CAP=1000` 上限 + stride 抽样，全量视图桥点 ≤ 2000；不新增 legend 项（amount 标签不加）。
+- raw 灰点独立图层，不入轨迹线、不受桥影响（测试断言带 points 时桥数不变）。
+
+**验证**：
+- 单测 112 → **119**（+7：排序/跨零点、gap 元数据、重叠+相接跳过、退化几何、标签阈值+多单位、预算封顶+保两端、多段日连续+桥不并入点）。
+- `npm run test` 119 passed / build（tsc+vite）✅ / lint 0 error。
+- 真实验证（临时 livedata 脚本，跑完即删）：2025/2026 文件最忙日同为 2016-01-14，31 段按 startMs 排序，衔接线 4 处（gap 分别 4h、~1h、~1h 等真实无记录时段，坐标在吉隆坡一带）。
+- 另：parse.test.ts G1 截断测试在并行下偶发 5s 超时（2M 点循环），已将该用例 timeout 提至 30s。
+- 未 commit、未部署——待 Reviewer 审查。
+## 2026-09-14 19:30 — Dev 收尾 T14（Reviewer 有条件通过 + CEO 拍板）
+T14 Reviewer 通过（有条件），CEO 拍板，两处收尾：
+
+**N1 消歧（代码语义更自然的一方）**：`bridgeGapLabel` 判定从 `gapMs <= BRIDGE_ANNOTATE_MIN_MS` 改为 `gapMs < 60_000` —— 按常量命名（`ANNOTATE_MIN_MS` = 标注下限）与 docstring 口径，恰好 60s 应含界正常标注。测试同步：`bridgeGapLabel(60_000)` 断言改为 `'衔接 +1 分钟'`（附注释说明含界语义），`30_000` → `'衔接'` 不变。
+
+**A1 设计边界已落档**：`docs/DATA-FINDINGS.md` 新增 §7「Trips 时间线衔接线边界（CEO 拍板 2026-09-14）」——衔接线只在 `gapMs > 0`（纯时间口径）生成；时间重叠（gap ≤ 0）段不补线（并行记录如飞行段 vs 地面段，补线伪造连续移动）；地理远但时间顺序的段照常补桥；不引入距离闸门。
+
+**验证**：`npm run test` 119 passed（不变） / build（tsc+vite）✅ / lint 0 error。`TASKS.md` T14 备注已更新为「Reviewer 通过（有条件）N1 已修，CEO 拍板边界已记 DATA-FINDINGS §7；待部署」。未 commit、未部署。

@@ -3,6 +3,9 @@ import type { RawPoint, Segment, TimelineData, Visit } from './types'
 import {
   activityColor,
   boundsOf,
+  BRIDGE_CAP,
+  bridgeGapLabel,
+  bridgeLines,
   budgetRoutePoints,
   dayKeyOf,
   endOfDayMs,
@@ -282,6 +285,157 @@ describe('TripsPage wiring (prepareTripsForData)', () => {
     expect(prepared.points[1].lng).toBe(120.5)
     expect(prepared.segments).toHaveLength(1)
     expect(prepared.visits).toHaveLength(1)
+  })
+})
+
+describe('timeline bridges (T14)', () => {
+  it('sorts in-range segments into timeline order across midnight', () => {
+    // Handed in document order (late-evening first); one segment is outside the
+    // range and must be dropped. 23:50 local one day and 00:10 local the next
+    // must still order by absolute ms — local midnight is not a sort boundary.
+    const lateNight = segment({
+      id: 'late',
+      startMs: new Date(2025, 0, 29, 23, 50).getTime(),
+      endMs: new Date(2025, 0, 30, 0, 5).getTime(),
+    })
+    const afterMidnight = segment({
+      id: 'early',
+      startMs: new Date(2025, 0, 30, 0, 10).getTime(),
+      endMs: new Date(2025, 0, 30, 0, 40).getTime(),
+    })
+    const outOfRange = segment({ id: 'june', startMs: Date.UTC(2025, 5, 1), endMs: Date.UTC(2025, 5, 2) })
+    const prepared = prepareTrips([outOfRange, lateNight, afterMidnight], [], {
+      startMs: Date.UTC(2025, 0, 28),
+      endMs: Date.UTC(2025, 0, 31),
+    })
+    expect(prepared.segments.map((s) => s.startMs)).toEqual([
+      lateNight.startMs,
+      afterMidnight.startMs,
+    ])
+    for (let i = 1; i < prepared.segments.length; i++) {
+      expect(prepared.segments[i].startMs).toBeGreaterThanOrEqual(prepared.segments[i - 1].startMs)
+    }
+  })
+
+  it('links consecutive segments with {from, to, gapMs} bridge metadata', () => {
+    const a = segment({
+      id: 'a',
+      startMs: Date.UTC(2026, 6, 1, 8),
+      endMs: Date.UTC(2026, 6, 1, 8, 30),
+      start: point(25.0, 121.5),
+      end: point(25.05, 121.55),
+    })
+    const b = segment({
+      id: 'b',
+      startMs: Date.UTC(2026, 6, 1, 8, 42),
+      endMs: Date.UTC(2026, 6, 1, 9),
+      start: point(25.1, 121.62),
+      end: point(25.2, 121.7),
+    })
+    const bridges = bridgeLines([a, b])
+    expect(bridges).toHaveLength(1)
+    expect(bridges[0]).toEqual({
+      fromIndex: 0,
+      toIndex: 1,
+      from: { lat: 25.05, lng: 121.55 },
+      to: { lat: 25.1, lng: 121.62 },
+      fromMs: Date.UTC(2026, 6, 1, 8, 30),
+      toMs: Date.UTC(2026, 6, 1, 8, 42),
+      gapMs: 12 * 60 * 1000,
+    })
+  })
+
+  it('skips time-overlapping and temporally contiguous pairs', () => {
+    const overlapA = segment({ id: 'o-a', startMs: Date.UTC(2026, 6, 1, 8), endMs: Date.UTC(2026, 6, 1, 10) })
+    const overlapB = segment({ id: 'o-b', startMs: Date.UTC(2026, 6, 1, 9), endMs: Date.UTC(2026, 6, 1, 11) })
+    const contiguous = segment({ id: 'c', startMs: Date.UTC(2026, 6, 1, 11), endMs: Date.UTC(2026, 6, 1, 12) })
+    expect(bridgeLines([overlapA, overlapB])).toEqual([])
+    expect(bridgeLines([overlapB, contiguous])).toEqual([])
+  })
+
+  it('skips a bridge whose endpoints coincide (degenerate zero-length)', () => {
+    const a = segment({
+      id: 'a',
+      startMs: Date.UTC(2026, 6, 1, 8),
+      endMs: Date.UTC(2026, 6, 1, 8, 30),
+      start: point(25.0, 121.5),
+      end: point(25.05, 121.55),
+    })
+    // Ends exactly where the next leg begins: nothing to draw.
+    const b = segment({
+      id: 'b',
+      startMs: Date.UTC(2026, 6, 1, 8, 35),
+      endMs: Date.UTC(2026, 6, 1, 9),
+      start: point(25.05, 121.55),
+      end: point(25.1, 121.62),
+    })
+    expect(bridgeLines([a, b])).toEqual([])
+  })
+
+  it('labels bridges honestly: short gaps are just "衔接", real gaps carry "衔接 +N …"', () => {
+    expect(bridgeGapLabel(30_000)).toBe('衔接')
+    // Exactly the annotation threshold (60s) is included in the annotated
+    // range: `< BRIDGE_ANNOTATE_MIN_MS` gates the plain "衔接" tag.
+    expect(bridgeGapLabel(60_000)).toBe('衔接 +1 分钟')
+    expect(bridgeGapLabel(12 * 60_000)).toBe('衔接 +12 分钟')
+    expect(bridgeGapLabel(2 * 3_600_000 + 5 * 60_000)).toBe('衔接 +2 小时 5 分')
+    expect(bridgeGapLabel(2 * 86_400_000)).toBe('衔接 +2 天')
+  })
+
+  it('keeps bridge geometry inside the render budget on span-all views', () => {
+    // More consecutive legs than the cap: bridges must be evenly decimated.
+    const many = Array.from({ length: BRIDGE_CAP + 500 }, (_, i) =>
+      segment({
+        id: `s${i}`,
+        startMs: Date.UTC(2026, 0, 1) + i * 3_600_000,
+        endMs: Date.UTC(2026, 0, 1) + i * 3_600_000 + 1_800_000,
+        start: point(1 + i * 0.001, 100),
+        end: point(1 + i * 0.001 + 0.0005, 100.001),
+      }),
+    )
+    const bridges = bridgeLines(many)
+    expect(bridges.length).toBe(BRIDGE_CAP)
+    // stride sampling keeps both ends of the timeline.
+    expect(bridges[0].fromIndex).toBe(0)
+    expect(bridges[bridges.length - 1].toIndex).toBe(many.length - 1)
+    // 2 vertices per bridge, always bounded: total bridge points stay ≤ 2×cap.
+    expect(bridges.length * 2).toBeLessThanOrEqual(2 * BRIDGE_CAP)
+  })
+
+  it('a multi-leg day yields one continuous sorted trace with full bridging', () => {
+    const leg1 = segment({
+      id: 'leg1',
+      startMs: Date.UTC(2026, 6, 1, 7),
+      endMs: Date.UTC(2026, 6, 1, 7, 20),
+      start: point(25.0, 121.5),
+      end: point(25.05, 121.53),
+    })
+    const leg2 = segment({
+      id: 'leg2',
+      startMs: Date.UTC(2026, 6, 1, 7, 35),
+      endMs: Date.UTC(2026, 6, 1, 8),
+      start: point(25.06, 121.55),
+      end: point(25.1, 121.6),
+    })
+    const leg3 = segment({
+      id: 'leg3',
+      startMs: Date.UTC(2026, 6, 1, 8, 5),
+      endMs: Date.UTC(2026, 6, 1, 8, 25),
+      start: point(25.11, 121.61),
+      end: point(25.2, 121.7),
+    })
+    const prepared = prepareTrips([leg2, leg1, leg3], [], { startMs: null, endMs: null })
+    expect(prepared.segments.map((s) => s.startMs)).toEqual([leg1.startMs, leg2.startMs, leg3.startMs])
+    const bridges = bridgeLines(prepared.segments)
+    expect(bridges).toHaveLength(2)
+    expect(bridges[0].gapMs).toBe(15 * 60_000)
+    expect(bridges[1].gapMs).toBe(5 * 60_000)
+    // Bridges derive from segments only — raw fixes never merge into the drawn
+    // trace (they stay the faint toggleable grey trail).
+    const withPoints = prepareTrips([leg1, leg2, leg3], [], { startMs: null, endMs: null }, [
+      { lat: 9, lng: 90, timestampMs: Date.UTC(2026, 6, 1, 7, 30) },
+    ])
+    expect(bridgeLines(withPoints.segments)).toHaveLength(2)
   })
 })
 

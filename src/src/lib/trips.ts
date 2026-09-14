@@ -244,7 +244,11 @@ export function prepareTrips(
   range: DateRangeFilter,
   points: RawPoint[] = [],
 ): PreparedTrips {
-  const filteredSegments = filterSegments(segments, range)
+  // Filter preserves document order, then the survivors are sorted into
+  // timeline order (ascending startMs) so consecutive segments form the
+  // continuous route the user asked for; `filter()` already returns a fresh
+  // array, so sorting here never mutates the caller's list.
+  const filteredSegments = filterSegments(segments, range).sort((a, b) => a.startMs - b.startMs)
   const filteredVisits = filterVisits(visits, range)
 
   let downsampled = false
@@ -301,6 +305,91 @@ export function prepareTrips(
  */
 export function prepareTripsForData(data: TimelineData, range: DateRangeFilter): PreparedTrips {
   return prepareTrips(data.segments, data.visits, range, data.points)
+}
+
+// -- Timeline bridges (T14) --------------------------------------------------
+
+/**
+ * Maximum number of bridge polylines drawn between consecutive timeline
+ * segments. Each bridge is a single 2-vertex line (2 path points, bounded by
+ * design), so capping the chapter count keeps decade-spanning "全部" views
+ * within the shared point budget while the segments themselves stay under
+ * `MAX_SEGMENTS` / `GLOBAL_PATH_POINT_CAP`.
+ */
+export const BRIDGE_CAP = 1000
+
+/**
+ * Gaps at or above this duration get a human-readable "衔接 +…" tooltip label;
+ * shorter gaps (already visually connected legs) are just tagged "衔接".
+ */
+export const BRIDGE_ANNOTATE_MIN_MS = 60_000
+
+/** A dashed "no-record" link from the end of one segment to the start of the
+ * next, an honest visual for the gap between two real traces. Geometry uses the
+ * semantic segment endpoints (end of the earlier segment -> start of the later
+ * one), which is exactly the break the user sees today. */
+export interface BridgeLine {
+  /** Index of the departing segment, into the (timeline-sorted) list. */
+  fromIndex: number
+  /** Index of the arriving segment, into the (timeline-sorted) list. */
+  toIndex: number
+  from: Point
+  to: Point
+  fromMs: number
+  toMs: number
+  /** `toMs - fromMs`; always positive (overlap / zero-gap pairs are skipped). */
+  gapMs: number
+}
+
+/**
+ * Link consecutive segments of an already timeline-ordered list with bridge
+ * lines. Bridges are only emitted for real forward gaps:
+ *  - a negative gap (time-overlapping segments, e.g. a leg tucked inside a
+ *    longer trace) needs no bridge — the traces already touch;
+ *  - a zero gap (segments are temporally contiguous) has nothing to bridge;
+ *  - a bridge whose two endpoints are the exact same coordinate is degenerate
+ *    and dropped.
+ * All input must already be orderered ascending by `startMs` — `prepareTrips`
+ * guarantees this — so consecutive pairs ARE the timeline sequence. When more
+ * than `BRIDGE_CAP` legs exist, the bridges are evenly stride-sampled (both
+ * ends kept) so bridge geometry stays inside the render budget.
+ */
+export function bridgeLines(segments: readonly Segment[]): BridgeLine[] {
+  const out: BridgeLine[] = []
+  for (let i = 1; i < segments.length; i++) {
+    const prev = segments[i - 1]
+    const cur = segments[i]
+    const gapMs = cur.startMs - prev.endMs
+    if (gapMs <= 0) continue
+    if (prev.end.lat === cur.start.lat && prev.end.lng === cur.start.lng) continue
+    out.push({
+      fromIndex: i - 1,
+      toIndex: i,
+      from: prev.end,
+      to: cur.start,
+      fromMs: prev.endMs,
+      toMs: cur.startMs,
+      gapMs,
+    })
+  }
+  if (out.length <= BRIDGE_CAP) return out
+  return strideTake(out, BRIDGE_CAP)
+}
+
+/**
+ * Short Chinese tooltip for a bridge: "衔接" for gaps under the annotation
+ * threshold, otherwise "衔接 +N 分钟/小时/天" so the user can judge whether
+ * the dashed link is a minute-long transfer or an unrecorded multi-day gap.
+ */
+export function bridgeGapLabel(gapMs: number): string {
+  if (gapMs < BRIDGE_ANNOTATE_MIN_MS) return '衔接'
+  const totalMinutes = Math.round(gapMs / 60000)
+  const days = Math.floor(totalMinutes / (60 * 24))
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60)
+  const minutes = totalMinutes % 60
+  if (days > 0) return hours > 0 ? `衔接 +${days} 天 ${hours} 小时` : `衔接 +${days} 天`
+  if (hours > 0) return minutes > 0 ? `衔接 +${hours} 小时 ${minutes} 分` : `衔接 +${hours} 小时`
+  return `衔接 +${minutes} 分钟`
 }
 
 // -- Route point rendering ---------------------------------------------------

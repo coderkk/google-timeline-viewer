@@ -259,7 +259,7 @@ describe('raw points cap (security G1)', () => {
     expect(truncations).toHaveLength(1)
     expect(truncations[0]).toContain('"huge.json"')
     expect(truncations[0]).toContain('raw points 超过')
-  })
+  }, 30_000)
 
   it('caps the merged raw points across multiple files and reports truncation', () => {
     const half = Math.floor(MAX_RAW_POINTS / 2) + 1

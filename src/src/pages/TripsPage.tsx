@@ -4,6 +4,7 @@ import StopList from '../components/StopList'
 import TripMap, { type LatLngBoundsMatrix } from '../components/TripMap'
 import {
   boundsOf,
+  bridgeLines,
   dayKeyOf,
   fmtRangeLabel,
   legendTypes,
@@ -13,7 +14,7 @@ import {
   type DateRangeFilter,
 } from '../lib/trips'
 import { SAMPLE_LABEL } from '../lib/sample'
-import type { PreparedTrips } from '../lib/trips'
+import type { PreparedTrips, BridgeLine } from '../lib/trips'
 import type { TimelineData, Visit } from '../lib/types'
 import { useTimelineStore } from '../store/timelineStore'
 import EmptyState from './EmptyState'
@@ -34,11 +35,13 @@ function MapPane({
   fitBounds,
   fitKey,
   showRoutePoints,
+  bridges,
 }: {
   prepared: PreparedTrips
   fitBounds: LatLngBoundsMatrix | null
   fitKey: string
   showRoutePoints: boolean
+  bridges: readonly BridgeLine[]
 }) {
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
 
@@ -85,6 +88,7 @@ function MapPane({
           segments={prepared.segments}
           markers={prepared.markers}
           rawPoints={prepared.points}
+          bridges={bridges}
           highlightedSegments={highlightedSegments}
           selectedMarkerIndex={selectedMarkerIndex}
           onSelectMarker={(_, visit) => setSelectedVisit(visit)}
@@ -107,6 +111,10 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
     () => prepareTripsForData(data, dateRange),
     [data, dateRange],
   )
+
+  // Dashed links between the consecutive (timeline-sorted) segments that close
+  // the visual breaks between separate legs of a trip.
+  const bridges = useMemo(() => bridgeLines(prepared.segments), [prepared.segments])
 
   const fitBounds = useMemo<LatLngBoundsMatrix | null>(() => {
     const bounds = boundsOf(prepared.segments, prepared.markers)
@@ -132,6 +140,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
           {fmtRangeLabel(dateRange)} · {prepared.segments.length} 段 · {prepared.visits.length} 停留 ·{' '}
           {prepared.totalPathPoints.toLocaleString()} 点
           {prepared.points.length > 0 && ` · ${prepared.points.length.toLocaleString()} 原始点`}
+          {bridges.length > 0 && ` · ${bridges.length} 处衔接`}
         </span>
         {prepared.downsampled && <span className="trips-note">已降采样显示</span>}
         {legend.length > 1 && (
@@ -167,6 +176,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             fitBounds={fitBounds}
             fitKey={fitKey}
             showRoutePoints={showRoutePoints}
+            bridges={bridges}
           />
         ) : (
           <div className="trips-map-wrap">
@@ -175,6 +185,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
               segments={prepared.segments}
               markers={prepared.markers}
               rawPoints={prepared.points}
+              bridges={bridges}
               highlightedSegments={new Set<number>()}
               selectedMarkerIndex={null}
               onSelectMarker={() => undefined}

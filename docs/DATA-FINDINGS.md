@@ -134,3 +134,9 @@ Android Timeline Export 与 Takeout 产出的**顶层结构、字段 schema 完�
 | 时区 UTC/本地日期对齐 | ⏳ KIV | `trips.ts: startOfDayMs / dayKeyOf` |
 | 多文件 merge 去重 | ⏳ Backlog | `index.ts: mergeTimelineData`（现为简单拼接） |
 | 参考文档 | — | https://locationhistoryformat.com/reference/（旧 Takeout 格式，不含新版扁平结构） |
+
+---
+
+## 7. Trips 时间线衔接线边界（CEO 拍板 2026-09-14）
+
+> **衔接线边界（CEO 拍板 2026-09-14）**：Trips 时间线连续轨迹的段间衔接线只在 `gapMs > 0`（纯时间口径）时生成。时间重叠（gap ≤ 0）的相邻段不补线——它们是同一时间窗口内的并行记录（如飞行段与地面车辆段），补线会伪造不存在的连续移动。地理上相距远但时间上顺序的段照常补桥（如实呈现无记录时段）。不引入距离闸门。

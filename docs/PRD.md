@@ -10,7 +10,7 @@ Google 停用 Timeline 网页版后，位置历史只以 JSON 导出（手机可
 
 - [ ] **功能 1: 空状态首屏 + 多格式 JSON 导入** — 未导入数据时显示引导页（欢迎语 + 导入按钮 + 「如何导出数据」教程入口 + 隐私承诺）；点击导入后支持以下格式：①新版设备导出 `Timeline.json`（direct-array：`semanticSegments[]`/`rawSignals`/`userLocationProfile`，Android 系统设置导出 / iOS Maps App 导出）②`Records.json`（locations[] + activitySegments[]）③Semantic Location History 的 `YYYY_MM.json`（timelineObjects[]：placeVisit/activitySegment）④旧版 `Location History.json`；支持一次导入多个文件；解析在 Web Worker 中执行，文件过大时给出提示 — 验收: 四类样例文件都能导入并统计出行程/停留点数量；空状态引导页可见且导入后消失；格式①含 `rawSignals` 时其原始位置点被导入（兼容大写 `LatLng` 与嵌套 `position.timestamp`），Trips 轨迹渲染可用该数据
 - [ ] **功能 2: 日期范围筛选** — 全局时间筛选（起止日期），Trips 与 Places 两个视图共享；按日期过滤行程和停留点 — 验收: 选择 2024 年 5 月，地图只显示该月数据
-- [ ] **功能 3: Trips 视图（行程轨迹）** — 选中日期范围内：绘制行驶路线（activitySegment.waypointPath），标出停留点（placeVisit 位置与时长）；渲染有点数上限保护，超限降采样 — 验收: 导入样例数据后选择日期范围，能看到路线 + 停留点标记
+- [ ] **功能 3: Trips 视图（行程轨迹）** — 选中日期范围内：绘制行驶路线（activitySegment.waypointPath），**全部段按时间顺序（startMs）排序，相邻段间自动补衔接线（浅灰细线/虚线，与实测段视觉可区分，tooltip 标注中间 gap 时长），在地图上形成一条无断口的连续时间线轨迹**；保留按交通方式着色（实测段不受衔接线影响）；标出停留点（placeVisit 位置与时长）；渲染有点数上限保护，超限降采样 — 验收: 导入样例数据后选择日期范围，多段行程在地图上形成无断口的连续轨迹（段间断口由衔接线补齐，且衔接线与实测段可辨识），路线 + 停留点标记可见
 - [ ] **功能 4: Places 视图（地图点击查历史）** — 无标记的干净地图；点击任一位置 → 显示该点经纬度 + 以该点为中心、可选半径（1/5/10/50/100 KM）内的所有历史停留点列表（地点名/地址/时间/距离）；半径圈可视化并自动调整 zoom 保证圆完整可见；点击结果列表中的地点可跳转到对应位置；点击处 marker 用高亮色，周围停留点用默认色，视觉层次清晰；**点击停留点 marker 显示该地点历史访问记录**（时间线面板：地点名 + 访问次数 + 每次访问日期/时长）；**日期筛选全局共享**（Trips 与 Places 使用同一日期范围） — 验收: 点击地图 → 浮层显示经纬度 + 半径内停留点列表，切换半径档列表实时变化；点击 marker 颜色区分；点击停留点显示访问历史；Trips/Places 日期筛选联动
 - [ ] **功能 5: 本地隐私** — 数据只在内存中，刷新即弃；不写 localStorage/IndexedDB、不接任何分析/遥测 SDK；设置中提供瓦片源自定义（默认 OpenStreetMap），选项旁明示"瓦片请求会把你的 IP 与当前视野坐标发给瓦片服务器" — 验收: 不使用 DevTools 时确认无任何网络请求携带原始坐标 JSON；可切换到自定义瓦片源
 - [ ] **功能 6: 导出教程页** — 常驻入口（主界面可见）：Android 导出步骤（系统设置 → 位置 → 位置服务 → 时间轴 → 导出时间轴数据）、iOS 导出步骤（Google Maps → 头像 → 设置 → 个人内容/位置和隐私 → 导出时间轴数据）、新旧格式说明（设备导出的 Timeline.json vs Takeout 的 Records.json / Semantic Location History）、FAQ（找不到时间轴、换手机丢数据、启用 Timelime 备份） — 验收: 教程页图文步骤完整，Android/iOS 路径区别清楚
@@ -42,3 +42,4 @@ Google 停用 Timeline 网页版后，位置历史只以 JSON 导出（手机可
 - v1.4 (2026-09-13): 改名 Google Timeline Viewer → Timeline Map；功能 4 半径档位改为 1/5/10/50/100 KM + marker 颜色区分；约束增加 Theme（Light/Dark/System）+ 多语言（英文为主，中文 KIV）
 - v1.5 (2026-09-13): 功能 4 增加 Places 停留点历史（点击 marker 显示访问记录时间线）+ 日期筛选全局共享（Trips/Places 联动）
 - v1.6 (2026-09-14): 功能 1 验收补充 rawSignals 解析要求（格式①声明字段完整性，来源双文件实测）；修复时区分组 bug（`startOfDayMs`/`dayKeyOf` 对齐本地时区，凌晨段不再归错日，属功能 2 正确性）；merge 去重维持「不做」（仍走 Backlog「跨设备多 Takeout 合并去重」）
+- v1.7 (2026-09-14): 功能 3 增加**时间线连续轨迹**——全部段按时间排序、段间断口补衔接线，形成无断口连续时间线（用户痛点：多段独立 trace 视觉断开杂乱）；交通方式筛选不纳入（用户确认：不做筛选，改为轨迹连续）

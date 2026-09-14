@@ -13,10 +13,12 @@ import type { CircleMarker as LeafletCircleMarker } from 'leaflet'
 import type { RawPoint, Segment, Visit } from '../lib/types'
 import {
   activityColor,
+  bridgeGapLabel,
   budgetRoutePoints,
   fmtDateTime,
   fmtDuration,
   ROUTE_POINT_CAP,
+  type BridgeLine,
 } from '../lib/trips'
 import { useTimelineStore } from '../store/timelineStore'
 
@@ -28,6 +30,12 @@ export interface TripMapProps {
   markers: readonly Visit[]
   /** Raw GPS fixes (rawSignals) to draw as a faint dense trail. */
   rawPoints?: readonly RawPoint[]
+  /**
+   * Dashed "no-record" links between consecutive timeline segments, aligned
+   * with `segments` (indices point into that same list, which must therefore
+   * be in timeline order — `prepareTrips` sorts it).
+   */
+  bridges?: readonly BridgeLine[]
   /** Segment indices (into `segments`) to emphasize when a stop is selected. */
   highlightedSegments: ReadonlySet<number>
   /** Index into `markers` that is currently selected, or null. */
@@ -111,6 +119,7 @@ export default function TripMap(props: TripMapProps) {
     segments,
     markers,
     rawPoints = [],
+    bridges = [],
     highlightedSegments,
     selectedMarkerIndex,
     onSelectMarker,
@@ -189,6 +198,34 @@ export default function TripMap(props: TripMapProps) {
             renderer={canvasRenderer}
           />
         ))}
+      {/* Dashed "no-record" bridges between consecutive timeline segments.
+          Deliberately distinct from real traces: thin, light grey, dashed, and
+          dimmed with the rest of the geometry when a stop is selected. Each
+          carries a tooltip that honestly labels the gap duration. */}
+      {bridges.map((bridge, index) => (
+        <Polyline
+          key={`bridge-${index}`}
+          positions={[
+            [bridge.from.lat, bridge.from.lng],
+            [bridge.to.lat, bridge.to.lng],
+          ]}
+          pathOptions={{
+            color: '#9ca3af',
+            weight: 1.5,
+            opacity: hasSelection ? 0.15 : 0.45,
+            dashArray: '4 6',
+            lineCap: 'round',
+          }}
+          renderer={canvasRenderer}
+        >
+          <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip">
+            <span className="trip-tip-title">{bridgeGapLabel(bridge.gapMs)}</span>
+            <span className="trip-tip-meta">
+              {fmtDateTime(bridge.fromMs)} → {fmtDateTime(bridge.toMs)}
+            </span>
+          </Tooltip>
+        </Polyline>
+      ))}
       {segments.map((segment, index) => {
         const latLngs = positions[index]
         if (latLngs.length < 2) return null
