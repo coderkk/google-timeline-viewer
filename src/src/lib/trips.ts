@@ -325,20 +325,32 @@ export const BRIDGE_CAP = 1000
 export const BRIDGE_ANNOTATE_MIN_MS = 60_000
 
 /** A dashed "no-record" link from the end of one segment to the start of the
- * next, an honest visual for the gap between two real traces. Geometry uses the
- * semantic segment endpoints (end of the earlier segment -> start of the later
- * one), which is exactly the break the user sees today. */
+ * next, an honest visual for the gap between two real traces. Geometry uses
+ * each leg's VISUAL endpoints — the first/last vertex of the polyline actually
+ * drawn (`segment.path`, with a `[start, end]` fallback) — so the bridge meets
+ * the neighbouring polylines exactly where they end. Stitched traces
+ * (T13.2/T13.3) can differ from `start`/`end` by up to MAX_STITCH_DEG, and the
+ * two must not be mixed or every joint shows a km-scale visual break. */
 export interface BridgeLine {
   /** Index of the departing segment, into the (timeline-sorted) list. */
   fromIndex: number
   /** Index of the arriving segment, into the (timeline-sorted) list. */
   toIndex: number
+  /** Visual end point of the departing segment's polyline (`path.last`). */
   from: Point
+  /** Visual start point of the arriving segment's polyline (`path[0]`). */
   to: Point
   fromMs: number
   toMs: number
   /** `toMs - fromMs`; always positive (overlap / zero-gap pairs are skipped). */
   gapMs: number
+}
+
+/** First/last vertex of the polyline TripMap actually renders for a segment. */
+function polylineEndpoints(s: Segment): { first: Point; last: Point } {
+  return s.path.length >= 2
+    ? { first: s.path[0], last: s.path[s.path.length - 1] }
+    : { first: s.start, last: s.end }
 }
 
 /**
@@ -361,12 +373,14 @@ export function bridgeLines(segments: readonly Segment[]): BridgeLine[] {
     const cur = segments[i]
     const gapMs = cur.startMs - prev.endMs
     if (gapMs <= 0) continue
-    if (prev.end.lat === cur.start.lat && prev.end.lng === cur.start.lng) continue
+    const prevEnd = polylineEndpoints(prev).last
+    const curStart = polylineEndpoints(cur).first
+    if (prevEnd.lat === curStart.lat && prevEnd.lng === curStart.lng) continue
     out.push({
       fromIndex: i - 1,
       toIndex: i,
-      from: prev.end,
-      to: cur.start,
+      from: prevEnd,
+      to: curStart,
       fromMs: prev.endMs,
       toMs: cur.startMs,
       gapMs,

@@ -365,7 +365,7 @@ Reviewer 结论：T13.7 通过；T13.6 打回，S1 必须修。
 - N3: `parseSemanticElement` 顶部 `timelineMemory` 提前 return，若未来需统计忽略段数要在此加计数。
 - N4: 无组件级/DOM 测试（vitest node 环境、无 jsdom/RTL）——本轮以纯函数接线条目 `prepareTripsForData` + 链路断言替代；系统性补组件测试需新增测试依赖，另行评估。
 - N5: 源文件末尾换行风格（`\n`结尾）保持一致。
-## 2026-09-14 19:00 — Dev 实现 T14（Trips 时间线连续轨迹）
+## 2026-09-14 13:00 — Dev 实现 T14（Trips 时间线连续轨迹）
 PRD 功能 3 v1.7：范围内所有段按时间连成无断口连续时间线，段间断口补诚实呈现的衔接线。
 
 **改动文件**：
@@ -386,7 +386,7 @@ PRD 功能 3 v1.7：范围内所有段按时间连成无断口连续时间线，
 - 真实验证（临时 livedata 脚本，跑完即删）：2025/2026 文件最忙日同为 2016-01-14，31 段按 startMs 排序，衔接线 4 处（gap 分别 4h、~1h、~1h 等真实无记录时段，坐标在吉隆坡一带）。
 - 另：parse.test.ts G1 截断测试在并行下偶发 5s 超时（2M 点循环），已将该用例 timeout 提至 30s。
 - 未 commit、未部署——待 Reviewer 审查。
-## 2026-09-14 19:30 — Dev 收尾 T14（Reviewer 有条件通过 + CEO 拍板）
+## 2026-09-14 13:35 — Dev 收尾 T14（Reviewer 有条件通过 + CEO 拍板）
 T14 Reviewer 通过（有条件），CEO 拍板，两处收尾：
 
 **N1 消歧（代码语义更自然的一方）**：`bridgeGapLabel` 判定从 `gapMs <= BRIDGE_ANNOTATE_MIN_MS` 改为 `gapMs < 60_000` —— 按常量命名（`ANNOTATE_MIN_MS` = 标注下限）与 docstring 口径，恰好 60s 应含界正常标注。测试同步：`bridgeGapLabel(60_000)` 断言改为 `'衔接 +1 分钟'`（附注释说明含界语义），`30_000` → `'衔接'` 不变。
@@ -394,3 +394,22 @@ T14 Reviewer 通过（有条件），CEO 拍板，两处收尾：
 **A1 设计边界已落档**：`docs/DATA-FINDINGS.md` 新增 §7「Trips 时间线衔接线边界（CEO 拍板 2026-09-14）」——衔接线只在 `gapMs > 0`（纯时间口径）生成；时间重叠（gap ≤ 0）段不补线（并行记录如飞行段 vs 地面段，补线伪造连续移动）；地理远但时间顺序的段照常补桥；不引入距离闸门。
 
 **验证**：`npm run test` 119 passed（不变） / build（tsc+vite）✅ / lint 0 error。`TASKS.md` T14 备注已更新为「Reviewer 通过（有条件）N1 已修，CEO 拍板边界已记 DATA-FINDINGS §7；待部署」。未 commit、未部署。
+## 2026-09-14 14:05 — Dev 修复 T14.1（桥接线与轨迹线端点不一致）
+CEO 定位的观感 bug：桥两端与轨迹 polyline 各留断口，视觉上"没有连接"。
+
+**根因**：`bridgeLines` 用语义端点建桥（`from: prev.end` / `to: cur.start`），但渲染端 TripMap 的 segment polyline 用的是 `segment.path`（长度>=2 时；否则回退 `[start,end]`）。缝合（T13.2/T13.3）产出的 path 首末点与语义 start/end 不重合（容差 MAX_STITCH_DEG≈0.02°≈2km）→ 桥两端各留公里级断口。测试 fixture 均按语义端点构造，故逻辑测试通过、观感失败。
+
+**修复**（`src/lib/trips.ts`）：
+- 新增 `polylineEndpoints(s)`：`{ first: path[0] ?? start, last: path[path.length-1] ?? end }`（长度<2 回退语义端点，与 TripMap 渲染口径完全一致）。
+- `bridgeLines` 的 `from` 改用上一段可视终点、`to` 改用下一段可视起点；重合跳过判断同步用可视两端（path 端点重合即视为已贴合，即使语义端点不同）；`gapMs` 仍按语义时间 `cur.startMs - prev.endMs`（纯时间口径，CEO 拍板不变）。
+- 入参为 `prepareTrips` 处理后的 segments：DP 简化与预算 strideTake 均保端点，可视首末点即渲染首末点。
+
+**测试**（`src/lib/trips.test.ts`，119 → 120）：
+- 改：桥元数据用例改带 path 的 fixture（path≠start/end），断言 `from`/`to` 取 path 端点；退化重合用例改为「语义端点不同但 path 端点重合 → 跳过」，证明判定走可视端点。
+- 新增：「hugs every drawn polyline endpoint when paths do not match start/end」——3 段链逐桥断言 from/to 精确等于相邻 path 首末顶点。
+- 保留：排序/跨零点、gap 元数据、重叠+相接跳过、标签阈值、预算 cap 保两端、多段日集成。
+
+**验证**：
+- `npm run test` 120 passed（原 119 → 新增 1）/ build（tsc+vite）✅ / lint 0 error。
+- livedata 流程（临时 spec 跑完即删）：2025/2026 两文件最忙日 2016-01-14 各 31 段、4 桥；逐桥断言 `from` 精确等于上一段 path 末顶点、`to` 精确等于下一段 path 首顶点（坐标相等断言全过）；并量化修复前断口「语义端 vs 可视端」最大 `1.30 km`（与 MAX_STITCH_DEG 同量级，CEO 判断正确）。
+- 未 commit、未部署。

@@ -318,12 +318,16 @@ describe('timeline bridges (T14)', () => {
   })
 
   it('links consecutive segments with {from, to, gapMs} bridge metadata', () => {
+    // Legs shown like stitched traces (T13.2/T13.3): the polyline `path`
+    // endpoints deliberately differ from the semantic `start`/`end` — the
+    // bridge must attach to the VERTICES THE MAP DRAWS, not the semantic ones.
     const a = segment({
       id: 'a',
       startMs: Date.UTC(2026, 6, 1, 8),
       endMs: Date.UTC(2026, 6, 1, 8, 30),
       start: point(25.0, 121.5),
       end: point(25.05, 121.55),
+      path: [point(25.01, 121.51), point(25.02, 121.52), point(25.04, 121.54)],
     })
     const b = segment({
       id: 'b',
@@ -331,18 +335,62 @@ describe('timeline bridges (T14)', () => {
       endMs: Date.UTC(2026, 6, 1, 9),
       start: point(25.1, 121.62),
       end: point(25.2, 121.7),
+      path: [point(25.09, 121.61), point(25.12, 121.63), point(25.15, 121.66)],
     })
     const bridges = bridgeLines([a, b])
     expect(bridges).toHaveLength(1)
+    // from = last drawn vertex of the earlier polyline; to = first drawn
+    // vertex of the later one — even though a.end ≠ a.path[-1] etc.
     expect(bridges[0]).toEqual({
       fromIndex: 0,
       toIndex: 1,
-      from: { lat: 25.05, lng: 121.55 },
-      to: { lat: 25.1, lng: 121.62 },
+      from: { lat: 25.04, lng: 121.54 },
+      to: { lat: 25.09, lng: 121.61 },
       fromMs: Date.UTC(2026, 6, 1, 8, 30),
       toMs: Date.UTC(2026, 6, 1, 8, 42),
       gapMs: 12 * 60 * 1000,
     })
+  })
+
+  it('hugs every drawn polyline endpoint when paths do not match start/end', () => {
+    const legs = [
+      segment({
+        id: 'l1',
+        startMs: Date.UTC(2026, 6, 1, 7),
+        endMs: Date.UTC(2026, 6, 1, 7, 20),
+        start: point(25.0, 121.5),
+        end: point(25.05, 121.53),
+        path: [point(25.01, 121.51), point(25.04, 121.52)],
+      }),
+      segment({
+        id: 'l2',
+        startMs: Date.UTC(2026, 6, 1, 7, 35),
+        endMs: Date.UTC(2026, 6, 1, 8),
+        start: point(25.1, 121.6),
+        end: point(25.2, 121.7),
+        path: [point(25.06, 121.56), point(25.09, 121.59), point(25.12, 121.63)],
+      }),
+      segment({
+        id: 'l3',
+        startMs: Date.UTC(2026, 6, 1, 8, 5),
+        endMs: Date.UTC(2026, 6, 1, 8, 25),
+        start: point(25.3, 121.8),
+        end: point(25.4, 121.9),
+        path: [point(25.13, 121.64), point(25.16, 121.67)],
+      }),
+    ]
+    const bridges = bridgeLines(legs)
+    expect(bridges).toHaveLength(2)
+    for (const bridge of bridges) {
+      const prev = legs[bridge.fromIndex]
+      const cur = legs[bridge.toIndex]
+      // Bridge knots sit EXACTLY on the polyline vertices TripMap draws, so no
+      // km-scale visual break remains between bridge and either real trace.
+      expect(bridge.from.lat).toBe(prev.path[prev.path.length - 1].lat)
+      expect(bridge.from.lng).toBe(prev.path[prev.path.length - 1].lng)
+      expect(bridge.to.lat).toBe(cur.path[0].lat)
+      expect(bridge.to.lng).toBe(cur.path[0].lng)
+    }
   })
 
   it('skips time-overlapping and temporally contiguous pairs', () => {
@@ -353,21 +401,26 @@ describe('timeline bridges (T14)', () => {
     expect(bridgeLines([overlapB, contiguous])).toEqual([])
   })
 
-  it('skips a bridge whose endpoints coincide (degenerate zero-length)', () => {
+  it('skips a bridge whose drawn polyline endpoints coincide (degenerate zero-length)', () => {
     const a = segment({
       id: 'a',
       startMs: Date.UTC(2026, 6, 1, 8),
       endMs: Date.UTC(2026, 6, 1, 8, 30),
       start: point(25.0, 121.5),
-      end: point(25.05, 121.55),
+      end: point(25.4, 121.9),
+      // semantic end is far away, but the DRAWN polyline stops at 25.05...
+      path: [point(25.01, 121.51), point(25.05, 121.55)],
     })
-    // Ends exactly where the next leg begins: nothing to draw.
+    // ...exactly where the next leg's drawn polyline begins (its semantic start
+    // is somewhere else entirely). Nothing to draw: the traces already touch on
+    // screen, so the coincidence check must use the visual endpoints.
     const b = segment({
       id: 'b',
       startMs: Date.UTC(2026, 6, 1, 8, 35),
       endMs: Date.UTC(2026, 6, 1, 9),
-      start: point(25.05, 121.55),
+      start: point(25.0, 121.5),
       end: point(25.1, 121.62),
+      path: [point(25.05, 121.55), point(25.08, 121.58)],
     })
     expect(bridgeLines([a, b])).toEqual([])
   })
