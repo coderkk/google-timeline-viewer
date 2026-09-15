@@ -25,6 +25,7 @@
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [ ] [P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）(09-14)
 - [ ] [P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算 (09-14)
+- [ ] [P2] fallback 门槛口径统一 — 抽出 `hasRenderablePath` / `MIN_PATH_LEN` 共用常量，`>=2` vs `>0` 的分歧根源是「fallback 到 [start,end] 的门槛」无统一定义；所有 fallback 点统一调用（→ 2026-09-15 流程 retro A3）(09-15)
 
 ## ✅ Done
 
