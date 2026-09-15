@@ -2,7 +2,18 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-15 10:55 — Dev 更新 OPC 3.0 連結（改指作者網站）
+
+**CEO 新決定**：OPC 3.0 連結改指向使用者的個人網站 **`https://coderkk.net`**（原本指向私有 repo `coderkk/opc-3.0`，公開訪客會 404）。
+- `src/src/lib/site.ts`：`OPC_3_LINK` → `'https://coderkk.net'`；註解更新為「指向作者網站；OPC 3.0 repo 私有，公開連結會 404」。
+- `README.md`：`[OPC 3.0](https://github.com/coderkk/opc-3.0)` → `https://coderkk.net`。
+- 全庫 grep：`src/`、`README.md` 已無 `github.com/*/opc-3.0` 殘留；唯一殘留在本 `docs/NOTES.md` 的**歷史條目（10:40）**——屬已發生事實的日誌，**刻意不改寫**，僅於該條目加「已被本條取代」標記。**不再有 404 問題**。
+
+**驗證**：production build + Playwright 讀 Landing「了解更多 →」→ `href = "https://coderkk.net"`；`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**。**未 commit、未 push**（CEO 統一提交）。
+
 ## 2026-09-15 10:40 — Dev 設定 OPC 3.0 連結（Reviewer T26 S3）
+
+> **註：本條 URL 已由 10:55 條目取代**（原指私有 repo `github.com/coderkk/opc-3.0`；因公開訪客 404，CEO 改指 `https://coderkk.net`）。以下為當時的事實記錄。
 
 **CEO 拍板 URL** `https://github.com/coderkk/opc-3.0`：
 - `README.md`：`[OPC 3.0](https://github.com/opencode/opc-3.0)` → `https://github.com/coderkk/opc-3.0`。

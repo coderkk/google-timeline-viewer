@@ -189,7 +189,7 @@ React 19 · TypeScript · Vite 8 · Leaflet + react-leaflet · Zustand · react-
 
 每一步都留有记录，可回溯。让一个人也能像一个小团队一样，把一件事从头带到交付。
 
-[OPC 3.0](https://github.com/coderkk/opc-3.0) 是一套轻量的「一人公司 AI 团队」工作流——用 AI 协作角色 + 文档驱动的流程，帮你把产品从想法做到落地。
+[OPC 3.0](https://coderkk.net) 是一套轻量的「一人公司 AI 团队」工作流——用 AI 协作角色 + 文档驱动的流程，帮你把产品从想法做到落地。
 
 ---
 

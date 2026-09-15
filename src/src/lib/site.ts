@@ -3,11 +3,11 @@ export const SITE_NAME = 'Timeline Map'
 export const SITE_TAGLINE = 'Google Timeline 位置历史本地查看器'
 
 /**
- * OPC 3.0 introduction link used by the landing "了解更多 →" CTA. The repo is
- * currently PRIVATE, so public visitors get a 404 — a known and accepted
- * trade-off (see docs/NOTES.md 2026-09-15). Do not remove/redirect.
+ * OPC 3.0 introduction link used by the landing "了解更多 →" CTA. Points at the
+ * author's site (coderkk.net) — the OPC 3.0 repo is private, so linking it
+ * publicly would 404 for visitors.
  */
-export const OPC_3_LINK = 'https://github.com/coderkk/opc-3.0'
+export const OPC_3_LINK = 'https://coderkk.net'
 
 export const NAV_LINKS = [
   { label: '首页', to: '/' },
