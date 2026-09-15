@@ -64,6 +64,7 @@ describe('format 1: Timeline.json direct array', () => {
 
     const segment = data.segments[0]
     expect(segment.activityType).toBe('IN_PASSENGER_VEHICLE')
+    expect(segment.hasActivitySemantics).toBe(true)
     expect(segment.start).toEqual({ lat: 52.37194, lng: 1.3375 })
     expect(segment.end).toEqual({ lat: 52.4433, lng: 1.35189 })
     expect(segment.startMs).toBe(Date.parse('2024-05-01T07:00:00.000Z'))
@@ -97,11 +98,15 @@ describe('format 1: 2026 device export (semanticSegments object, flat records)',
 
     const activity = data.segments[0]
     expect(activity.activityType).toBe('IN_PASSENGER_VEHICLE')
+    expect(activity.hasActivitySemantics).toBe(true)
     expect(activity.start).toEqual({ lat: expect.closeTo(6.0611445, 6), lng: expect.closeTo(116.1556962, 6) })
     expect(activity.end).toEqual({ lat: expect.closeTo(5.9616525, 6), lng: expect.closeTo(116.0972516, 6) })
 
     const path = data.segments[1]
     expect(path.activityType).toBeUndefined()
+    // B5/T33: the timelinePath-only trace is marked WITHOUT activity semantics,
+    // so the by-activity trip chain can exclude it.
+    expect(path.hasActivitySemantics).toBe(false)
     expect(path.path).toHaveLength(2)
     // timelinePath rows carry a per-vertex time; it must survive parsing.
     expect(path.path[0]).toEqual({

@@ -1,0 +1,38 @@
+═══ chain compare (main vs branch) — Timeline-20250213.json ═══
+  semanticSegments: 83,202 = visit 30,682 + segment 52,498 + memory 22 + other 0
+
+  ── main  (全 segments 参与链，trace 未过滤) ──
+    chain edges:        42,082
+    triangles:          12,037  (segments 9,558)
+    isolated visits:    0  (0.0%)
+    median chain duration: 50.4 min
+    duration buckets:
+       < 15min  12,433
+      15–30min  5,947
+      30–60min  3,055
+       1–2h    545
+      ≈2h ±10min  19,891
+       > 2h    211
+       < 10min  8,778
+      10–14min  3,655
+
+  ── branch (by-activity，timelinePath-only traces 已过滤) ──
+    chain edges:        26,027
+    triangles:          0  (segments 0)
+    isolated visits:    0  (0.0%)
+    median chain duration: 15.0 min
+    duration buckets:
+       < 15min  13,002
+      15–30min  6,925
+      30–60min  4,349
+       1–2h    1,112
+      ≈2h ±10min  75
+       > 2h    564
+       < 10min  9,100
+      10–14min  3,902
+
+  ── delta (main → branch) ──
+    chain edges:        42,082 → 26,027  (-38.2%)
+    triangles:          12,037 → 0  (removed 12,037)
+    isolated visits:    0 → 0  (+0)
+    median chain duration: 50.4 → 15.0 min

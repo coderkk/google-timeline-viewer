@@ -5,6 +5,9 @@
 // Pairing rule (PRD): merge visits and segments, sort by start time (a segment
 // sorts before a visit at the same instant), then take the nearest preceding /
 // following SEGMENT for each visit. First/last visits may have a missing side.
+// Only activity-keyed movements participate (B5 方案 A): orphan timelinePath
+// patrol traces (hasActivitySemantics === false) are excluded at event-build
+// time, so the chain never pairs a visit against a 2h ambient GPS window.
 //
 // Boundary (by design): only the immediate neighbours enter the chain. A
 // movement with no visit on either side, and any middle segment between two
@@ -66,6 +69,20 @@ type Event =
   | { kind: 'visit'; ms: number; index: number }
 
 /**
+ * True when the segment is a candidate movement for the trip chain (B5/T33).
+ *
+ * The by-activity chain is a travel diary of real movement, so orphan
+ * timelinePath-only GPS patrol traces (2h ambient windows with no activity
+ * semantics — `hasActivitySemantics === false`, set by the parse layer) must
+ * never become a chain edge: they are the "假移动" that produced the back-to-back
+ * triangles (≈23% of chain movements were such 2h traces). A `undefined`
+ * marker (hand-built segments, older tests) defaults to being included.
+ */
+export function isActivityMovement(s: Segment): boolean {
+  return s.hasActivitySemantics !== false
+}
+
+/**
  * Build the ordered trip chain for the already date-filtered records.
  *
  * @param visits   filtered stays (any order)
@@ -78,7 +95,14 @@ export function buildTripChain(
   range: DateRangeFilter,
 ): TripChain {
   const events: Event[] = []
-  for (let i = 0; i < segments.length; i++) events.push({ kind: 'seg', ms: segments[i].startMs, index: i })
+  for (let i = 0; i < segments.length; i++) {
+    // Pair only with activity-keyed movements (B5 方案 A): patrol traces are
+    // excluded here at event-build time so `index` still points into the
+    // caller's original `segments` array (the ChainMovement.segmentIndex /
+    // highlight contract in TripsPage depends on it).
+    if (!isActivityMovement(segments[i])) continue
+    events.push({ kind: 'seg', ms: segments[i].startMs, index: i })
+  }
   for (let i = 0; i < visits.length; i++) events.push({ kind: 'visit', ms: visits[i].startMs, index: i })
   // Chronological; at equal times a segment sorts before a visit (a movement
   // starting as a stay begins is its incoming leg).

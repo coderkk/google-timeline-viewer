@@ -33,6 +33,12 @@ export interface Visit extends Point {
 }
 
 export interface Segment {
+  /**
+   * Transport label (IN_PASSENGER_VEHICLE, WALKING, ...). Present only when the
+   * source record carried activity semantics. `undefined` alone is NOT a
+   * reliable orphan-trace discriminator (a label-less activity record is
+   * theoretically possible), so the parse layer also sets `hasActivitySemantics`.
+   */
   activityType?: string
   start: Point
   end: Point
@@ -40,6 +46,15 @@ export interface Segment {
   endMs: number
   /** Simplified polyline points from waypointPath / timelinePath. */
   path: PathPoint[]
+  /**
+   * True when this segment came from an activity record (visit semantics for
+   * movement); false for orphan timelinePath-only GPS patrol traces (2h
+   * ambient windows with no activity label — B5). `undefined` is the legacy
+   * default for hand-built segments and is treated as "has semantics" by the
+   * trip chain. The by-activity chain (T29/T33) only pairs visits with
+   * segments where this is not explicitly false.
+   */
+  hasActivitySemantics?: boolean
 }
 
 export interface TimeRange {

@@ -546,6 +546,20 @@ export function addSegment(segmentObject: unknown, state: ParseState, ctx: strin
     stringField(record, ['activityType']) ??
     stringField(asRecord(asRecord(record['activity'])?.['topCandidate']) ?? {}, ['type'])
   if (activityType) segment.activityType = activityType
+  // B5/T33: mark whether this segment has activity semantics. A timelinePath
+  // record WITHOUT an activity wrapper, WITHOUT an `activityType` label and
+  // WITHOUT explicit start/end locations is an orphan ambient-GPS patrol trace
+  // (2h window, no movement semantics) — the exact population the by-activity
+  // trip chain must exclude. The marker is decided here from the RAW record
+  // shape (does it carry activity semantics?), not from the flattened
+  // `activityType` field alone, so a hypothetical label-less activity record
+  // would still be classified as semantic rather than trace.
+  const hasActivitySemantics =
+    activityRec !== null ||
+    stringField(record, ['activityType']) !== undefined ||
+    start !== null ||
+    end !== null
+  segment.hasActivitySemantics = hasActivitySemantics
   state.segments.push(segment)
   if (isTimelinePathTrace && path.length >= 2) {
     // Only pool traces with >= 2 vertices — a single-point trace is degenerate

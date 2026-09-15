@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { haversineKm, type Segment, type Visit } from './types'
-import { buildTripChain, segmentDistanceKm } from './tripChain'
+import { buildTripChain, isActivityMovement, segmentDistanceKm } from './tripChain'
 import type { DateRangeFilter } from './trips'
 
 const ALL: DateRangeFilter = { startMs: null, endMs: null }
@@ -10,9 +10,23 @@ const at = (day: number, h: number, m = 0): number => new Date(2025, 0, day, h, 
 
 function seg(over: Partial<Segment> & { startMs: number; endMs: number }): Segment {
   return {
+    ...('hasActivitySemantics' in over ? { hasActivitySemantics: over.hasActivitySemantics } : { hasActivitySemantics: true }),
     activityType: over.activityType ?? 'WALKING',
     start: over.start ?? { lat: 25, lng: 121.5 },
     end: over.end ?? { lat: 25.1, lng: 121.6 },
+    startMs: over.startMs,
+    endMs: over.endMs,
+    path: over.path ?? [],
+  }
+}
+
+/** A timelinePath-only patrol trace (B5) — no activity semantics. */
+function trace(over: Partial<Segment> & { startMs: number; endMs: number }): Segment {
+  return {
+    hasActivitySemantics: false,
+    activityType: undefined,
+    start: over.start ?? { lat: 25, lng: 121.5 },
+    end: over.end ?? { lat: 25.05, lng: 121.55 },
     startMs: over.startMs,
     endMs: over.endMs,
     path: over.path ?? [],
@@ -120,5 +134,52 @@ describe('buildTripChain durations', () => {
       haversineKm({ lat: 0, lng: 0 }, { lat: 0, lng: 1 }),
       6,
     )
+  })
+})
+
+describe('B5 方案 A: timelinePath-only traces are excluded from the chain', () => {
+  it('classifies trace-only segments via isActivityMovement', () => {
+    expect(isActivityMovement(seg({ startMs: 0, endMs: 1 }))).toBe(true)
+    expect(isActivityMovement(trace({ startMs: 0, endMs: 1 }))).toBe(false)
+    // Legacy hand-built segments without the marker are treated as semantic.
+    const legacy = seg({ hasActivitySemantics: undefined, startMs: 0, endMs: 1 })
+    expect(isActivityMovement(legacy)).toBe(true)
+  })
+
+  it('does not pair a stay with a nearby patrol trace', () => {
+    const patrol = trace({ startMs: at(30, 8), endMs: at(30, 10) })
+    const stay = visit({ startMs: at(30, 9), endMs: at(30, 9, 30) })
+    const chain = buildTripChain([stay], [patrol], ALL)
+    expect(chain.visits[0].incoming).toBeUndefined()
+    expect(chain.visits[0].outgoing).toBeUndefined()
+  })
+
+  it('pairs real activity segments around a trace (trace is invisible to the chain)', () => {
+    // Real movements sandwiching the stay; a patrol trace sits between the
+    // incoming leg and the stay, which must not shield the true pairing.
+    const incoming = seg({ startMs: at(30, 8), endMs: at(30, 8, 40), activityType: 'IN_PASSENGER_VEHICLE' })
+    const patrol = trace({ startMs: at(30, 8, 50), endMs: at(30, 10) })
+    const stay = visit({ startMs: at(30, 9), endMs: at(30, 9, 30) })
+    const outgoing = seg({ startMs: at(30, 10, 10), endMs: at(30, 10, 40), activityType: 'WALKING' })
+    const chain = buildTripChain([stay], [outgoing, patrol, incoming], ALL)
+    expect(chain.visits[0].incoming?.segmentIndex).toBe(2) // `incoming`, original index
+    expect(chain.visits[0].incoming?.activityType).toBe('IN_PASSENGER_VEHICLE')
+    expect(chain.visits[0].outgoing?.segmentIndex).toBe(0) // `outgoing`, original index
+    expect(chain.visits[0].outgoing?.activityType).toBe('WALKING')
+  })
+
+  it('keeps original segment indices so highlighting still resolves (trace skipped, index preserved)', () => {
+    const patrol = trace({ startMs: at(30, 8), endMs: at(30, 10) })
+    const movement = seg({ startMs: at(30, 11), endMs: at(30, 11, 30) })
+    const stay = visit({ startMs: at(30, 10, 30), endMs: at(30, 11) })
+    const chain = buildTripChain([stay], [patrol, movement], ALL)
+    // `movement` is at index 1 in the caller's array; its segmentIndex must be 1.
+    expect(chain.visits[0].outgoing?.segmentIndex).toBe(1)
+  })
+
+  it('flags the parse-layer marker on manually built segments', () => {
+    // Guards: the test helper `seg` defaults to semantic; `trace` marks false.
+    expect(seg({ startMs: 0, endMs: 1 }).hasActivitySemantics).toBe(true)
+    expect(trace({ startMs: 0, endMs: 1 }).hasActivitySemantics).toBe(false)
   })
 })

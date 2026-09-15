@@ -2,6 +2,51 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-15 22:37 — Dev T33 B5 方案A 实现（experiment/b5-livedata-overlap）
+
+**目标**：by-activity 行程链只基于 activity-keyed 段（方案 A），过滤 timelinePath-only 孤儿 trace，三角归零；时间轴模式硬边界不碰。
+
+**方案（已实施）**：
+
+1. **解析层标记（types.ts + parse/common.ts addSegment）**：`Segment` 新增 `hasActivitySemantics?: boolean`；addSegment 从原始 record 形状判据——`activityRec !== null || activityType 字段存在 || start/end 位置存在`——设置标记。孤儿 trace 的精确定义：有 `timelinePath` 键但无 activity 包装、无 activityType 字段、无 start/end 位置（纯 2h GPS ambient 巡逻窗口）。
+   - 为什么在解析层：判据「有 activity 键 vs 只有 timelinePath 键」是原始 record 形状信息，flatten 后丢失（activityType 只是代理，可能漏标）。
+   - livedata 全量扫描：activity 26,843（100% 带 type）、trace 25,655、activityWithTrace=0（Google 是干净时间分区）。
+   - bug 修复：`start !== undefined` → `start !== null`（getLatLng 返回 null 不是 undefined）。
+
+2. **buildTripChain 过滤（tripChain.ts）**：新增 `isActivityMovement(s) = s.hasActivitySemantics !== false`（undefined 按"有语义"处理，向后兼容旧测试手写 segment）；构建 events 时跳过 `hasActivitySemantics === false` 的段，**保留原数组索引**，ChainMovement.segmentIndex / TripMap 高亮 / onSelectSegment 契约不变。
+   - 唯一产品调用点：TripsPage.tsx:230（`mode === 'activityType'` 时）。
+   - ⚠️ prepareTrips.segments（被 map 渲染/bridges/legend/bounds/summary 共用）完全不动；segmentIndex 索引 contract 不变。
+
+**对比报告（scripts/out/chain-compare-*.txt）**：
+
+| 指标 | main 2025 | branch 2025 | delta | main 2026 | branch 2026 | delta |
+|---|---|---|---|---|---|---|
+| chain edges | 42,082 | 26,027 | **-38.2%** | 48,284 | 29,875 | **-38.1%** |
+| triangles | 12,037 | **0** | ✅ 归零 | 15,517 | **0** | ✅ 归零 |
+| isolated visits | 0 (0%) | 0 (0%) | +0 | 0 (0%) | 0 (0%) | +0 |
+| median chain duration | 50.4 min | **15.0 min** | -70% | 47.8 min | **14.8 min** | -69% |
+| ≈2h bucket | 19,891 | 75 | -99.6% | 22,701 | 75 | -99.7% |
+
+- 预估孤立 visit +4,655/+7,412（RESEARCH-B5 §5）**偏保守**；实测每条 visit 至少有一条 activity movement 邻居，0 isolated。
+- ≈2h 桶残余 75 条为有 activityType 的 ~2h activity movement（真实长途出行），非 trace。
+
+**测试**：216 passed（15 档）；tsc -b ✓；eslint ✓；`npm run build` ✓（chunk-size warning 既有）。
+
+**改动文件（本任务）**：
+- `src/src/lib/types.ts`：Segment 加 `hasActivitySemantics?: boolean` 字段 + JSDoc。
+- `src/src/lib/parse/common.ts`：addSegment 设置 `hasActivitySemantics`（含 start!==null 修正）。
+- `src/src/lib/tripChain.ts`：`isActivityMovement` 导出谓词 + buildTripChain events 过滤 + 文件头注释更新。
+- `src/src/lib/tripChain.test.ts`：新增 `trace()` helper、`isActivityMovement` 单测、三角过滤/混合索引/legacy undefined 行为 5 个用例。
+- `src/src/lib/parse/parse.test.ts`：FIXTURE_DEVICE_EXPORT_2026 activity→true、trace→false 断言；FIXTURE_TIMELINE_DIRECT_ARRAY → true 断言。
+- `scripts/compare-chain-main-vs-branch.mjs`：新建对比脚本（镜像 buildTripChain 配对逻辑，独立 Node ESM）。
+- `scripts/out/chain-compare-*.txt`：两份 livedata 的 main vs branch 对比报告。
+
+**未动**：时间轴路径（prepareTimeline / timeline render）、livedata 文件（只读 gitignored）、`docs/RESEARCH-B5.md`、`docs/TASKS.md`（CEO 的 T33 卡片/B5 报告，未提交改动随分支带入）。
+
+**by activity 观感判断**：过滤后链边数降 38%，三角归零，中位时长从 50min 降到 15min——链更真实，假移动清除干净。孤立 visit 为 0 说明 activity-keyed 段完整覆盖了所有真实移动，无连接性损失。
+
+**未 commit、未 push。分支 `experiment/b5-livedata-overlap`**。
+
 ## 2026-09-15 21:31 — Dev T32 收尾（Reviewer PASS）
 
 **Reviewer 判定**：PASS（N1 建议级可并入收尾）。
