@@ -18,7 +18,7 @@
 
 - [ ] [P2] 离线瓦片 / 自托管瓦片服务器 — 彻底消除瓦片请求隐私（→ PRD 不做）(09-13)
 - [ ] [P2] 行程分享/导出（GeoJSON/KML）— （→ PRD 不做）(09-13)
-- [ ] [P2] 跨设备多 Takeout 合并去重 — **已立项 功能 14**（→ PRD#功能14，MVP 后）**独立页**：merge 产出新文件再导入观看、不在 import 流程；含 T-K2③ rawSignals 滚动窗口互补合并（segments/visits 时间指纹去重 + points 互补合并）(09-13)；产品形态用户 09-15 拍板：单独 page + merge 后产出新档
+- [ ] [P2] 合并归档·rawSignals 累积（功能 14）— **重定义为「跨时间累积」**（非多设备合并）：独立页 merge 新导出 → 产出合并档（semanticSegments 取最新 + rawSignals 窗口互补累积/重叠去重）→ 再导入观看；动机：长期保留 rawSignals（Google 只 ~29 天窗口）又不堆 N 份完整 Timeline.json；PRD v1.23；来源：用户讨论 09-16（含 T-K2③ rawSignals 滚动窗口互补合并的原担忧）(09-13→09-16 更新)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [x] ~~[P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）~~ **(09-14→09-15 完成)** — 侦察（T32）证伪「visit↔activity 重叠」假设；真问题=timelinePath traces 混入 by-activity 链（23% 假移动）；实验分支（T33）验证方案 A 净改善（三角归零+零孤岛），已 merge；分析见 docs/RESEARCH-B5.md，结果见 docs/EXPERIMENT-B5.md
 - [ ] [P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算 (09-14)
