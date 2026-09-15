@@ -8,6 +8,7 @@ import { detectLang, translate } from '../lib/i18n'
 import type { TileSource } from '../lib/tiles'
 import { CUSTOM_TILE_NAME, OSM_TILE_SOURCE } from '../lib/tiles'
 import type { TimelineData } from '../lib/types'
+import { lastNDaysRange } from '../lib/trips'
 
 export type DataSource = 'none' | 'user' | 'sample'
 export type TimelineStatus = 'empty' | 'parsing' | 'ready' | 'error'
@@ -19,6 +20,10 @@ export interface DateRange {
 }
 
 const RESET_RANGE: DateRange = { startMs: null, endMs: null }
+
+// Default post-import filter is the trailing 30 days of the data (PRD 功能 2,
+// T30.3), switchable back to "all" via the quick presets.
+const DEFAULT_RANGE_DAYS = 30
 
 const LARGE_FILE_THRESHOLD_BYTES = 100 * 1024 * 1024
 
@@ -136,7 +141,10 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
             parseProgress: 100,
             errorMsg: null,
             errorWarning: null,
-            dateRange: RESET_RANGE,
+            // Default to the last 30 days of the parsed data (T30.3);
+            // `lastNDaysRange` falls back to the open range when maxMs is not
+            // finite (no usable timestamps).
+            dateRange: lastNDaysRange(event.data.meta.timeRange.maxMs, DEFAULT_RANGE_DAYS),
           })
           goToApp()
         }
@@ -164,7 +172,7 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
         parseProgress: 100,
         errorMsg: null,
         errorWarning: null,
-        dateRange: RESET_RANGE,
+        dateRange: lastNDaysRange(data.meta.timeRange.maxMs, DEFAULT_RANGE_DAYS),
       })
       goToApp()
       return true

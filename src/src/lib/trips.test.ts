@@ -20,6 +20,7 @@ import {
   fmtRangeLabel,
   GLOBAL_PATH_POINT_CAP,
   legendTypes,
+  lastNDaysRange,
   LIST_LIMIT,
   MARKER_CAP,
   parseInputDate,
@@ -122,6 +123,39 @@ describe('local-timezone day grouping (T13.7)', () => {
     const segMs = new Date(2025, 0, 30, 7, 45).getTime()
     expect(startOfDayMs(visitMs)).toBe(startOfDayMs(segMs))
     expect(startOfDayMs(visitMs)).toBe(parseInputDate('2025-01-30'))
+  })
+})
+
+describe('lastNDaysRange', () => {
+  // Mid-day local timestamp so day anchoring (+08 pipeline) is exercised.
+  const sample = new Date(2026, 7, 15, 14, 5).getTime() // 2026-08-15 14:05 local
+
+  it('a 1-day window is exactly the local day containing maxMs (end included)', () => {
+    const end = endOfDayMs(sample)
+    expect(lastNDaysRange(sample, 1)).toEqual({ startMs: end - DAY + 1, endMs: end })
+    expect(lastNDaysRange(sample, 1).startMs).toBe(startOfDayMs(sample))
+  })
+
+  it('a 30-day window ends at maxMs day and spans exactly 30 local days', () => {
+    const end = endOfDayMs(sample)
+    const range = lastNDaysRange(sample, 30)
+    if (range.startMs === null || range.endMs === null) {
+      throw new Error('finite maxMs must produce a finite range')
+    }
+    expect(range.endMs).toBe(end)
+    expect(range.startMs).toBe(end - 30 * DAY + 1)
+    expect(range.endMs - range.startMs).toBe(30 * DAY - 1)
+  })
+
+  it('matches the "last 30 days / last year" quick-preset formula exactly', () => {
+    const endAnchor = endOfDayMs(sample)
+    expect(lastNDaysRange(sample, 30)).toEqual({ startMs: endAnchor - 30 * DAY + 1, endMs: endAnchor })
+    expect(lastNDaysRange(sample, 365)).toEqual({ startMs: endAnchor - 365 * DAY + 1, endMs: endAnchor })
+  })
+
+  it('falls back to the open range when maxMs is not finite', () => {
+    expect(lastNDaysRange(NaN, 30)).toEqual({ startMs: null, endMs: null })
+    expect(lastNDaysRange(Infinity, 30)).toEqual({ startMs: null, endMs: null })
   })
 })
 

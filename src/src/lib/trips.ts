@@ -96,6 +96,21 @@ export function endOfDayMs(ms: number): number {
 }
 
 /**
+ * A fixed-width `days`-day range ending at the end of the LOCAL day containing
+ * `maxMs`. Backs the date-range picker's "last 30 days / last year" quick
+ * presets and the post-import default range (T30.3). Keeps the historical preset
+ * formula exactly: `end = endOfDayMs(maxMs)`, `start = end - days * DAY_MS + 1`,
+ * so the window spans exactly `days` calendar days (start and end are the first
+ * and last milliseconds of their days). A non-finite `maxMs` (no usable data)
+ * falls back to the open range — the same "no filter" state cleared data uses.
+ */
+export function lastNDaysRange(maxMs: number, days: number): DateRangeFilter {
+  if (!Number.isFinite(maxMs)) return { startMs: null, endMs: null }
+  const end = endOfDayMs(maxMs)
+  return { startMs: end - days * DAY_MS + 1, endMs: end }
+}
+
+/**
  * Local-timezone day key like "2026-08-07". Matches the `YYYY-MM-DD` the date
  * inputs produce via `toInputDate` / `parseInputDate`, so grouping is aligned
  * with the filter that drives the same views.

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import DataBar from '../components/DataBar'
 import DateRangePicker from '../components/DateRangePicker'
 import TimelineList from '../components/TimelineList'
@@ -36,9 +36,11 @@ interface TripsViewProps {
   dateRange: DateRangeFilter
 }
 
-// Own selection state + the map. Keyed by the fit signature so an out-of-range
-// selected stop is dropped whenever the filtered window changes to different
-// days (the map mounts afresh and re-fits — the intended behavior).
+// Own selection state + the map. Not keyed anymore (the map re-fits itself
+// through TripMap's internal FitController). An out-of-range selected stop is
+// still dropped whenever the filtered window or the data changes — see the
+// subscribe effect below. Keeping this mounted lets the DateRangePicker popover
+// survive a single day-click (T30.2), which a fitKey remount would destroy.
 function MapPane({
   prepared,
   fitBounds,
@@ -73,6 +75,21 @@ function MapPane({
   // Generic camera target: a stop or a timeline point (both just need lat/lng).
   const [flyTarget, setFlyTarget] = useState<Point | null>(null)
   const { t } = useI18n()
+
+  // Selection is scoped to the current filtered window: whenever the date range
+  // or the loaded data changes (the old fitKey remount used to drop the stale
+  // stop), clear the selected stay/segment and any in-flight camera target.
+  useEffect(
+    () =>
+      useTimelineStore.subscribe((state, prevState) => {
+        if (state.dateRange !== prevState.dateRange || state.data !== prevState.data) {
+          setSelectedVisit(null)
+          setSelectedSegmentIndex(null)
+          setFlyTarget(null)
+        }
+      }),
+    [],
+  )
 
   const highlightedSegments = useMemo(() => {
     const set = new Set<number>()
@@ -327,7 +344,6 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
       <div className="trips-body">
         {sidebarOpen ? (
           <MapPane
-            key={fitKey}
             prepared={currentPrepared}
             fitBounds={fitBounds}
             fitKey={fitKey}

@@ -352,10 +352,82 @@ body {
   color: var(--color-accent);
 }
 
-/* Date range picker */
+/* Date range picker (T30.2: compact trigger + popover) */
 .drp {
+  position: relative; /* anchors the popover below the trigger */
   padding: 14px;
   border-bottom: 1px solid var(--color-border);
+}
+
+/* Always-visible one-row toggle (select-like); the full calendar lives in the
+   popover it opens. */
+.drp-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.drp-trigger:hover,
+.drp-trigger[aria-expanded='true'] {
+  border-color: var(--color-accent);
+}
+
+.drp-trigger-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.drp-trigger-range {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.drp-trigger-caret {
+  color: var(--color-text-dim);
+}
+
+/* Popover: anchored below the trigger, clamped to the viewport. `left: 0` is
+   always safe — the picker sits in the left-anchored sidebar, so the popover
+   can never overflow the right viewport edge given its max-width. */
+.drp-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 900;
+  min-width: 100%;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+
+/* Transparent full-screen click-catcher: closes the popover on outside clicks
+   (T30.2). Fixed so it also covers the map; z-index sits between the page
+   content and the popover. */
+.drp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 890;
+  background: transparent;
 }
 
 .drp-title {
@@ -1932,6 +2004,25 @@ code {
     display: none;
   }
 
+  /* The trigger row: title is redundant on a narrow screen (the range text
+     says it all); the button stretches edge-to-edge in the drawer. */
+  .drp-trigger-label {
+    display: none;
+  }
+
+  /* Popover: edge-to-edge within the drawer (countering .drp's 14px padding),
+     internally scrollable up to ~70vh. */
+  .drp-popover {
+    left: -14px;
+    right: -14px;
+    max-width: none;
+    max-height: 70vh;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: none;
+  }
+
   /* Trips/Places: the map fills the viewport and the side panel becomes a
      bottom sheet (drawer) that overlays it, so the map keeps full height. The
      existing "收起面板" toggle still hides the drawer entirely. */
@@ -2001,6 +2092,7 @@ code {
   .trips-toggle,
   .trips-mode-btn,
   .data-bar-btn,
+  .drp-trigger,
   .drp-preset,
   .drp-clear,
   .drp-cal-nav,

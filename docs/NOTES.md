@@ -891,3 +891,29 @@ CEO 定位的观感 bug：桥两端与轨迹 polyline 各留断口，视觉上"�
 - `npm run test` 120 passed（原 119 → 新增 1）/ build（tsc+vite）✅ / lint 0 error。
 - livedata 流程（临时 spec 跑完即删）：2025/2026 两文件最忙日 2016-01-14 各 31 段、4 桥；逐桥断言 `from` 精确等于上一段 path 末顶点、`to` 精确等于下一段 path 首顶点（坐标相等断言全过）；并量化修复前断口「语义端 vs 可视端」最大 `1.30 km`（与 MAX_STITCH_DEG 同量级，CEO 判断正确）。
 - 未 commit、未部署。
+
+## 2026-09-15 13:26 — Dev：T30 UI/UX 精修批（PRD v1.20）
+T30.1–T30.5 完工。5 项用户反馈（#1–#5）对应的 PRD v1.20 变更全部落地。
+
+**T30.1 顶栏导航激活态精确匹配**（`components/Header.tsx`）：`NavLink` 一律 `end`（移除 `/app` 对 `/app/places` 的前缀匹配）。
+
+**T30.2 日期范围控件改「紧凑按钮 + popover 双月历」**（`components/DateRangePicker.tsx` 重写 + `index.css`）：
+- 常驻侧栏一行触发按钮：`.drp-trigger`（`drp.title` 标签 + `.drp-trigger-range` 範圍 + `.drp-trigger-caret ▾`），`aria-expanded` + `aria-haspopup="dialog"`；`<768px` 标签隐藏，只留「範圍 ▾」。
+- 点击 toggle 打开 `.drp-popover`（`role="dialog"` `aria-label=drp.title`），内含**原有 presets/翻月/双月/range/clear/hint 逻辑不动**（含 existing `drp-*` classes）。
+- **关闭时机**：Esc（keydown effect）、透明 fixed `.drp-backdrop`（`z-index:890`，点外部=关）、**完成双点选择**（`pick` 完成分支才 `setOpen(false)`）、preset 应用（`apply` → `close()`）、**更换数据強制關閉**（store `data` 引用变化 → `useEffect` 註冊的 zustand `subscribe` 关闭）。`drp.clear` **不关闭**（已实测）。popover `z-index:900`，`max-height:calc(100vh-140px)` 内滚；`<768px` 整行宽（`left/right:-14px` 拉满、`max-width:none`、`border-radius:0`、`max-height:70vh`）。
+- **发现并修复一个联动 bug**：TripsPage 的 `MapPane` 原先以 `fitKey` 作 `key`，而 **DateRangePicker 在 MapPane 内部** → 点选起点日即触发 remount，popover 第一击后就被销毁（双点选法不可用）。修复：去掉 `key={fitKey}`（`TripMap` 內部 `FitController` 已按 `fitKey` prop 自我 re-fit，remount 本就多余），改在 `MapPane` 内用 zustand `subscribe` 在 `dateRange`/`data` 变化时清空选取三态（`selectedVisit`/`selectedSegmentIndex`/`flyTarget`）——**行为与旧 remount 一致**（换窗丢弃越界选中项，已实测选取行列 `.selected` 在换范围后清零），popover 状态得以跨两击存活。
+- 选中 marker 为 canvas 圆（非 DOM），无法从 DOM 类观察；改以 timeline 行 `.selected` 验证选取/清空。
+
+**T30.3 导入后默认「近 30 天」**（`lib/trips.ts` + `store/timelineStore.ts`）：
+- 抽纯函数 `lastNDaysRange(maxMs, days)`：`!Number.isFinite(maxMs)` → `{startMs:null, endMs:null}`；否则 `end = endOfDayMs(maxMs)`、`startMs = end - days*DAY_MS + 1`。
+- store 新增 `DEFAULT_RANGE_DAYS = 30`；`importFiles`/`loadSample` 成功分支 `dateRange = lastNDaysRange(data.meta.timeRange.maxMs, DEFAULT_RANGE_DAYS)`（保留 `maxMs` 非有限回退 `RESET_RANGE` 语义）；`clearData` 仍 `RESET_RANGE`。
+- DateRangePicker「近 30 天 / 近一年」快捷档复用 `lastNDaysRange`（锚点 `endMs ?? data end`），保证 `active` 高亮与 store 一致。
+- 单测 +4（`describe('lastNDaysRange')`）：1 天窗=`end - DAY + 1` 且等于 `startOfDayMs(maxMs)`；30 天窗宽 `30*DAY - 1` ms（含 narrowing throw）；与快捷档公式完全一致；非有限 maxMs 回退开放式。
+
+**T30.4 Places 默认半径 5 KM**（`pages/PlacesPage.tsx` `useState(100)` → `useState(5)`）。
+
+**验证**：
+- `npm test` 206 passed（原 202 → +4 lastNDaysRange）/ `npm run build` ✅（仅既有 chunk-size 警告）/ `npm run lint` 0 error。
+- 浏览器冒烟（sample，1280px + 390px）：nav 高亮 `/app`=Trips only、`/app/places`=Places only（均带 `aria-current="page"`）；导入后默认「近 30 天」= **Aug 14, 2026 ~ Sep 12**（锚定数据尾 Sep 12）、顶栏/统计/列表联動；popover 双点选 Sep 5→Sep 10 完成自动关 + 地图/统计/列表联动（189 route points / 26 stays）；单点起点日 popover **保持开启**（remount 修复）；Esc 关、backdrop 外部点击关（`elementFromPoint(1000,300)` 命中 `.drp-backdrop`）；presets（Last 30 days / All）应用即关、`drp.clear` 不关、trigger `aria-expanded` 正确翻转；390px：触发按钮只剩「範圍 ▾」、popover 整行宽（left -14/right 374 @390, max-height 590.8px = 70vh, border-radius 0, overflow-y auto）；换范围后选取清空（`.timeline-item.selected` 1 → 0）。console 仅既有（无关）CSP `frame-ancestors` meta 警告，0 pageerror。
+- 单测一次偶发失败（stitch 真实设备导出的 ~6s I/O 测试在并行压力下超时），连跑两次 206 全绿，判定为 flaky 非回归。
+- 未 push。

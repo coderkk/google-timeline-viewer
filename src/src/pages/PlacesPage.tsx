@@ -54,7 +54,7 @@ function getVisitHistory(visit: Visit, groups: Map<string, Visit[]> = new Map())
 function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [center, setCenter] = useState<Point | null>(null)
-  const [radiusKm, setRadiusKm] = useState<number>(100)
+  const [radiusKm, setRadiusKm] = useState<number>(5)
   const [selected, setSelected] = useState<Visit | null>(null)
   const [historyVisit, setHistoryVisit] = useState<Visit | null>(null)
   // All query updates happen inside timer callbacks (never synchronously in an

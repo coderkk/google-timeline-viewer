@@ -15,7 +15,9 @@ export default function Header() {
             <NavLink
               key={link.to}
               to={link.to}
-              end={link.to === '/'}
+              // Always exact-match (PRD 功能 7 acceptance): /app must not stay
+              // highlighted while /app/places is active (T30.1).
+              end
               className={({ isActive }) => (isActive ? 'site-nav-link active' : 'site-nav-link')}
             >
               {t(link.labelKey)}
