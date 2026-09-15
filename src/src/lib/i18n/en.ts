@@ -183,7 +183,8 @@ export const en = {
   'help.format4': 'Older Takeout export (legacy format)',
   'help.formatTree':
     'Timeline.json                          ← direct phone export (new, recommended)\nTakeout/Location History/Records.json               ← Takeout (newer)\nTakeout/Semantic Location History/YYYY_MM.json      ← Takeout (monthly)\nTakeout/Location History/Location History.json      ← Takeout (legacy)',
-  'help.formatsTip': 'If you have several files (e.g. one per month), select them all and import in one go.',
+  'help.formatsTip':
+    'For now, import one file at a time. Merging & deduplicating exports from multiple devices is planned — you will be able to generate a merged file and import it.',
   'help.faqTitle': 'FAQ',
   'help.cta': 'Back to home — try the sample data →',
   'help.step.a1': 'Open Settings on your phone',
@@ -204,10 +205,10 @@ export const en = {
     'The Timeline entry is buried: on Android it is Settings → Location → Location services → Timeline; on iOS it is Google Maps → avatar → Settings → Personal content / Location & privacy. Names vary slightly by OS version, device and language; search settings for "Timeline". If the account has no location records at all, location history was never enabled for it.',
   'help.faq.q2': 'I switched phones and the old Timeline is gone?',
   'help.faq.a2':
-    'Location history follows your Google account, so it is normally device-independent; after switching phones you may occasionally see "Timeline temporarily unavailable", usually because encrypted backups are off. Turn on "Encrypted Timeline backup" in Timeline settings, wait for the old data to restore, then export. Files from before and after can be imported together without conflict.',
+    'Location history follows your Google account, so it is normally device-independent; after switching phones you may occasionally see "Timeline temporarily unavailable", usually because encrypted backups are off. Turn on "Encrypted Timeline backup" in Timeline settings, wait for the old data to restore, then export. The file you export after the restore imports normally; to combine old and new data, the planned cross-device merge & dedup feature will let you generate a merged file to import.',
   'help.faq.q3': 'The exported file is huge?',
   'help.faq.a3':
-    'That is normal. Location history can reach hundreds of MB over the years; a big file just means your data is complete. This tool parses everything locally in the browser, using no network traffic and uploading nothing. If a file is too large, export only the last month / year, or export in chunks and import them together.',
+    'That is normal. Location history can reach hundreds of MB over the years; a big file just means your data is complete. This tool parses everything locally in the browser, using no network traffic and uploading nothing. If a file is too large, export only the last month / year. To combine exports across periods, the planned merge & dedup feature will let you generate a merged file to import.',
   'help.faq.q4': 'Is my data safe?',
   'help.faq.a4':
     'Yes. All parsing and querying happen in your browser memory: nothing is written to localStorage / IndexedDB, nothing is uploaded, refreshing clears it and closing the tab erases it completely. The only possible external request is map tiles (OpenStreetMap by default), which send only your IP and the current map viewport coordinates.',
