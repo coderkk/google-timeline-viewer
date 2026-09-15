@@ -2,6 +2,24 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-15 20:30 — Dev T31 fallback 门槛口径统一（收尾）
+
+**背景**：2026-09-15 流程 retro A3——fallback 门槛在同一套语义下同时存在 `>=2` 与 `>0` 两种写法，过去两轮（T27 S3 / T22 S2）都在此踩坑回退。本次统一口径，不再改产品语义（L2）。
+
+**统一了什么**：
+- **几何源选择（6 处 `>0`）**：`hasPath(segment)`（`boundsOf`/`polylineEndpoints` 两处，语义为「有 path 就以 path 为准」）或 `segmentPathOrEndpoints()`（其余 4 处，几何源选择，path 非空返回 path，否则 `[start,end]`）——裁到 1 个顶点的段不再 fallback 到未裁的 `start/end`。
+- **渲染层闸门（`>=2`）**：`hasRenderablePath()` + `MIN_PATH_LEN` 共用常量（TripMap 折线/圆点等渲染决策）。
+- **解析层**：`segmentVertices`/`parse` 的 `>=2` **保持不变**（语义独立，非渲染口径）。
+- `grep '\.path\.length [><=]'` 收敛到 `hasPath`/`hasRenderablePath`/`segmentVertices`/`parse` 四处。
+
+**改动**：8 文件（+151/−33）：`TripMap.tsx` / `export.ts` / `parse/common.ts` / `stats.ts` / `tripChain.ts` / `trips.ts`（+测试）/ `TripsPage.tsx`。
+
+**验证**：**211 单测**（15 档）全绿；`tsc --noEmit` / `eslint` / `build` 全绿。
+
+**Reviewer**：PASS（零遗留）。唯一 N1（TASKS/PRD 验收描述「6 处统一走 segmentPathOrEndpoints」与实现「4 处 segmentPathOrEndpoints + 2 处 hasPath」有微小出入）——本轮已同步修正 TASKS.md / TASKS.yaml / PRD v1.21 措辞，阈值口径本身完全统一。
+
+**收尾**：代码 + 文档已 commit；`TASKS.md`/`TASKS.yaml` T31 → Done；已 push。
+
 ## 2026-09-15 12:10 — Dev 修正 Reviewer T29（S3/A1/A2/A3/A4/N1/N）
 
 **S3（行動端觸控目標回歸）**：`index.css` 的 `@media (max-width:768px)` 觸控目標清單加入 `.chain-stay, .chain-move`（`min-height: 44px`）。**390px 實測**：`.chain-move` 由 21px → **44px**；`.chain-stay` 67px。

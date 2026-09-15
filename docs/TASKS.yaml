@@ -6,16 +6,6 @@
 # (empty — WIP ≤ 2)
 
 ## To Do
-- id: T31
-  title: fallback 门槛口径统一
-  status: to_do
-  tier: L2
-  assignee: Dev
-  source: 2026-09-15 流程 retro A3（PRD v1.21）
-  acceptance: 6 处 >0 几何源选择统一走 segmentPathOrEndpoints()；渲染层 >=2 闸门统一走 hasRenderablePath()；grep '\.path\.length [><=]' 只出现在 hasPath/hasRenderablePath/segmentVertices/parse 四处；206 单测 + build + lint 全绿
-  created: 09-15
-  timechain:
-    - 09-15 创建
 
 ## KIV
 - id: T-K1
@@ -101,6 +91,20 @@
   notes: RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算
 
 ## Done
+- id: T31
+  title: fallback 门槛口径统一
+  status: done
+  tier: L2
+  assignee: Dev
+  source: 2026-09-15 流程 retro A3（PRD v1.21）
+  acceptance: 6 处 >0 统一走 hasPath（boundsOf/polylineEndpoints）或 segmentPathOrEndpoints()（其余 4 处）；渲染层 >=2 闸门统一走 hasRenderablePath()；grep '\.path\.length [><=]' 只出现在 hasPath/hasRenderablePath/segmentVertices/parse 四处；211 单测 + build + lint 全绿
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: Reviewer PASS（零遗留）；8 文件 +151/−33
+
 - id: T30
   title: UI/UX 精修批（PRD v1.20）
   status: done
