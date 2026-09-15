@@ -51,3 +51,9 @@
 
 ## 2026-09-15 12:20 — T29 行程链（功能 13）验收通过
 决定: T29「行程链（visit↔activity 关联）」验收通过，可提交部署。范围（CEO 定调）：MVP **只做「按活动类型」模式**（该模式已有离散、带方式的移动段，配对语义最清楚；「时间轴」的前后轨迹延伸留待后续）。口径：visits 与 segments 依 startMs 排序（同时刻 segment 在 visit 前）取**紧邻前驱/后继**；距离沿 path haversine（`path.length>0` 否则 `[start,end]`，与渲染器/T27 一致）、时长 clamp 到 range。理由: 用户要「回想旅行的時間和路線」——把停留与前后移动串成行程日記。流程：Dev→Reviewer；Reviewer 首轮 PASS-WITH-CONDITIONS（S3 行动端 `.chain-move` 21px 触控回归、A1 PRD② 与实作不符）→ Dev 修（触控 44px、移动行补目的地、PRD 措辞收紧、chain 仅 activityType 计算、删 StopList 死码、补测试）→ **PASS**。202 单测 + build + lint 全绿。
+
+## 2026-09-15 13:40 — T30 UI/UX 精修批验收通过（PRD v1.20）
+决定: T30.1–T30.5 验收通过，可推送部署。内容：①**#2 bug** Header NavLink 一律 `end`——`/app` 不再前缀匹配 `/app/places`，导航只剩一个高亮；②**#1** `DateRangePicker` 改「紧凑按钮 + popover 双月历」——常驻一行（`当前范围 ▾`）不占垂直空间，点开双月历，Esc / 点击外部 / 完成双点 / 更换数据 自动关闭（`drp.clear` 不关）；③**#3** 导入后默认「近 30 天」——抽纯函数 `lastNDaysRange(maxMs, n)`（与快捷档同公式，active 状态天然一致），store 导入/示例成功时应用；④**#4** Places 默认半径 100 → **5 KM**；⑤联动 bug 修复 — `MapPane` 移除 `key={fitKey}`（TripMap 内部 FitController 已自行 re-fit）+ zustand `subscribe` 在 range/data 变化时清空 selected 三态（popover 双点选不再被 remount 打断、换窗丢弃越界选中行为不变）。理由: 用户反馈 5 项（DatePicker 占空间 / Trips+Places 同时高亮 / 默认近 30 天 / 半径默认 5KM / 时区讨论）。流程：Dev→Reviewer **PASS**（Places 双点选补验、z-index 分层实测 390px；3 条一般级放行：文件尾缺换行、popover 焦点陷阱待无障碍打磨、无数据态 presets 锚点 1970 沿用旧逻辑）。条规偏差：代码在 Reviewer 过审前已 commit（Dev 记入 NOTES，不改历史）。206 单测 + build + lint 全绿。
+
+## 2026-09-15 13:40 — 时区决策：不做时区设置/换算（用户拍板「维持现况」）
+决定: 时间一律按「本地时区（浏览器）」显示，**不做**时区设置、**不做**「当地时间」换算，分日分组维持本地时区。理由（数据实证）：`Timeline-20260820.json` 全档案 **97,382 笔 ISO 字符串 offset 恒为 +08:00**（Google 统一用账户主时区标签），真实当地时区另存 `startTimeTimezoneUtcOffsetMinutes`（台湾 480 / 日本 540；`timelinePath` 无此字段）；用户实证「墙钟时间 = 我在当地的体验时间」（如 ISO 写 `8:00+08` 实际是他记忆中的日本 8:00+09）。故本地时区显示＝墙钟＝体验时间，本就正确；且路线点无当地 offset 字段，「逐笔当地时区」不可完整实现。Designer 两轮咨询后亦翻转支持（首轮建议 C 逐笔当地，据数据改为 A+）。结论已写入 PRD v1.20 约束「时区」。
