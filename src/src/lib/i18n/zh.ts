@@ -74,6 +74,13 @@ export const zh = {
   'list.more': '列表仅显示前 {shown} 条，还有 {hidden} 条 — 请缩小日期范围',
   'list.overnight': '跨夜 · 自 {date}',
 
+  // -- Trip chain (T29) ------------------------------------------------------
+  'chain.head': '行程链（{n}）',
+  'chain.empty': '该日期范围内没有行程链，换个日期试试',
+  'chain.outgoing': '↓ 移动：{mode} · {duration} · {distance} → {dest}',
+  'chain.incoming': '↑ 抵达：{mode} · {duration} · {distance} → {dest}',
+  'chain.destHere': '本站',
+
   // -- Map popups / tooltips -------------------------------------------------
   'map.copyCoords': '复制坐标',
   'map.copied': '已复制',

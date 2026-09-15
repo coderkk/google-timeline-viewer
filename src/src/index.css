@@ -2010,7 +2010,9 @@ code {
   .places-radius,
   .export-radio,
   .export-cancel,
-  .export-confirm {
+  .export-confirm,
+  .chain-stay,
+  .chain-move {
     min-height: 44px;
   }
 
@@ -2081,4 +2083,86 @@ code {
 .trip-stats-empty {
   font-size: 12px;
   color: var(--color-text-dim);
+}
+
+/* --- Trip chain list (T29) ------------------------------------------------ */
+.chain-list {
+  padding: 14px;
+  min-height: 0;
+}
+
+.chain-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chain-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.chain-stay {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--color-text);
+  font: inherit;
+}
+
+.chain-stay:hover {
+  background: var(--color-bg);
+}
+
+.chain-stay.selected {
+  border-color: var(--color-accent);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.chain-stay-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chain-stay-address {
+  font-size: 11px;
+  color: var(--color-text-dim);
+}
+
+.chain-stay-meta {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.chain-move {
+  display: block;
+  margin-left: 18px;
+  width: calc(100% - 18px);
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-left: 2px solid var(--color-border);
+  border-radius: 0;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--color-text-dim);
+  cursor: pointer;
+}
+
+.chain-move:hover {
+  color: var(--color-text);
+}
+
+.chain-move.selected {
+  border-left-color: var(--color-accent);
+  color: var(--color-accent);
 }

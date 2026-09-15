@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import DataBar from '../components/DataBar'
 import DateRangePicker from '../components/DateRangePicker'
-import StopList from '../components/StopList'
 import TimelineList from '../components/TimelineList'
+import TripChainList from '../components/TripChainList'
 import TripStatsPanel from '../components/TripStatsPanel'
 import TripMap, { DOT_MIN_ZOOM, type LatLngBoundsMatrix } from '../components/TripMap'
 import {
@@ -17,13 +17,18 @@ import {
   startOfDayMs,
   type DateRangeFilter,
 } from '../lib/trips'
-import { useI18n, type MessageKey } from '../lib/i18n'
+import { buildTripChain, type TripChain } from '../lib/tripChain'
+import { useI18n } from '../lib/i18n'
+import { activityMessageKey } from '../lib/i18n/activity'
 import type { PreparedTrips, BridgeLine, TimelinePayload, TimelineVertex } from '../lib/trips'
 import type { TimelineData, Visit, Segment, Point } from '../lib/types'
 import { useTimelineStore } from '../store/timelineStore'
 import EmptyState from './EmptyState'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Stable empty chain so the timeline mode does not rebuild one every render. */
+const EMPTY_CHAIN: TripChain = { visits: [] }
 
 interface TripsViewProps {
   data: TimelineData
@@ -45,6 +50,7 @@ function MapPane({
   route,
   rangeStartMs,
   dateRange,
+  chain,
   onZoomChange,
 }: {
   prepared: PreparedTrips | TimelinePayload
@@ -57,15 +63,23 @@ function MapPane({
   route: readonly TimelineVertex[]
   rangeStartMs: number | null
   dateRange: DateRangeFilter
+  chain: TripChain
   onZoomChange: (zoom: number) => void
 }) {
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
+  // A movement row click selects a single segment (highlighted on the map);
+  // selecting a stay clears it and vice versa.
+  const [selectedSegmentIndex, setSelectedSegmentIndex] = useState<number | null>(null)
   // Generic camera target: a stop or a timeline point (both just need lat/lng).
   const [flyTarget, setFlyTarget] = useState<Point | null>(null)
   const { t } = useI18n()
 
   const highlightedSegments = useMemo(() => {
     const set = new Set<number>()
+    if (selectedSegmentIndex !== null) {
+      set.add(selectedSegmentIndex)
+      return set
+    }
     if (!selectedVisit || mode !== 'activityType') return set
     const dayStart = startOfDayMs(selectedVisit.startMs)
     segments.forEach((segment, index) => {
@@ -74,7 +88,7 @@ function MapPane({
       if (sameDay || overlaps) set.add(index)
     })
     return set
-  }, [selectedVisit, segments, mode])
+  }, [selectedVisit, selectedSegmentIndex, segments, mode])
 
   const selectedMarkerIndex = useMemo(() => {
     if (!selectedVisit) return null
@@ -113,13 +127,24 @@ function MapPane({
             }}
           />
         ) : (
-          <StopList
-            visits={prepared.visits}
+          <TripChainList
+            chain={chain}
             limit={LIST_LIMIT}
             selectedVisitIndex={selectedVisitIndex}
-            onSelect={(_, visit) => {
+            selectedSegmentIndex={selectedSegmentIndex}
+            onSelectVisit={(_, visit) => {
+              setSelectedSegmentIndex(null)
               setSelectedVisit(visit)
               setFlyTarget(visit)
+            }}
+            onSelectSegment={(segmentIndex) => {
+              const segment = segments[segmentIndex]
+              if (!segment) return
+              setSelectedVisit(null)
+              setSelectedSegmentIndex(segmentIndex)
+              const path = segment.path.length > 0 ? segment.path : [segment.start, segment.end]
+              const mid = path[Math.floor(path.length / 2)]
+              setFlyTarget({ lat: mid.lat, lng: mid.lng })
             }}
           />
         )}
@@ -137,7 +162,10 @@ function MapPane({
           bridges={bridges}
           highlightedSegments={highlightedSegments}
           selectedMarkerIndex={selectedMarkerIndex}
-          onSelectMarker={(_, visit) => setSelectedVisit(visit)}
+          onSelectMarker={(_, visit) => {
+            setSelectedSegmentIndex(null)
+            setSelectedVisit(visit)
+          }}
           fitBounds={fitBounds}
           fitKey={fitKey}
           invalidateKey="static"
@@ -175,6 +203,16 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   // Dashed links between the consecutive (timeline-sorted) segments that close
   // the visual breaks between separate legs of a trip.
   const bridges = useMemo(() => bridgeLines(preparedTrips.segments), [preparedTrips.segments])
+
+  // Trip chain (T29): visit ↔ adjacent movement, used by the activityType list.
+  // Only computed in activityType mode — the timeline view never reads it.
+  const chain = useMemo(
+    () =>
+      mode === 'activityType'
+        ? buildTripChain(preparedTrips.visits, preparedTrips.segments, dateRange)
+        : EMPTY_CHAIN,
+    [mode, preparedTrips.visits, preparedTrips.segments, dateRange],
+  )
 
   const currentPrepared = mode === 'timeline' ? preparedTimeline : preparedTrips
 
@@ -242,7 +280,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             {legend.map((entry) => (
               <span key={entry.type} className="chip">
                 <i style={{ background: entry.color }} />
-                {t(activityKey(entry.type))}
+                {t(activityMessageKey(entry.type))}
               </span>
             ))}
           </span>
@@ -300,6 +338,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             route={preparedTimeline.route}
             rangeStartMs={dateRange.startMs}
             dateRange={dateRange}
+            chain={chain}
             onZoomChange={setMapZoom}
           />
         ) : (
@@ -329,28 +368,6 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
     </section>
   )
 }
-
-/** Map an activity type (possibly empty/unknown) to its catalog key. */
-function activityKey(type: string): MessageKey {
-  const key = `activity.${type}` as MessageKey
-  return type && ACTIVITY_KEYS.has(key) ? key : 'activity.other'
-}
-
-const ACTIVITY_KEYS = new Set<MessageKey>([
-  'activity.IN_PASSENGER_VEHICLE',
-  'activity.IN_VEHICLE',
-  'activity.IN_BUS',
-  'activity.IN_SUBWAY',
-  'activity.IN_TRAIN',
-  'activity.IN_TRAM',
-  'activity.IN_FERRY',
-  'activity.WALKING',
-  'activity.RUNNING',
-  'activity.CYCLING',
-  'activity.MOTORCYCLING',
-  'activity.IN_FLIGHT',
-  'activity.FLYING',
-])
 
 export default function TripsPage() {
   const data = useTimelineStore((state) => state.data)

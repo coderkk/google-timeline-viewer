@@ -2,6 +2,55 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-15 12:10 — Dev 修正 Reviewer T29（S3/A1/A2/A3/A4/N1/N）
+
+**S3（行動端觸控目標回歸）**：`index.css` 的 `@media (max-width:768px)` 觸控目標清單加入 `.chain-stay, .chain-move`（`min-height: 44px`）。**390px 實測**：`.chain-move` 由 21px → **44px**；`.chain-stay` 67px。
+
+**A1（保留內聯顯示，補相鄰停留名）**：保留「常駐內聯移動行」做法；移動行補目的地：
+- incoming → `↑ 抵达：方式 · 时长 · 距离 → 本站`（en `→ this stay`）
+- outgoing → `↓ 移动：方式 · 时长 · 距离 → {下一站名}`（缺名用座標；最後一站用 segment end 座標）
+- `ChainMovement` 新增 `end: Point` 供最後一站 fallback；i18n key `chain.outgoing/incoming` 加 `{dest}`、新增 `chain.destHere`。
+- 同時修 **PRD 功能 13 ②**：改為「左側以**常駐**行程鏈列表顯示；點停留飛到該點、點移動飛到該段並高亮」，移除 click-to-show「← 從哪來 / → 去哪」措辭。
+
+**A2（chain 只在 activityType 計算）**：`TripsPage` 的 `buildTripChain` `useMemo` 加 `mode` 依賴，時間軸模式回傳模組級 `EMPTY_CHAIN`，不再白算。
+
+**A3/A4（PRD 措辭收緊）**：刪 PRD 功能 13 括號中「不重叠即相邻」半句（自相矛盾），只留「按時間排序取緊鄰前驅/後繼；首尾可缺」；並在 `tripChain.ts` 檔頭 + PRD 明示**配對邊界**：只有緊鄰前驅/後繼進鏈，兩停留之間的**中間段**與**不鄰接任何停留**的段不進鏈（設計使然）。
+
+**N1（清死碼）**：刪除 `src/src/components/StopList.tsx`（已無引用）。`.stop-list-*` CSS class 仍被 `TimelineList`/Places 使用，**未動 CSS**。
+
+**N（補測試）**：新增「同時刻 segment 排在 visit 前（segment 為 incoming）」測試。
+
+**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **202 passed**（15 檔；201 → +1）。**390px 瀏覽器實測**：鏈頭 `Trip chain (191)`、`.chain-move` 全部 44px、入向行 `↑ Arrived by: Driving · 20m · 7.6 km → this stay`、出向行 `↓ Movement: Driving · 20m · 7.3 km → 家（模拟）`、0 pageerror。**未 commit、未 push**。
+
+## 2026-09-15 11:55 — Dev T29 行程鏈（visit↔activity 關聯，功能 13）
+
+**範圍**：MVP 只做「按活動類型」模式；時間軸模式不動。
+
+**`lib/tripChain.ts`（純函式、O(n log n) 排序 + O(n) 掃描）**
+- **配對口徑**：把 visits 與 segments 合併成事件、依 `startMs` 升序（同時刻 segment 排在 visit 前，代表「停留一開始就在移動」）；一次前掃記下每個位置「最近的前驅 segment」，一次後掃記下「最近的後繼 segment」。每個 visit 得 `incoming`/`outgoing`（首尾可缺）；跨午夜以絕對 `startMs` 正確配對。
+- **每段提供**：`activityType`、`durationMs`（`endMs-startMs`，**clamp 到 range**，與統計 A1 一致）、`distanceKm`（沿 `path` 的 haversine；`path.length > 0 ? path : [start, end]`，與渲染器 S3 口徑一致——單點 path → 0）。
+- `ChainVisit` 另帶 `stayDurationMs`（clamp 到 range）與 `visitIndex`（呼叫端陣列索引，供選取）。
+- 未涵蓋：兩個 segment 之間沒有 visit 的段不進鏈（visit-centric，MVP 可接受）。
+
+**`components/TripChainList.tsx`**
+- 停留行：名稱/座標 + 地址 + `時間 → 時間 · 停留時長`；其下縮排「↓ 移动：方式 · 時長 · 距離」。
+- **去重**：每個移動只渲染一次——若它是前一個停留的 `outgoing` 就不再作為本停留的 `incoming` 重複顯示（`rows` 先算好，避免 render 中可變賦值，通過 `react-hooks/immutability`）。
+- 點停留 → `flyTarget` 飛到該點並清除段選取；點移動行 → 飛到該段 path 中點並以 `highlightedSegments`（單段 Set）高亮（`TripMap.hasSelection` 會淡化其餘幾何）。空狀態 / 超過 `LIST_LIMIT` 沿用既有文案 key。
+
+**`pages/TripsPage.tsx`**：`buildTripChain(preparedTrips.visits, preparedTrips.segments, dateRange)` 以 `useMemo` 計算後傳入 `MapPane`；`MapPane` 在 `activityType` 模式渲染 `TripChainList`（取代 `StopList`），新增 `selectedSegmentIndex` state 與 `highlightedSegments` 分支；`StopList` 已不再使用。另把活動類型的 key 對應抽到共用 `lib/i18n/activity.ts`（`activityMessageKey`），`TripChainList` 與圖例共用。
+
+**i18n**：新增 `chain.head` / `chain.empty` / `chain.outgoing` / `chain.incoming`（zh + en），en 無殘留中文。
+
+**驗證**：
+- 單測 `tripChain.test.ts` **10 條**：正常前後配對、首尾無鄰（各一）、無相鄰段、跨午夜、排序 + `visitIndex` 保留、時長 clamp、距離（path≥2 / path<2 fallback / 單點=0）。
+- 瀏覽器（production build + sample）：
+  - 切「按活动类型」→ 鏈頭 `Trip chain (191)`、191 停留行、229 移動行；首項 `↑ Arrived by: Driving · 20m · 7.6 km` + `↓ Movement: Driving · 20m · 7.3 km`；鏈內 CJK 僅 sample 地名（無 UI 中文）。
+  - 點停留 → `.chain-stay.selected`=1、地圖中心移至該點；點移動行 → `.chain-move.selected`=1、停留選取清除、中心移至該段；0 pageerror。
+  - 切简中 → `行程链（191）`、`↑ 抵达：驾车 · 20分钟 · 7.6 公里`、`↓ 移动：驾车 · 20分钟 · 7.3 公里`。
+  - 收合/展開面板（S1 回歸路徑）在 activityType 下不白屏、鏈仍在、0 pageerror。
+
+**驗證指令**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **201 passed**（15 檔；191 → +10）。**未 commit、未 push**。
+
 ## 2026-09-15 11:40 — Dev 回退 N1「防禦性修正」（引入白屏致命回歸）
 
 **誠實記錄**：上一則（11:25）我為 N1 在 `FitController` 的 effect cleanup 加了 `map.stop()`。**這是錯的**——它引入了致命回歸。

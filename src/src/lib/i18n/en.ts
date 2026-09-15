@@ -71,6 +71,12 @@ export const en = {
   'list.more': 'Showing the first {shown} rows, {hidden} more — narrow the date range',
   'list.overnight': 'Overnight · since {date}',
 
+  'chain.head': 'Trip chain ({n})',
+  'chain.empty': 'No trip chain in this date range — try another date',
+  'chain.outgoing': '↓ Movement: {mode} · {duration} · {distance} → {dest}',
+  'chain.incoming': '↑ Arrived by: {mode} · {duration} · {distance} → {dest}',
+  'chain.destHere': 'this stay',
+
   'map.copyCoords': 'Copy coordinates',
   'map.copied': 'Copied',
   'map.copyFailed': 'Copy failed',
