@@ -1126,3 +1126,15 @@ Reviewer 审查 T35 后 PASS，附 1 建议级（G1）+ 1 规范级（S3），�
 **扫描备注（未改，供 CEO 参考）**：`help.formatsTip`（en/zh）与 FAQ q3 提到「多文件一次性合并导入」——那是 PRD v1.22 划给**功能 14 独立页**（未立项未实现）的语义，非 import 面板复数残留，本轮不越界改 help 文案。
 
 **自测**：grep `drag & drop files|拖拽文件|把文件` in `src/src/lib/i18n/` 零命中；`npm test` **220 全绿**（16 档，与 T35 基线一致）；lint ✓ / build ✓（仅既有 chunk-size 警告）。
+
+## 2026-09-16 07:10 — Dev Help 文案单文件化（PRD v1.22 对齐，commit 69edd64，L1）
+
+CEO 指派跟进 T35 扫描备注中的 help 残留（多文件宣传与 PRD v1.22「import = 单文件查看器，合并去重移入功能 14 规划」矛盾）：
+
+1. `help.formatsTip`（en/zh）：「可以一次性全选、合并导入」/「select them all and import in one go」→「目前每次导入一个文件；跨设备多份导出的合并去重功能（规划中）将支持先生成合并文件、再导入」/「For now, import one file at a time. … planned … generate a merged file and import it.」
+2. FAQ 额外找到 2 处同类表述一并改（en/zh）：
+   - `help.faq.a2`：「恢复前后的文件可以一起导入本工具，互不冲突」→「恢复后导出的文件可直接导入查看；合并新旧数据待功能 14 规划」
+   - `help.faq.a3`：「分时段多次导出后一次性导入」→「跨时段合并多份导出待合并去重功能（规划中）上线后先生成合并文件再导入」
+3. `HelpPage.tsx` 无写死中文文案（全部走 `t()`），无需改。
+
+**自测**：grep `一次性全选|合并导入|多文件` in en.ts/zh.ts **零命中**；`npm test` **220 全绿**；lint ✓ / build ✓（仅既有 chunk-size 警告）。
