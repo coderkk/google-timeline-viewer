@@ -130,8 +130,8 @@ export const en = {
   'empty.helpLink': 'View the export guide →',
   'empty.privacy': 'All data is processed only in your browser memory and is never uploaded to any server.',
   'import.supported':
-    'Supported: Timeline.json / Records.json / YYYY_MM.json / Location History.json (you can pick several at once)',
-  'import.parsing': 'Parsing ({progress}%)… large files may take a moment',
+    'Supported: Timeline.json / Records.json / YYYY_MM.json / Location History.json (one file at a time)',
+  'import.parsing': 'Parsing… large files may take a moment',
   'import.errorTitle': 'Could not load the data',
   'import.errorHint':
     'Please pick the file again, or use one of the supported formats listed above. If the file is encrypted, unlock it first.',

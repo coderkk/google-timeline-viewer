@@ -1800,7 +1800,31 @@ code {
   height: 100%;
   border-radius: 999px;
   background: var(--color-accent);
-  transition: width 0.15s ease;
+}
+
+/* Indeterminate progress shown while parsing (PRD 功能 1 / T35): a single
+   synchronous parse block has no honest mid-parse percentage, so a sliding
+   strip communicates activity without fabricating a number. */
+.progress-fill--indeterminate {
+  width: 40%;
+  animation: progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep a visible half-width bar, just without the strobe. */
+  .progress-fill--indeterminate {
+    animation: none;
+    width: 50%;
+  }
 }
 
 .progress-label {

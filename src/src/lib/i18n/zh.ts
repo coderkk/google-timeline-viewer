@@ -137,8 +137,8 @@ export const zh = {
   'empty.helpLink': '查看导出教程 →',
   'empty.privacy': '所有数据仅在本机浏览器内存中处理，不会上传到任何服务器。',
   'import.supported':
-    '支持格式：Timeline.json / Records.json / YYYY_MM.json / Location History.json（可一次选择多个文件）',
-  'import.parsing': '正在解析（{progress}%）… 大文件可能需要一小段时间',
+    '支持格式：Timeline.json / Records.json / YYYY_MM.json / Location History.json（每次一个文件）',
+  'import.parsing': '正在解析… 大文件可能需要一小段时间',
   'import.errorTitle': '无法载入数据',
   'import.errorHint': '请重新选择文件，或改用上方列出的受支持格式。若文件另有加密，请先解锁。',
   'import.retry': '重新选择文件',

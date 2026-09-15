@@ -30,6 +30,14 @@ describe('i18n catalogs', () => {
     // 'lang.chinese' intentionally shows the Chinese language name.
     expect(offenders).toEqual(['lang.chinese'])
   })
+
+  it('import.parsing carries no progress placeholder or percentage in either catalog', () => {
+    // Single-file parsing is a synchronous block with no honest mid-parse
+    // percentage, so the copy must not suggest one (PRD 功能 1 / T35).
+    for (const catalog of [en, zh]) {
+      expect(catalog['import.parsing']).not.toMatch(/\{progress\}|%/)
+    }
+  })
 })
 
 describe('detectLang', () => {
@@ -54,7 +62,8 @@ describe('translate', () => {
   it('looks up per language and interpolates params', () => {
     expect(translate('en', 'map.copied')).toBe('Copied')
     expect(translate('zh', 'map.copied')).toBe('已复制')
-    expect(translate('en', 'import.parsing', { progress: 42 })).toContain('42%')
+    expect(translate('en', 'import.parsing')).toBe('Parsing… large files may take a moment')
+    expect(translate('zh', 'import.parsing')).toBe('正在解析… 大文件可能需要一小段时间')
     expect(translate('en', 'trips.summary.stays', { n: 3 })).toContain('3')
   })
 })

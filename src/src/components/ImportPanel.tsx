@@ -1,6 +1,8 @@
-// Import panel used by the empty state: click to pick files, or drag & drop
-// them anywhere on the drop zone. Multiple JSON exports are accepted; progress
-// from the parsing worker is shown as a bar, and errors offer a retry path.
+// Import panel used by the empty state: click to pick a file, or drag & drop
+// it onto the drop zone. Import is a single-file viewer (PRD 功能 1, T35):
+// multi-Takeout merge lives on the separate 功能 14 page. While parsing, an
+// indeterminate animated bar is shown — the parser is one synchronous block
+// with no honest mid-parse percentage, so no number is fabricated.
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { useI18n } from '../lib/i18n'
 import { localizeWarning } from '../lib/i18n/warnings'
@@ -10,7 +12,6 @@ export default function ImportPanel() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const status = useTimelineStore((state) => state.status)
-  const parseProgress = useTimelineStore((state) => state.parseProgress)
   const errorMsg = useTimelineStore((state) => state.errorMsg)
   const errorWarning = useTimelineStore((state) => state.errorWarning)
   const importFiles = useTimelineStore((state) => state.importFiles)
@@ -21,7 +22,8 @@ export default function ImportPanel() {
     : errorMsg
 
   const handleFiles = (files: FileList | null): void => {
-    if (files && files.length > 0) importFiles(Array.from(files))
+    // Single-file import (PRD 功能 1): a multi-file drop takes the first file.
+    if (files && files.length > 0) importFiles([files[0]])
   }
 
   const onChange = (event: ChangeEvent<HTMLInputElement>): void => {
@@ -54,16 +56,15 @@ export default function ImportPanel() {
         ref={inputRef}
         type="file"
         accept=".json,application/json,application/octet-stream"
-        multiple
         hidden
         onChange={onChange}
       />
       {status === 'parsing' ? (
         <div className="parse-area">
           <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${parseProgress}%` }} />
+            <div className="progress-fill progress-fill--indeterminate" />
           </div>
-          <p className="progress-label">{t('import.parsing', { progress: parseProgress })}</p>
+          <p className="progress-label">{t('import.parsing')}</p>
         </div>
       ) : status === 'error' ? (
         <div className="error-area">

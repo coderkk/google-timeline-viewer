@@ -1087,3 +1087,28 @@ T30.1–T30.5 完工。5 项用户反馈（#1–#5）对应的 PRD v1.20 变更�
 3. 无数据态下 presets 的 `endAnchor=0` → last30/last365 为 1970 区间（apply 会写 1970 范围）；但 picker 仅在有数据视图可见，实际不可达，沿用旧逻辑。
 
 **流程备注**：本次 Dev 在 Reviewer 过审前即 commit（规则 11「代码提交前必须 Reviewer 审查」的偏差）；审查通过后该 commit 成立，后续修复点与本次一般/建议项可并入后续任务，无需改历史。补验改动仅本文档，无代码变更。
+
+## 2026-09-16 06:57 — Dev T35 导入进度显示修复（PRD v1.22 单文件 + 不确定进度条）
+
+**问题根因（CEO 已定位）**：`parse.worker.ts` 进度事件 `progress = index / fileCount`，单文件恒 0（start/reading/parsing 全程 0%，done 才 1）；`parseTimelineFile` 是同步大块（JSON.parse + 逐段遍历），worker 内无中断点，真实中间百分比不存在。UI 却渲染 `parseProgress%` → 113MB 导入进度条静止 0%。
+
+**方案落地（诚实原则——不假造数字）**：
+
+1. **单文件导入**：`ImportPanel` `<input>` 去掉 `multiple`；drag-drop 多文件时只取第一个（`importFiles([files[0]])`）——与 PRD 功能 1「单文件查看器」一致，功能 14（多 Takeout 合并）独立页承接。`import.supported` 文案同步去「一次选多个」改为「one file at a time / 每次一个文件」。
+2. **不确定进度条**：`.progress-fill--indeterminate`（40% 宽滑块 + `@keyframes progress-slide` `translateX(-100% → 250%)` 1.2s ease-in-out infinite）；`prefers-reduced-motion: reduce` 降级为静态 50% 条（不闪）。文案去百分比：en `'Parsing… large files may take a moment'`、zh `'正在解析… 大文件可能需要一小段时间'`。解析完成直接进 Trips，无 100% 过渡。
+3. **worker 语义与 UI 脱钩**：`parse.worker.ts` / `worker.ts` 消息结构**未动**（reading/parsing/done 仍是 worker↔主线程协议）。
+4. **parseProgress 决策：删除**。grep 证实 ImportPanel 是唯一 UI 消费方；store 保留 `onProgress` 骨架（warning/done 仍要收）但删除 `set({ parseProgress })` 写与 `parseProgress` 字段——类型/初值/clearData/loadSample 的 0/100 赋值全部清理，零死代码。
+
+**改动文件**：`ImportPanel.tsx`（去 multiple、去 parseProgress 订阅、动画条、`t('import.parsing')` 无参）、`index.css`（indeterminate 动画 + reduced-motion）、`en.ts`/`zh.ts`（`import.parsing` 去 `{progress}`、`import.supported` 单文件文案）、`timelineStore.ts`（删 parseProgress 全量）、`vite.config.ts`（test include 加 `.tsx`）、新增 `ImportPanel.test.tsx`。
+
+**测试**：216 → **220 单测全绿**（16 档：新增 ImportPanel 3 条——动画 class 存在/无行内 width%、parsing 文案无 `%` 且非 `(0%)`、input 无 `multiple`；i18n +1 条——en/zh `import.parsing` 均无 `{progress}`/`%`）。`ImportPanel.test.tsx` 用 `react-dom/server.renderToString`（node 环境无需新增 jsdom/testing-library 依赖）+ `vi.mock` store（zustand SSR getServerSnapshot 恒返回初态，mock 才可渲染 parsing 分支）。lint ✓ / build ✓（仅既有 chunk-size 警告）。
+
+**浏览器冒烟（A 导入类，SMOKE-CHECKLIST）**：
+- 0 pageerror（唯一 console.error = 既有 CSP `frame-ancestors` meta 告警，非回归）
+- `input[type=file]` 无 `multiple` ✓
+- 载入 sample → Trips（`Aug 14, 2026 ~ Sep 12 · 952 route points · 115 stays`）✓
+- 「更换数据」→ 回到空状态 ✓
+- **导入 113MB livedata（Timeline-20250213.json）**：`.progress-fill--indeterminate` 出现且 `animationName=progress-slide, duration=1.2s, iteration=infinite`；解析中取样 1.2s 前后 transform x 移动（-226.0 → -219.7）——**动画流动非静止**；主线程 rAF 最大间隔 29ms（<100ms）——解析在 worker、UI 不卡；纯 text 含「Parsing…」无 `%` ✓
+- 完成后进 Trips：label=Timeline-20250213.json，summary=`Jan 15, 2025 ~ Feb 13 · 11,386 route points · 260 stays`，屏上无 `%` 残留 ✓
+
+**与 PRD v1.22 一致性（验收⑤）**：功能 1 实作 = 单文件导入 + 解析期不确定进度条动画 + 不显示百分比 → 一致。PRD 未改。

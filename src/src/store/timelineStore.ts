@@ -1,6 +1,8 @@
 // Global app state: the imported dataset plus the date-range filter shared by
-// the Trips and Places views. Import parsing runs on the Web Worker; progress
-// messages are forwarded here and surfaced by the import panel.
+// the Trips and Places views. Import parsing runs on the Web Worker; its
+// events (warnings / done) are forwarded here. Progress numbers are not stored:
+// a single-file parse is a synchronous block with no honest mid-parse
+// percentage, so the UI shows an indeterminate animated bar instead (T35).
 import { create } from 'zustand'
 import { loadSampleTimeline } from '../lib/sample'
 import { parseFilesInWorker } from '../lib/parse/worker'
@@ -54,7 +56,6 @@ interface TimelineStore {
   errorMsg: string | null
   /** Raw parser warning behind an "unrecognized data" error, localized in the UI. */
   errorWarning: string | null
-  parseProgress: number
   dateRange: DateRange
   tileSource: TileSource
   themeMode: ThemeMode
@@ -85,7 +86,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   dataFileCount: 1,
   errorMsg: null,
   errorWarning: null,
-  parseProgress: 0,
   dateRange: RESET_RANGE,
   tileSource: OSM_TILE_SOURCE,
   themeMode: 'system',
@@ -103,14 +103,13 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
         }),
       )
     ) {
-      set({ status: 'empty', parseProgress: 0, errorMsg: null, errorWarning: null })
+      set({ status: 'empty', errorMsg: null, errorWarning: null })
       return
     }
 
     const warnings: string[] = []
     set({
       status: 'parsing',
-      parseProgress: 0,
       errorMsg: null,
       errorWarning: null,
       dataSource: 'user',
@@ -120,14 +119,12 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
     parseFilesInWorker(files, {
       onProgress: (event) => {
         if (event.type === 'large') return
-        set({ parseProgress: Math.round(event.progress * 100) })
         if (event.type === 'warning') warnings.push(event.warning)
         if (event.type === 'done') {
           if (isEmptyData(event.data) && warnings.length > 0) {
             set({
               status: 'error',
               data: null,
-              parseProgress: 100,
               errorMsg: null,
               // Raw warning; the UI localizes it in the active language so a
               // later language switch updates the message too.
@@ -138,7 +135,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
           set({
             data: event.data,
             status: 'ready',
-            parseProgress: 100,
             errorMsg: null,
             errorWarning: null,
             // Default to the last 30 days of the parsed data (T30.3);
@@ -157,7 +153,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   loadSample: async () => {
     set({
       status: 'parsing',
-      parseProgress: 0,
       errorMsg: null,
       errorWarning: null,
       dataSource: 'sample',
@@ -169,7 +164,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
       set({
         data,
         status: 'ready',
-        parseProgress: 100,
         errorMsg: null,
         errorWarning: null,
         dateRange: lastNDaysRange(data.meta.timeRange.maxMs, DEFAULT_RANGE_DAYS),
@@ -191,7 +185,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
       dataFileCount: 1,
       errorMsg: null,
       errorWarning: null,
-      parseProgress: 0,
       dateRange: RESET_RANGE,
     })
   },
