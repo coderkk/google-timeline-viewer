@@ -135,9 +135,9 @@ export const en = {
   'import.errorTitle': 'Could not load the data',
   'import.errorHint':
     'Please pick the file again, or use one of the supported formats listed above. If the file is encrypted, unlock it first.',
-  'import.retry': 'Choose files again',
+  'import.retry': 'Choose the file again',
   'import.button': 'Import Timeline data',
-  'import.dropHint': 'or drag & drop files here',
+  'import.dropHint': 'or drag & drop a file here',
   'import.largeConfirm':
     '"{name}" is over 100MB ({size}MB); parsing may be slow. Continue anyway?',
   'import.unrecognized': 'No usable data recognized: {reason}',

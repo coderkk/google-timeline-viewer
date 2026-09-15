@@ -143,7 +143,7 @@ export const zh = {
   'import.errorHint': '请重新选择文件，或改用上方列出的受支持格式。若文件另有加密，请先解锁。',
   'import.retry': '重新选择文件',
   'import.button': '导入 Timeline 数据',
-  'import.dropHint': '或把文件拖拽到此处',
+  'import.dropHint': '或把单个文件拖拽到此处',
   'import.largeConfirm': '「{name}」超过 100MB（{size}MB），解析可能较慢。仍要继续吗？',
   'import.unrecognized': '未识别到可用数据：{reason}',
   'import.workerFailed': 'Worker 解析失败',
