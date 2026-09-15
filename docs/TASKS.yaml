@@ -1,0 +1,649 @@
+# TASKS: Google Timeline Viewer
+# next: T31
+# 注：历史任务（T1–T30）的 tier 为 2026-09-15 三档制度引入后的回填估计；T31 起按实际判定。
+
+## Doing
+# (empty — WIP ≤ 2)
+
+## To Do
+# (empty)
+
+## KIV
+- id: T-K1
+  title: 移动端适配
+  status: kiv
+  tier: L3
+  assignee: Dev
+  source: PRD#约束
+  created: 09-13
+  timechain:
+    - 09-13 创建
+  waiting: v1 发布后评估公开分享带来的移动访问占比
+
+## Backlog
+- id: T-B1
+  title: 离线瓦片 / 自托管瓦片服务器
+  status: backlog
+  tier: L3
+  priority: P2
+  assignee: Dev
+  source: PRD 不做
+  created: 09-13
+  timechain:
+    - 09-13 创建
+
+- id: T-B2
+  title: 行程分享/导出（GeoJSON/KML）
+  status: backlog
+  tier: L2
+  priority: P2
+  assignee: Dev
+  source: PRD 不做
+  created: 09-13
+  timechain:
+    - 09-13 创建
+
+- id: T-B3
+  title: 跨设备多 Takeout 合并去重
+  status: backlog
+  tier: L3
+  priority: P2
+  assignee: Dev
+  source: PRD 不做
+  created: 09-13
+  timechain:
+    - 09-13 创建
+  notes: 含 T-K2③ rawSignals 滚动窗口互补合并（segments/visits 时间指纹去重 + points 互补合并）
+
+- id: T-B4
+  title: 性能基准脚本
+  status: backlog
+  tier: L2
+  priority: P2
+  assignee: Dev
+  source: T11.2 关注
+  created: 09-13
+  timechain:
+    - 09-13 创建
+  notes: scripts/ 独立 node 脚本，替代误入 src 的 bench
+
+- id: T-B5
+  title: livedata 完整支持（新版 Timeline.json 语义段重叠合并）
+  status: backlog
+  tier: L3
+  priority: P2
+  assignee: Dev
+  source: PRD#功能3 延伸
+  created: 09-14
+  timechain:
+    - 09-14 创建
+  notes: activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示
+
+- id: T-B6
+  title: raw 点渲染性能压测
+  status: backlog
+  tier: L2
+  priority: P2
+  assignee: Dev
+  source: A1 遗留
+  created: 09-14
+  timechain:
+    - 09-14 创建
+  notes: RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算
+
+- id: T-B7
+  title: fallback 门槛口径统一（→ T31）
+  status: backlog
+  tier: L2
+  priority: P2
+  assignee: Dev
+  source: 2026-09-15 流程 retro A3
+  acceptance: 所有 fallback 点统一走 hasRenderablePath / MIN_PATH_LEN 共用常量，`>=2` vs `>0` 分歧根源消除
+  created: 09-15
+  timechain:
+    - 09-15 创建
+
+## Done
+- id: T30
+  title: UI/UX 精修批（PRD v1.20）
+  status: done
+  tier: L3
+  assignee: Dev
+  source: "#1–#5 用户反馈"
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: 修复联动 bug（MapPane 移除 key，zustand subscribe 清空 selected 三态）
+  subtasks:
+    - id: T30.1
+      title: Header NavLink 一律 end（/app 不再前缀匹配 /app/places）
+      status: done
+      assignee: Dev
+    - id: T30.2
+      title: DateRangePicker 重写为紧凑按钮 + popover 双月历
+      status: done
+      assignee: Dev
+    - id: T30.3
+      title: lastNDaysRange 入 lib/trips.ts、默认近 30 天
+      status: done
+      assignee: Dev
+    - id: T30.4
+      title: Places 默认半径 100 → 5
+      status: done
+      assignee: Dev
+    - id: T30.5
+      title: 收尾（206 单测 / build / lint、双视口冒烟 0 pageerror）
+      status: done
+      assignee: Dev
+
+- id: T29
+  title: 行程链（visit↔activity 关联，功能 13）
+  status: done
+  tier: L3
+  assignee: Dev
+  source: PRD#功能13
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: 202 单测；Reviewer S3/A1-A4/N1/N 修正全数。纯函数 O(n log n)
+
+- id: T27
+  title: 行程统计报表（功能 11）
+  status: done
+  tier: L3
+  assignee: Dev
+  source: PRD#功能11
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: Reviewer A1/A2 + S3 修正（clamp 到 range、distanceSource 随模式、fallback 门槛 > 0）
+
+- id: T28
+  title: 多语言 EN/简体中文（功能 12）
+  status: done
+  tier: L3
+  assignee: Dev
+  source: PRD#功能12
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: 自建轻量 i18n（无新依赖）；store 存语言无关值；Reviewer S3/A3 修正
+
+- id: T26
+  title: README / portfolio 修复
+  status: done
+  tier: L2
+  assignee: Dev
+  source: Writer 2026-09-15 brainstorm
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: 图片路径全裂修复 + 10 张截图重拍 + LICENSE + CHANGELOG.md（未打 tag）
+
+- id: T23
+  title: 渲染性能压测（发布前）
+  status: done
+  tier: L2
+  assignee: Dev
+  source: —（发布前压测）
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: 真实 123.4MB livedata；DOT_MIN_ZOOM=6 + CAP 30000→12000；数据见 DATA-FINDINGS §8；Reviewer S2-a/S2-b 修正
+
+- id: T24
+  title: 移动端适配
+  status: done
+  tier: L3
+  assignee: Dev
+  source: PRD#约束
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: CSS media query；双月历降单月、底部抽屉、触控目标 ≥44px；375×667 验证通过
+
+- id: T25
+  title: 行程导出（GeoJSON/KML）
+  status: done
+  tier: L2
+  assignee: Dev
+  source: PRD 不做（用户新增）
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: 8 单测；Reviewer A/N 修正（revokeObjectURL 延后、焦点管理、档名）
+
+- id: T1
+  title: 项目脚手架 + 应用框架
+  status: done
+  tier: L2
+  assignee: Dev
+  source: PRD#功能1
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: Vite+React19+TS+Leaflet+Router+Zustand
+
+- id: T2
+  title: 数据解析层（四格式 + Web Worker）
+  status: done
+  tier: L3
+  assignee: Dev
+  source: PRD#功能1
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: 18 单测通过；Reviewer 审查延后至下个节奏点
+
+- id: T3
+  title: 模拟示例数据
+  status: done
+  tier: L1
+  assignee: Dev
+  source: PRD#功能2
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: gen-sample-data.mjs 产出 54 天/5 城市直出格式数据
+
+- id: T4
+  title: 导入集成 + 空状态首屏 + 全局状态
+  status: done
+  tier: L2
+  assignee: Dev
+  source: PRD#功能5
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: 22 单测全绿
+
+- id: T5
+  title: Trips 视图（行程轨迹）
+  status: done
+  tier: L3
+  assignee: Dev
+  source: PRD#功能3
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: 40 单测；playwright 实测含 123.4MB 真实导出
+
+- id: T6
+  title: Places 视图（地图点击查访）
+  status: done
+  tier: L3
+  assignee: Dev
+  source: PRD#功能6
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: 50 单测；真实数据 5000km 查询 21ms；Design QA 并入 T11
+
+- id: T7
+  title: Landing 首页 + OPC 3.0 展示
+  status: done
+  tier: L2
+  assignee: Dev
+  source: PRD#功能7
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: Built with OPC 3.0 section（无内部角色术语）
+
+- id: T8
+  title: 导出教程页
+  status: done
+  tier: L2
+  assignee: Dev
+  source: PRD#功能9
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: Android/iOS 步骤 + 4 格式说明 + FAQ 折叠
+
+- id: T9
+  title: 隐私与瓦片源设置
+  status: done
+  tier: L2
+  assignee: Dev
+  source: PRD#功能10
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: 57 单测；Security 审查（有条件通过，0 致命/严重）
+
+- id: T9.3
+  title: 安全审查建议项加固
+  status: done
+  tier: L2
+  assignee: Dev
+  source: Security Engineer 审查
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: G1/S1/S2/S3/S5 加固；63 单测+build+lint 全过
+
+- id: T10.1
+  title: GitHub Pages 部署 workflow
+  status: done
+  tier: L1
+  assignee: Dev
+  source: PRD#部署
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: HashRouter + base './' + deploy.yml；未建 remote
+
+- id: T10.2
+  title: README（中文）
+  status: done
+  tier: L2
+  assignee: Dev
+  source: PRD#部署
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: 10 区块
+
+- id: T10.3
+  title: GitHub Pages 部署
+  status: done
+  tier: L1
+  assignee: Dev
+  source: PRD#部署
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: https://coderkk.github.io/google-timeline-viewer/
+
+- id: T12
+  title: 产品改动（改名 + Theme + 半径档位 + marker 颜色）
+  status: done
+  tier: L2
+  assignee: Dev
+  source: 用户反馈
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: 63 单测+build+lint 全过；已部署
+
+- id: T12.6
+  title: Places marker 颜色区分修复
+  status: done
+  tier: L1
+  assignee: Dev
+  source: 用户反馈
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: 范围内所有停留点都显示，点击处蓝色高亮 + 周围琥珀色
+
+- id: T13
+  title: Places 停留点点击历史
+  status: done
+  tier: L2
+  assignee: Dev
+  source: PRD#功能6 延伸
+  created: 09-13
+  timechain:
+    - 09-13 创建
+    - 09-13 Doing
+    - 09-13 Done
+  notes: 71 单测 + build + lint 全过
+
+- id: T13.1
+  title: Trips/Places marker 细节修复
+  status: done
+  tier: L1
+  assignee: Dev
+  source: 用户反馈
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: marker 日期 tooltip 加年份、Places popup 加 Google Maps 链接、解析器 path fallback key
+
+- id: T13.2
+  title: 真实 livedata 车辆 GPS 轨迹合并
+  status: done
+  tier: L2
+  assignee: Dev
+  source: livedata 实测发现
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: stitchSegments 终 pass 缝合；Reviewer 两轮（S1/S2/S3 + A1/A2/A3/A5）；80 单测
+
+- id: T13.3
+  title: Trips 轨迹缝合改进 + 路线点显示
+  status: done
+  tier: L2
+  assignee: Dev
+  source: 用户反馈
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: 缝合匹配改「子段轨迹」；路径点渲染为小圆点（默认开，可切换）；记录 rawSignals 评估
+
+- id: T13.6
+  title: rawSignals 解析接入
+  status: done
+  tier: L2
+  assignee: Dev
+  source: 用户反馈
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: format1 接入 rawSignals；111 单测全绿；timelineMemory 假警告清零
+
+- id: T13.7
+  title: 时区分组修复
+  status: done
+  tier: L1
+  assignee: Dev
+  source: livedata 实测发现
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: startOfDayMs/dayKeyOf 改本地(+08)时区；真实 2025 文件 17284 段旧 UTC 分组错日全修正
+
+- id: T14
+  title: Trips 时间线连续轨迹
+  status: done
+  tier: L3
+  assignee: Dev
+  source: PRD#功能3
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: 多轮修订（T14.1 桥接端点 / T14.2 双闸门 / T14.3 撤销改纯时间口径）；124 单测
+
+- id: T15
+  title: Trip 时间轴视图（纯 GPS 轨迹线）+ 模式切换
+  status: done
+  tier: L2
+  assignee: Dev
+  source: 用户反馈
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: 131 单测全绿；已部署
+
+- id: T16
+  title: 时间轴路线回退语义段（raw 仅存 ~30 天）
+  status: done
+  tier: L2
+  assignee: Dev
+  source: 用户需求
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: buildTimelineRoute（按本地日分桶）；Reviewer PASS-WITH-CONDITIONS（A1/A2/N1/N3 已修）
+
+- id: T16.1
+  title: 时间轴轨迹点跟随路线（每个路径点都显示）
+  status: done
+  tier: L1
+  assignee: Dev
+  source: 用户反馈
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: TimelineVertex[]（raw 顶点带时间、语义段顶点不带，不伪造）；139 单测
+
+- id: T16.2
+  title: 停留点配色 + 点选 GPS 弹窗（Google Maps 链接）
+  status: done
+  tier: L1
+  assignee: Dev
+  source: 用户反馈
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: 停留 marker 蓝→红/琥珀；单一共享 popup 避免数万 <Popup>
+
+- id: T17
+  title: 路径点时间 + 轨迹去重 + 大 marker + 左侧时间线
+  status: done
+  tier: L3
+  assignee: Dev
+  source: 用户反馈
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: buildTimelineRoute 重写（raw+语义段合并+去重）；TimelineList 取代 StopList；141 单测
+
+- id: T18
+  title: 双月历范围选择器
+  status: done
+  tier: L2
+  assignee: Dev
+  source: 用户反馈
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: 141 单测+build+lint 全绿（后被 T30.2 重写为 popover 版）
+
+- id: T19
+  title: 更换数据 + 显示文件名
+  status: done
+  tier: L2
+  assignee: Dev
+  source: 用户反馈
+  created: 09-14
+  timechain:
+    - 09-14 创建
+    - 09-14 Doing
+    - 09-14 Done
+  notes: DataBar + clearData 首次接线；141 单测
+
+- id: T20
+  title: Google Maps 外链隐私处理
+  status: done
+  tier: L2
+  assignee: Dev
+  source: Security 阻塞项
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: 默认动作改「复制坐标」；外链保留并注明；142 单测
+
+- id: T21
+  title: coveredByRaw 边界修正（路线空洞）
+  status: done
+  tier: L2
+  assignee: Dev
+  source: Reviewer 提出
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: 覆盖判定按段→按顶点（±5min）；142 单测
+
+- id: T22
+  title: A1 跨午夜（标注 + 路径裁剪）
+  status: done
+  tier: L2
+  assignee: Dev
+  source: 用户困惑
+  created: 09-15
+  timechain:
+    - 09-15 创建
+    - 09-15 Doing
+    - 09-15 Done
+  notes: 143 单测；Reviewer S2 複審（clipSegmentPath 於 prepareTrips 统一裁切）
+
+## Cancelled
+# (empty)
