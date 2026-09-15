@@ -11,7 +11,7 @@
 // coordinate` (see `groupVisitsByLocation`); same-named places at different
 // coordinates are merged into one entry.
 import { haversineKm, type Point, type Segment, type Visit } from './types'
-import { startOfDayMs, type DateRangeFilter } from './trips'
+import { segmentPathOrEndpoints, startOfDayMs, type DateRangeFilter } from './trips'
 import { groupVisitsByLocation } from './geo/visitHistory'
 
 export interface PlaceFrequency {
@@ -74,13 +74,10 @@ export function routeDistanceKm(points: readonly Point[]): number {
 export function segmentsDistanceKm(segments: readonly Segment[]): number {
   let sum = 0
   for (const s of segments) {
-    // `> 0`, not `>= 2`: after range clipping a segment may hold a single
-    // vertex. The renderer (TripMap.positions) then draws a single point and no
-    // line, so the distance must be 0 — falling back to the unclipped
-    // `[start, end]` here would count the whole out-of-range leg (S3).
-    const path: readonly Point[] =
-      s.path.length > 0 ? s.path : [s.start, s.end]
-    sum += routeDistanceKm(path)
+    // A-class fallback (`MIN_PATH_LEN = 1`): a segment clipped to one vertex
+    // draws a single point (no line) — falling back to unclipped `[start, end]`
+    // would count the whole out-of-range leg (S3).
+    sum += routeDistanceKm(segmentPathOrEndpoints(s))
   }
   return sum
 }

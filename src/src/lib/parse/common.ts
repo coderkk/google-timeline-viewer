@@ -402,6 +402,9 @@ export function stitchSegments(state: ParseState): void {
   pool.sort((a, b) => a.startMs - b.startMs)
   const maxEndUpTo = buildMaxEndUpTo(pool)
   for (const segment of state.segments) {
+    // Intentionally different from the render threshold (T31): a segment with
+    // >= 2 path vertices is not path-less, so it is never overwritten here.
+    // Only truly patch-less segments (0 or 1 stray vertex) get stitched.
     if (segment.path.length >= 2) continue
     const candidate = findStitchCandidate(segment, pool, maxEndUpTo)
     // Copy the points array so the stitched segment never aliases the trace's
@@ -545,6 +548,10 @@ export function addSegment(segmentObject: unknown, state: ParseState, ctx: strin
   if (activityType) segment.activityType = activityType
   state.segments.push(segment)
   if (isTimelinePathTrace && path.length >= 2) {
+    // Only pool traces with >= 2 vertices — a single-point trace is degenerate
+    // and cannot describe a leg direction. Deliberately a pool-side rule, not
+    // the render threshold (T31): the pool feeds the stitching pass, not the
+    // map, so it keeps its own "this is a real trace" bar.
     // Keep the trace for the single final `stitchSegments` pass. File order is
     // not a startMs order (the direct-array export interleaves activities and
     // traces), and the pass sorts the pool once and re-evaluates every

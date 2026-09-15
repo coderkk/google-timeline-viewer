@@ -19,10 +19,14 @@ import {
   fmtDuration,
   fmtRangeLabel,
   GLOBAL_PATH_POINT_CAP,
+  hasPath,
+  hasRenderablePath,
   legendTypes,
   lastNDaysRange,
   LIST_LIMIT,
   MARKER_CAP,
+  MIN_PATH_LEN,
+  MIN_POLYLINE_LEN,
   parseInputDate,
   prepareTimeline,
   prepareTrips,
@@ -31,6 +35,7 @@ import {
   ROUTE_POINT_CAP,
   segmentsOnSameDay,
   segmentsOverlappingVisit,
+  segmentPathOrEndpoints,
   simplifyPath,
   startOfDayMs,
   toInputDate,
@@ -66,6 +71,52 @@ function visit(over: Partial<Visit> & { id: string }): Visit {
 }
 
 const DAY = 24 * 60 * 60 * 1000
+
+describe('fallback threshold helpers (T31)', () => {
+  it('exposes MIN_PATH_LEN = 1 and MIN_POLYLINE_LEN = 2', () => {
+    // A-class geometry source (`> 0`) and B-class drawability gate (`>= 2`)
+    // are deliberately distinct constants — the fix for the T20-25 / T27
+    // `> 0` vs `>= 2` divergence is that the thresholds now live in one place.
+    expect(MIN_PATH_LEN).toBe(1)
+    expect(MIN_POLYLINE_LEN).toBe(2)
+  })
+
+  it('hasPath: a segment carries geometry once it holds ≥ MIN_PATH_LEN vertices', () => {
+    expect(hasPath(segment({ id: 'empty', path: [] }))).toBe(false)
+    expect(hasPath(segment({ id: 'one', path: [point(1, 2)] }))).toBe(true)
+    expect(hasPath(segment({ id: 'many', path: [point(1, 2), point(3, 4)] }))).toBe(true)
+  })
+
+  it('segmentPathOrEndpoints: path-less falls back to [start, end], 1-point path is kept', () => {
+    const start = point(1, 2)
+    const end = point(3, 4)
+    const empty = segment({ id: 'empty', start, end, path: [] })
+    expect(segmentPathOrEndpoints(empty)).toEqual([start, end])
+
+    const single = segment({ id: 'one', start, end, path: [point(9, 9)] })
+    // A 1-vertex path stays the geometry source — do NOT fall back to the
+    // unclipped [start, end] (T22/S2 single in-range vertex case).
+    expect(segmentPathOrEndpoints(single)).toEqual([point(9, 9)])
+
+    const multi = segment({ id: 'multi', start, end, path: [point(9, 9), point(8, 8)] })
+    expect(segmentPathOrEndpoints(multi)).toEqual([point(9, 9), point(8, 8)])
+  })
+
+  it('hasRenderablePath: only ≥ MIN_POLYLINE_LEN vertices form a drawable line', () => {
+    expect(hasRenderablePath([])).toBe(false)
+    expect(hasRenderablePath([point(1, 2)])).toBe(false)
+    expect(hasRenderablePath([point(1, 2), point(3, 4)])).toBe(true)
+    expect(hasRenderablePath([point(1, 2), point(3, 4), point(5, 6)])).toBe(true)
+  })
+
+  it('segmentPathOrEndpoints returns the path array by reference (no defensive copy)', () => {
+    const path = [point(1, 2)]
+    const s = segment({ id: 'ref', path })
+    // Render call sites rely on the same array (e.g. bridge endpoint lookups);
+    // this pins that the helper never copies.
+    expect(segmentPathOrEndpoints(s)).toBe(path)
+  })
+})
 
 describe('date helpers', () => {
   it('anchors a timestamp to its LOCAL day boundaries (previous UTC-day behavior)', () => {
@@ -702,12 +753,15 @@ describe.skipIf(!hasLivedata)('timeline bridges on real device export (docs/live
 
     // Degenerate count: adjacent pairs whose DRAWN visual endpoints are the
     // exact same coordinate — the only pairs "跟時間連" is allowed to skip.
+    // Mirrors `polylineEndpoints` via the shared A-class `hasPath` gate so the
+    // test's degenerate math can never drift from what the bridge actually
+    // draws (T31 threshold unification).
     let degenerate = 0
     for (let i = 1; i < daySegs.length; i++) {
       const prev = daySegs[i - 1]
       const cur = daySegs[i]
-      const prevLast = prev.path.length >= 2 ? prev.path[prev.path.length - 1] : prev.end
-      const curFirst = cur.path.length >= 2 ? cur.path[0] : cur.start
+      const prevLast = hasPath(prev) ? prev.path[prev.path.length - 1] : prev.end
+      const curFirst = hasPath(cur) ? cur.path[0] : cur.start
       if (prevLast.lat === curFirst.lat && prevLast.lng === curFirst.lng) degenerate++
     }
     expect(bridges.length).toBe(daySegs.length - 1 - degenerate)

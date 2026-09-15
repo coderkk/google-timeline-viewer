@@ -4,6 +4,53 @@
 // stays framework-agnostic so it is easy to unit test.
 import type { PathPoint, Point, RawPoint, Segment, TimelineData, Visit } from './types'
 
+// -- Fallback thresholds (T31) -----------------------------------------------
+
+/**
+ * Minimum path length for a segment to be treated as carrying its own geometry.
+ * When `path.length >= MIN_PATH_LEN` the path is used as-is; otherwise the
+ * caller falls back to the semantic `[start, end]` pair.
+ *
+ * This is intentionally **not** `>= 2`: a segment clipped to a single in-range
+ * vertex must still draw that vertex — falling back to the unclipped
+ * `[start, end]` would reintroduce the previous day's geometry (T22/S2).
+ */
+export const MIN_PATH_LEN = 1
+
+/** Does this segment carry at least one path vertex? */
+export function hasPath(s: Segment): boolean {
+  return s.path.length >= MIN_PATH_LEN
+}
+
+/**
+ * Candidate renderable geometry for a segment: the path when one exists,
+ * otherwise the semantic `[start, end]` fallback.
+ *
+ * Single-source-of-truth for the 6 call sites that previously each wrote
+ * their own `path.length > 0 ? path : [start, end]` pattern.
+ */
+export function segmentPathOrEndpoints(s: Segment): Point[] {
+  return hasPath(s) ? s.path : [s.start, s.end]
+}
+
+/**
+ * Minimum vertex count for a polyline / LineString to be drawable.
+ * Below this threshold the geometry is degenerate (a point, not a line).
+ */
+export const MIN_POLYLINE_LEN = 2
+
+/**
+ * Can these vertices form a drawable Polyline / LineString?
+ *
+ * The parameter is length-only on purpose: the render gates feed it either
+ * `Point[]` (semantic paths, GeoJSON/KML export) or `LatLngExpression[]`
+ * (TripMap's already-converted positions) — what matters is the vertex count,
+ * not the vertex shape.
+ */
+export function hasRenderablePath(points: readonly unknown[]): boolean {
+  return points.length >= MIN_POLYLINE_LEN
+}
+
 export interface DateRangeFilter {
   startMs: number | null
   endMs: number | null
@@ -202,7 +249,7 @@ export function boundsOf(segments: Segment[], visits: Visit[]): Bounds | null {
     // shorter than (or entirely inside) the semantic start/end span, and growing
     // the bounds from the unclipped endpoints would re-introduce the previous
     // day (T22/S2). Path-less segments keep the start/end fallback.
-    if (s.path.length > 0) {
+    if (hasPath(s)) {
       for (const p of s.path) grow(p.lat, p.lng)
     } else {
       grow(s.start.lat, s.start.lng)
@@ -321,10 +368,16 @@ interface SegmentVertex {
  * start/end when the export carries no per-vertex path. Vertices without an
  * export time get an interpolated ordering key so they still land in segment
  * order; their displayed time stays absent (never fabricated).
+ *
+ * Note: falls back at `path.length < 2` (MIN_POLYLINE_LEN), deliberately NOT
+ * `MIN_PATH_LEN = 1`: a single-vertex path has no real vertex to anchor a clip
+ * decision, so both endpoints must be expanded here to give the timeline merge
+ * / clipping two sortable vertices. This is the one place the "polyline
+ * drawability" threshold doubles as an expansion gate — see clipSegmentPath.
  */
 function segmentVertices(segment: Segment): SegmentVertex[] {
   const path: PathPoint[] =
-    segment.path.length >= 2
+    segment.path.length >= MIN_POLYLINE_LEN
       ? segment.path
       : [
           { lat: segment.start.lat, lng: segment.start.lng },
@@ -335,7 +388,7 @@ function segmentVertices(segment: Segment): SegmentVertex[] {
     const hasTime = typeof point.timestampMs === 'number' && Number.isFinite(point.timestampMs)
     const sortMs = hasTime
       ? (point.timestampMs as number)
-      : path.length > 1
+      : path.length > 1 // interpolation denominator guard (span / (n - 1))
         ? segment.startMs + (span * i) / (path.length - 1)
         : segment.startMs
     return { point, sortMs }
@@ -358,7 +411,9 @@ function segmentVertices(segment: Segment): SegmentVertex[] {
  * to clip — it is recorded here rather than silently assumed fixed.
  */
 export function clipSegmentPath(segment: Segment, range: DateRangeFilter): PathPoint[] {
-  if (segment.path.length < 2) return segment.path
+  // A path with fewer than MIN_POLYLINE_LEN vertices cannot be a polyline —
+  // return it untouched (no [start,end] expansion here; see segmentVertices).
+  if (!hasRenderablePath(segment.path)) return segment.path
   return segmentVertices(segment)
     .filter((vertex) => {
       if (range.startMs !== null && vertex.sortMs < range.startMs) return false
@@ -401,6 +456,8 @@ export function prepareTrips(
     // previous day's trail in the activityType view either. Uses the same
     // per-vertex time rule as the timeline merge.
     let path = clipSegmentPath(s, range)
+    // Rendering-budget threshold, NOT a fallback gate (T31): simplify only
+    // when the clipped path exceeds the per-segment DP budget.
     if (path.length > SEGMENT_POINT_SIMPLIFY_MAX) {
       path = simplifyPath(path, SEGMENT_POINT_SIMPLIFY_MAX)
     }
@@ -663,10 +720,10 @@ export interface BridgeLine {
 
 /** First/last vertex of the polyline TripMap actually renders for a segment. */
 function polylineEndpoints(s: Segment): { first: Point; last: Point } {
-  // `> 0`, not `>= 2`: after range clipping a segment may hold a single vertex;
-  // using the unclipped semantic start/end here would bridge back to the
-  // previous day (T22/S2).
-  return s.path.length > 0
+  // A-clamp semantics (`MIN_PATH_LEN = 1`): after range clipping a segment may
+  // hold a single vertex; using the unclipped semantic start/end here would
+  // bridge back to the previous day (T22/S2).
+  return hasPath(s)
     ? { first: s.path[0], last: s.path[s.path.length - 1] }
     : { first: s.start, last: s.end }
 }

@@ -14,6 +14,7 @@ import {
   LIST_LIMIT,
   prepareTimeline,
   prepareTripsForData,
+  segmentPathOrEndpoints,
   startOfDayMs,
   type DateRangeFilter,
 } from '../lib/trips'
@@ -159,7 +160,7 @@ function MapPane({
               if (!segment) return
               setSelectedVisit(null)
               setSelectedSegmentIndex(segmentIndex)
-              const path = segment.path.length > 0 ? segment.path : [segment.start, segment.end]
+              const path = segmentPathOrEndpoints(segment)
               const mid = path[Math.floor(path.length / 2)]
               setFlyTarget({ lat: mid.lat, lng: mid.lng })
             }}

@@ -18,7 +18,9 @@ import {
   activityColor,
   bridgeGapParts,
   budgetRoutePoints,
+  hasRenderablePath,
   ROUTE_POINT_CAP,
+  segmentPathOrEndpoints,
   type BridgeLine,
   type TimelineVertex,
 } from '../lib/trips'
@@ -348,11 +350,11 @@ export default function TripMap(props: TripMapProps) {
   const positions = useMemo(
     () =>
       segments.map((segment) => {
-        // `> 0`, not `>= 2`: a segment clipped to a single in-range vertex must
-        // draw just that vertex — falling back to the (unclipped) semantic
-        // start/end would reintroduce the previous day's geometry (T22/S2).
-        // Leaflet renders a 1-point polyline safely.
-        const source = segment.path.length > 0 ? segment.path : [segment.start, segment.end]
+        // A-class fallback (`MIN_PATH_LEN = 1`): a segment clipped to a single
+        // in-range vertex must draw just that vertex — falling back to the
+        // (unclipped) semantic start/end would reintroduce the previous day's
+        // geometry (T22/S2). Leaflet renders a 1-point polyline safely.
+        const source = segmentPathOrEndpoints(segment)
         return source.map((point): LatLngExpression => [point.lat, point.lng])
       }),
     [segments],
@@ -406,7 +408,7 @@ export default function TripMap(props: TripMapProps) {
       {/* Timeline mode: single continuous route line + a dot at every vertex
           (the trail of points). The line is drawn regardless of the
           "trajectory points" toggle — that toggle only controls the dots. */}
-      {mode === 'timeline' && timelinePath.length >= 2 && (
+      {mode === 'timeline' && hasRenderablePath(timelinePath) && (
         <>
           <Polyline
             positions={timelinePath}
@@ -500,7 +502,7 @@ export default function TripMap(props: TripMapProps) {
       ))}
       {mode === 'activityType' && segments.map((segment, index) => {
         const latLngs = positions[index]
-        if (latLngs.length < 2) return null
+        if (!hasRenderablePath(latLngs)) return null
         const highlighted = highlightedSegments.has(index)
         const color = activityColor(segment.activityType)
         return (

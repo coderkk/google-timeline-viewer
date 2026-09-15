@@ -11,7 +11,7 @@
 // visits, is not represented — the chain is visit-centric. Pure and O(n): one
 // sort + one forward and one backward scan (no nested loops).
 import type { Point, Segment, Visit } from './types'
-import type { DateRangeFilter } from './trips'
+import { segmentPathOrEndpoints, type DateRangeFilter } from './trips'
 import { routeDistanceKm } from './stats'
 
 export interface ChainMovement {
@@ -47,10 +47,9 @@ export interface TripChain {
 
 /** Distance along the segment's drawn geometry — same rule as the renderer. */
 export function segmentDistanceKm(segment: Segment): number {
-  // `> 0`: a segment clipped to one vertex draws a point (no line) → distance 0.
-  const path: readonly Point[] =
-    segment.path.length > 0 ? segment.path : [segment.start, segment.end]
-  return routeDistanceKm(path)
+  // A-class fallback (`MIN_PATH_LEN = 1`): a segment clipped to one vertex
+  // draws a point (no line) → distance 0.
+  return routeDistanceKm(segmentPathOrEndpoints(segment))
 }
 
 /** Duration clamped to the range so out-of-range time never counts (PRD 功能 11/13). */

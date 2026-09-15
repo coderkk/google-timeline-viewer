@@ -10,6 +10,7 @@
 // - The document is built in memory and handed to the browser as a Blob; there
 //   is no upload, no share link and no network request anywhere in this path.
 import type { TimelineVertex } from './trips'
+import { hasRenderablePath } from './trips'
 import type { Visit } from './types'
 
 export interface ExportInput {
@@ -55,7 +56,7 @@ interface GeoJsonFeature {
  */
 export function buildGeoJson(input: ExportInput): string {
   const features: GeoJsonFeature[] = []
-  if (input.route.length >= 2) {
+  if (hasRenderablePath(input.route)) {
     features.push({
       type: 'Feature',
       properties: { kind: 'route', pointCount: input.route.length },
@@ -98,7 +99,7 @@ const DEFAULT_LABELS: ExportLabels = { routeName: 'Trajectory', docName: 'Timeli
  */
 export function buildKml(input: ExportInput, labels: ExportLabels = DEFAULT_LABELS): string {
   const placemarks: string[] = []
-  if (input.route.length >= 2) {
+  if (hasRenderablePath(input.route)) {
     const coords = input.route.map((p) => `${p.lng},${p.lat},0`).join(' ')
     placemarks.push(
       [
