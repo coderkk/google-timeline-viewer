@@ -68,3 +68,7 @@
 ## 2026-09-15 21:35 — B5 开「分支实验模式」+ T32 侦察验收
 决定: ①B5 采用**分支实验模式**：main=对照组、`experiment/b5-livedata-overlap`=实验组，用户本地真数据对比后拍板 merge/关闭/取代码——替代无法做的 A/B（纯本地无埋点、无后端、隐私承诺）。规则：实验期宽松 Review、merge 门控走完整流程、>1 周未定提醒。②T32 侦察验收通过（commit c5c8d67，Reviewer PASS）。
 理由: ①无行为数据可替用户决策，分支=人肉 A/B，最诚实的验证路径；②侦察发现（scripts/analyze-visit-activity-overlap.mjs，两文件全量）——visit 与 activity-keyed 段**零重叠**（干净时间分区，30,682/37,287 visits），T29 在此层面 100% 正确；**三角现象（~23% chain movements）全部来自 timelinePath-only traces**（2h GPS 窗口 ambient GPS），非 activity 段——B5 原设「visit↔activity 关联展示」问题在语义段层面**不存在**，真实盲区是 trace 段进链导致 duration/距离标签偏粗。
+
+## 2026-09-16 08:00 — T35 验收通过 + 导入单文件化（PRD v1.22 / 功能 14 立项）
+决定: T35 验收通过，可推送部署（Reviewer PASS）。①**导入 = 单文件查看器**：去除 `multiple`、多拖取第一份、Help/FAQ 文案单数化；②解析期间显示**不确定动画进度条**（`.progress-fill--indeterminate` + `prefers-reduced-motion` 降级），文案去百分比——**诚实原则，不假造数字**（同步解析无真实中间进度）；③`parseProgress` store 字段全量删除（唯一消费方 ImportPanel，worker 消息协议保留待功能 14 复用）；④**跨设备多 Takeout 合并去重立项 PRD 功能 14（独立页，MVP 后）**：merge 产出新文件 → 再导入观看，不在 import 流程做内存拼接。
+理由: 用户实测 113MB 导入进度静止 0%——根因=单文件时 worker `progress = index/fileCount` 恒 0、`parseTimelineFile` 同步无中间进度，「进度百分比」对单文件同步解析本就不存在（T35）；产品形态用户拍板——timeline 只有单文件导入、「合并去重应在一个单独的 page，merge 过后产出新的档案」（功能 14，从 PRD「不做」移到立项）。220 单测（+4）+ lint + build 全绿；冒烟 113MB livedata 动画流动（transform 实时变化）+ 完成进 Trips（11,386 route points）+ Help/FAQ 文案无多文件误导。

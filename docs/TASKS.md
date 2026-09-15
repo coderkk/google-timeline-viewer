@@ -4,15 +4,6 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T35: 导入进度显示修复（进度条静止 0%）** [P1]
-  - 问题: 用户实测导入 113MB Timeline.json 时 "Parsing (0%)…" 与进度条**静止在 0%**——根因：单文件时 worker 事件 progress = index/fileCount = 0/1 = **恒 0**（只有 start/reading/parsing 都发 0，done 才跳 1）；`parseTimelineFile` 是同步函数（JSON.parse + 逐段遍历）无中断点，**真实中间进度不存在**
-  - 方案（用户拍板，PRD v1.22）：**单文件导入**（移除多文件语义 → `multiple` 属性去掉或保留无害；合并去重移入**功能 14 独立页**，不在 import 流程）+ **解析期间显示不确定进度条（CSS 动画）＋「正在解析… 大文件可能需要一小段时间」**（去百分比，诚实原则——不假造数字）
-  - 验收: ①`ImportPanel` 解析态显示**动画进度条**（非静止 0%），文案无 `(0%)` 百分比；②导入 113MB livedata 全程动画流动、完成后正常进 Trips；③`parse.worker.ts`/`worker.ts` 的 progress 语义与 UI 脱钩（UI 不再依赖进度数字）；④单测更新 + 全绿（216+）；⑤PRD 功能 1 描述与实作一致（单文件 + 动画进度）；⑥sample 冒烟：导入/更换数据流程动画可见
-  - 档位: L2（跨 worker 语义 + UI 组件）
-  - 指派: Dev
-  - 来源: 用户实测报告（2026-09-15 23:5x）+ PRD v1.22
-  - 时间: 09-15 创建 → 09-16 Doing
-
 ## 📋 To Do
 
 
@@ -47,5 +38,12 @@
   - 档位: L1
   - 来源: CEO 盘点（2026-09-15）
   - 时间: 09-15 创建 → 09-15 Done
+
+- [x] ~~T35: 导入进度显示修复（进度条静止 0%）~~ (09-15→09-16) [P1] — 用户实测 113MB 导入进度静止 0%；根因=单文件时 worker progress=index/fileCount 恒 0 + `parseTimelineFile` 同步无中间进度。方案（用户拍板，PRD v1.22）：**单文件导入**（去 `multiple`，多拖取第一份、Help/FAQ 文案同步单数化）+ 解析期**不确定动画进度条**（`.progress-fill--indeterminate` + `@keyframes progress-slide`，`prefers-reduced-motion` 降级）＋文案去 `{progress}%`（诚实原则，不假造数字）；`parseProgress` store 字段全量删除（ImportPanel 是唯一消费方，grep 零残留）、worker 消息协议保留（功能 14 将真实消费 per-file progress）；跨设备合并去重正式立项 **PRD 功能 14 独立页**（merge 产出新文件再导入，不在 import 流程）。220 单测（+4：i18n catalog 无 `%`/`{progress}` 断言 + ImportPanel 动画/无百分比/无 multiple 3 条）全绿 + lint + build；冒烟 113MB livedata 动画流动（transform 实时变化）+ 完成进 Trips（11,386 route points）+ sample 流程 OK；Reviewer PASS（G1 拖拽复数文案 → 已修：`dropHint`/`retry` 单数化；S2 判定 worker 协议保留正确）
+  - 验收: ①解析态动画进度条（非静止 0%）+ 文案无百分比；②113MB livedata 全程流动、完成进 Trips；③worker progress 与 UI 脱钩；④220 单测全绿；⑤PRD 功能 1 与实作一致；⑥sample 冒烟动画可见
+  - 档位: L2
+  - 指派: Dev + Reviewer
+  - 来源: 用户实测报告（2026-09-15）+ PRD v1.22
+  - 时间: 09-15 创建 → 09-16 Done（commits `30843e3`/`79a7bea`（G1）/`69edd64`（Help 单文件化））
 
 ## ❌ Cancelled
