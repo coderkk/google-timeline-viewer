@@ -79,7 +79,7 @@
     - 09-15 分支实验模式拍板 → 拆 T32 侦察先行
   notes: >-
     activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示；
-    侦察完成：visit/activity 0 重叠，三角现象源于 timelinePath traces（23%），待用户拍板是否开实验分支
+    T32 侦察完成 → 详见 docs/RESEARCH-B5.md；待用户拍板是否开 experiment 分支
 
 - id: T-B6
   title: raw 点渲染性能压测
