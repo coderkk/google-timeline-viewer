@@ -917,3 +917,23 @@ T30.1–T30.5 完工。5 项用户反馈（#1–#5）对应的 PRD v1.20 变更�
 - 浏览器冒烟（sample，1280px + 390px）：nav 高亮 `/app`=Trips only、`/app/places`=Places only（均带 `aria-current="page"`）；导入后默认「近 30 天」= **Aug 14, 2026 ~ Sep 12**（锚定数据尾 Sep 12）、顶栏/统计/列表联動；popover 双点选 Sep 5→Sep 10 完成自动关 + 地图/统计/列表联动（189 route points / 26 stays）；单点起点日 popover **保持开启**（remount 修复）；Esc 关、backdrop 外部点击关（`elementFromPoint(1000,300)` 命中 `.drp-backdrop`）；presets（Last 30 days / All）应用即关、`drp.clear` 不关、trigger `aria-expanded` 正确翻转；390px：触发按钮只剩「範圍 ▾」、popover 整行宽（left -14/right 374 @390, max-height 590.8px = 70vh, border-radius 0, overflow-y auto）；换范围后选取清空（`.timeline-item.selected` 1 → 0）。console 仅既有（无关）CSP `frame-ancestors` meta 警告，0 pageerror。
 - 单测一次偶发失败（stitch 真实设备导出的 ~6s I/O 测试在并行压力下超时），连跑两次 206 全绿，判定为 flaky 非回归。
 - 未 push。
+
+## 2026-09-15 13:33 — Reviewer：T30 审查通过（commit b6550cf）
+**审查范围**：T30.1–T30.5（Header/DateRangePicker/index.css/lastNDaysRange 及其测试/PlacesPage/TripsPage/timelineStore）。对照基准 = TASKS.md T30 + PRD v1.20 功能 2/4/7。
+
+**逐项核对**：
+- **pick 逻辑**：首击（`startDay` 为空或完整区间已选）只 setting start、不关闭；二击完成区间并 `setOpen(false)`；单边筛选（`endMs:null`）保留。✓
+- **lastNDaysRange**：`endOfDayMs` 幂等 → store importFiles 落的值与「近 30 天」快捷档 `active` 判定完全一致；非有限 `maxMs` 回退开放式。✓（trips.test.ts 4 条覆盖）
+- **store 换数据强关**：subscribe 监听 `state.data` 引用变化（importFiles/loadSample/clearData 恰好三种）；返回 unsubscribe 作 effect cleanup。✓
+- **TripsPage MapPane 修复**：去 `key={fitKey}` 后 popover 跨两击存活；TripMap 内部 FitController 已按 `fitKey` prop 自行 re-fit，re-fit 语义不丢；subscribe 清空选中三态＝旧 remount 的「换窗丢弃越界选中」行为，复验 `.selected` 1→0。✓
+- **PlacesPage**：sidebar 无 keyed remount（`invalidateKey` 只作用于 `PlacesMap`），**本次补验双点选 Sep 5→Sep 10 完成即关、范围「Sep 5, 2026 → Sep 10」写入共享 store**。✓
+- **z-index 分层**：backdrop 890 / popover 900；移动端 drawer（z500 建 stacking context）内 backdrop 与 popover 同处该上下文、popover 900 > backdrop 890 → 弹层可点、外部(地图)点中 backdrop；export dialog 2000 仍最高。与 390px 实测一致。✓
+- **Esc**：仅 open 时挂 window keydown，effect cleanup 移除，无泄漏；与 ExportButton 的 Esc handler 互不冲突（不同时挂载）。✓
+- **安全**：纯本地 UI，无新增外部输入/注入面/网络/存储变化，无需 Security Engineer。
+
+**一般/建议级（放行不阻塞）**：
+1. `DateRangePicker.tsx` 文件尾缺换行（`\ No newline at end of file`）。
+2. popover 无焦点陷阱（focus 不进 dialog、Tab 可逸出）——ARIA dialog 规范理想态，v1 可接受，无障碍打磨时再补。
+3. 无数据态下 presets 的 `endAnchor=0` → last30/last365 为 1970 区间（apply 会写 1970 范围）；但 picker 仅在有数据视图可见，实际不可达，沿用旧逻辑。
+
+**流程备注**：本次 Dev 在 Reviewer 过审前即 commit（规则 11「代码提交前必须 Reviewer 审查」的偏差）；审查通过后该 commit 成立，后续修复点与本次一般/建议项可并入后续任务，无需改历史。补验改动仅本文档，无代码变更。
