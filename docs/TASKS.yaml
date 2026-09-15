@@ -1,12 +1,21 @@
 # TASKS: Google Timeline Viewer
-# next: T31
+# next: T32
 # 注：历史任务（T1–T30）的 tier 为 2026-09-15 三档制度引入后的回填估计；T31 起按实际判定。
 
 ## Doing
 # (empty — WIP ≤ 2)
 
 ## To Do
-# (empty)
+- id: T31
+  title: fallback 门槛口径统一
+  status: to_do
+  tier: L2
+  assignee: Dev
+  source: 2026-09-15 流程 retro A3（PRD v1.21）
+  acceptance: 6 处 >0 几何源选择统一走 segmentPathOrEndpoints()；渲染层 >=2 闸门统一走 hasRenderablePath()；grep '\.path\.length [><=]' 只出现在 hasPath/hasRenderablePath/segmentVertices/parse 四处；206 单测 + build + lint 全绿
+  created: 09-15
+  timechain:
+    - 09-15 创建
 
 ## KIV
 - id: T-K1
@@ -90,18 +99,6 @@
   timechain:
     - 09-14 创建
   notes: RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算
-
-- id: T-B7
-  title: fallback 门槛口径统一（→ T31）
-  status: backlog
-  tier: L2
-  priority: P2
-  assignee: Dev
-  source: 2026-09-15 流程 retro A3
-  acceptance: 所有 fallback 点统一走 hasRenderablePath / MIN_PATH_LEN 共用常量，`>=2` vs `>0` 分歧根源消除
-  created: 09-15
-  timechain:
-    - 09-15 创建
 
 ## Done
 - id: T30

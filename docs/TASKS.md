@@ -1,10 +1,17 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T31 -->
+<!-- next: T32 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
 ## 📋 To Do
+
+- [ ] **T31: fallback 门槛口径统一**
+  - 验收: 6 处 `>0` 几何源选择统一走 `segmentPathOrEndpoints()`；渲染层 `>=2` 闸门统一走 `hasRenderablePath()`；`grep '\.path\.length [><=]'` 只出现在 `hasPath`/`hasRenderablePath`/`segmentVertices`/`parse` 四处；206 单测 + build + lint 全绿
+  - 档位: L2 — 跨 6 文件重构共用常量，不改产品语义
+  - 指派: Dev
+  - 来源: 2026-09-15 流程 retro A3（→ PRD v1.21）
+  - 时间: 09-15 创建
 
 
 
@@ -25,7 +32,6 @@
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [ ] [P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）(09-14)
 - [ ] [P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算 (09-14)
-- [ ] [P2] fallback 门槛口径统一 — 抽出 `hasRenderablePath` / `MIN_PATH_LEN` 共用常量，`>=2` vs `>0` 的分歧根源是「fallback 到 [start,end] 的门槛」无统一定义；所有 fallback 点统一调用（→ 2026-09-15 流程 retro A3）(09-15)
 
 ## ✅ Done
 
