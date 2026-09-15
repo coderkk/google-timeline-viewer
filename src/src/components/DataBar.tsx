@@ -2,6 +2,7 @@
 // the shared date-range picker in the Trips/Places sidebars so the user can see
 // what is loaded and swap it without refreshing the page.
 import { useTimelineStore } from '../store/timelineStore'
+import ExportButton from './ExportButton'
 
 export default function DataBar() {
   const dataSource = useTimelineStore((state) => state.dataSource)
@@ -20,6 +21,7 @@ export default function DataBar() {
           {label}
         </span>
       </div>
+      <ExportButton />
       <button type="button" className="data-bar-btn" onClick={clearData}>
         更换数据
       </button>

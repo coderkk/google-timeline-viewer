@@ -2,6 +2,148 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-15 10:40 — Dev 設定 OPC 3.0 連結（Reviewer T26 S3）
+
+**CEO 拍板 URL** `https://github.com/coderkk/opc-3.0`：
+- `README.md`：`[OPC 3.0](https://github.com/opencode/opc-3.0)` → `https://github.com/coderkk/opc-3.0`。
+- `src/src/lib/site.ts`：`OPC_3_LINK` 由 `'#'` → `'https://github.com/coderkk/opc-3.0'`；順手移除過時註解「Placeholder replaced at T10 deployment…」，改註明私有 repo 的已知取捨。
+- 檢查殘留：全庫 grep `href="#"` / `OPC_3_LINK`，僅 `site.ts` 定義與 `Landing.tsx:112` 使用；`Footer.tsx` 是站內 `<Link to="/#built-with-opc">`（非外鏈），不動。
+
+**驗證**：production build + Playwright 讀 Landing 的「了解更多 →」→ `href = "https://github.com/coderkk/opc-3.0"`；Footer「Created by OPC 3.0」= `#/#built-with-opc`（站內，正確）。`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**。
+
+**已知取捨（CEO 已知悉）**：該 OPC 3.0 repo **維持私有** → 公開 portfolio 訪客點此連結**會得到 404**。CEO 接受此取捨，明確要求**不移除連結、不改指向別處**。若日後要避免 404，需改為公開或移除連結。
+
+**未 commit、未 push**（CEO 統一提交）。
+
+## 2026-09-15 10:25 — Dev 修正 Reviewer T26 複審（S2 + A1/A2）
+
+**背景**：Reviewer 對 T26 判 PASS-WITH-CONDITIONS。
+
+**S2（阻塞，README 隱私聲明缺外鏈例外）**：原絕對句「你的坐标永远不出你的设备」只列瓦片例外，與同檔 What's new 及 App Landing 矛盾。已改為「**除下列外部请求外，你的坐标不出你的设备**」，並補一條與 Landing/設置頁對齊的說明：地圖點彈窗預設「複製坐標」（純本機、不聯網）；只有主動點「在 Google Maps 開啟」才把坐標 + IP 送給 Google；瓦片請求同理。
+
+**A1（CHANGELOG 遺漏）**：補齊缺漏里程碑——`T10.1`（Pages 部署 workflow）/`T10.2`（中文 README）/`T10.3`（正式部署上線）併入 09-13 節；`T12`（改名 Timeline Map + Theme + 半徑檔位 + marker 顏色）與 `T12.6` 併入 09-13；`T13.6`（rawSignals 接入）/`T13.7`（時區修復）併入 09-14；另加 T26 的 `Docs / Portfolio` 條目（README/截圖/LICENSE/CHANGELOG）。
+
+**A2（settings.png 未含外鏈披露）**：以 production build 重截 `settings.png`（1440×900，滾動至「数据生命周期」），現完整入鏡 5 條含「外部链接例外：…若你主动点『在 Google Maps 開啟』，该坐标与你的 IP 会发送给 Google」。
+
+**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**（僅動文件與截圖）。**未 commit、未 push**。**未觸碰** README 的 OPC 3.0 連結與 `site.ts` 的 `OPC_3_LINK`（待 CEO 給 URL）。
+
+## 2026-09-15 10:05 — Dev T26（README / portfolio 修复）
+
+**來源**：Writer 於 2026-09-15 brainstorm 提的發現。僅動文件與截圖，未動程式。
+
+**修復項**：
+1. **README 圖片路徑全裂**：原本引用裸檔名（`landing-full.png` 等），實際在 `docs/screenshots/` → 全部改為 `docs/screenshots/…`。
+2. **重拍截圖（10 張，sample data）**：用 production build + 「立即體驗」載入模擬資料，避免真實位置資料。清單：
+   - `landing-full.png`（全頁）、`landing-hero.png`（Hero）、`landing-builtwith.png`（Built with OPC 區塊）
+   - `trips.png`（時間軸模式 + 左側時間線 + 雙月曆 + 更換資料）
+   - `trips-activity.png`（按活動類型 + 交通方式圖例 + 銜接）
+   - `places.png`（地圖點擊查詢 98 停留）
+   - `export.png`（行程匯出彈窗 + 隱私護欄）
+   - `mobile.png`（390px 移動端抽屜版面）
+   - `help.png`、`settings.png`
+3. **重複圖**：`landing-hero.png` 與 `landing-builtwith.png` 原 md5 完全相同（其一錯）→ 兩張都重拍為各自內容，現 md5 相異（`716f6e…` vs `c9a03b…`）。
+4. **LICENSE**：新增 `LICENSE`（MIT，Copyright (c) 2026 coderkk）。
+5. **佔位符**：`https://github.com/<user>/…` 與 demo `<user>` → `coderkk`；badge `(#)` → LICENSE / GitHub Actions / live demo 真實連結。
+6. **What's new / 近期更新**：README 新增段落（時間軸模式、逐點真實時間、雙月曆、左側時間線、更換資料、匯出、移動端、跨午夜）。
+7. **CHANGELOG.md**：新增，記 T1–T25 里程碑（Keep a Changelog 風格，**未打 git tag**，交 CEO 決定）。
+8. 順修：Places 半徑文案 `10–5000KM` → `1–100 KM`（與功能/實作一致）。
+
+**驗證**：以腳本抽取 README 全部相對連結/圖片目標（12 個，含 `CHANGELOG.md`/`LICENSE`）逐一 `os.path.exists` → **全部存在、0 缺失**；`<user>`、`](#)` 佔位符 0 殘留；`docs/screenshots/` 10 檔全部被引用、無多餘。`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**（未動程式）。**未 commit、未 push**。
+
+**未完成 / 待辦**：CHANGELOG 版本號與 git tag 留待 CEO 發布決策；截圖為 headless Chromium 產生，若需更精緻的宣傳圖可日後人工重拍。
+
+## 2026-09-15 09:45 — Dev 修正 Reviewer S2 複審（裁切被 fallback 抵銷）
+
+**背景**：Reviewer 複審判 FAIL——S3 的裁切被下游 `path.length >= 2` fallback 用**未裁的 `segment.start/end`** 抵銷；跨午夜段裁到剩 1 點時 activityType 仍畫 01-29 的點/線/bounds。
+
+**修法（三處 `>= 2 → > 0`，有 path 就以 path 為準）**：
+1. `TripMap.tsx` `positions`：`segment.path.length > 0 ? segment.path : [start, end]`（單點 Leaflet 安全）。
+2. `trips.ts` `polylineEndpoints`：`> 0` 用 path 首末，否則 `start`/`end`。
+3. `trips.ts` `boundsOf`：`path.length > 0` 只 grow path；否則 fallback `start`/`end`（path-less 段保留既有 fallback）。
+4. 未動 `segmentVertices` 的 `>= 2`：`buildTimelineRoute` 對每個頂點另按 `sortMs` 過濾，時間軸模式本就不會被未裁端點畫出，維持原狀以縮小影響面。
+
+**回歸測試（+3，共 167）**：①`boundsOf(prepareTrips(跨午夜段, range).segments, [])` = 僅 `{9,9}`（不含 01-29 的 `(1,1)`）；②path-less 段 `boundsOf` 仍 fallback `start/end`；③`bridgeLines` 對裁到 1 點的段，`from` = 該點 `(9,9)` 而非未裁 `start (1,1)`。
+
+**`>= 2 → > 0` 影響確認**：現有 `boundsOf` 測試的 path 端點 = start/end（不受影響）；`bridgeLines` 測試的 path 皆 ≥2 點（`>0` 不觸發差異）；新測試覆蓋 1 點情境。無測試被破壞。
+
+**A（重繪）**：`TripMap` 的 `handleZoom` 改為**只在 `zoom >= DOT_MIN_ZOOM` 布林值翻轉時**才呼叫 `onZoomChange`（`lastDotsAvailable` ref），不再每次 `zoomend` 都上報 → `TripsPage` 不再每個 zoom 級別重繪整個 `TripsView`。
+
+**N（文件訂正）**：①上則 09:30 S3 條目「`prepareTrips`（→ `positions`/`routePoints`/`boundsOf`）共用裁切」與事實不符（首輪 `boundsOf` 未裁），已就地加訂正說明；②上則 interactive tooltip 敘述「不再於 mouseout 自動關閉」錯誤——Leaflet 在 `!permanent` 時**仍**綁 `mouseout: closeTooltip`，已訂正為「`interactive` 只讓 tooltip 內容可互動；可靠入口是左欄選停留的 permanent tooltip，hover tooltip 在觸屏不保證穩定」。③`clipSegmentPath` 註解 + `DATA-FINDINGS §8.5` 明示「path-less 且跨午夜的段仍以未裁 `[start,end]` 畫線，屬既有 fallback 固有限制」。
+
+**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**（12 檔）。**未 commit、未 push**。
+
+## 2026-09-15 09:30 — Dev 修正 Reviewer S2/S3 + A/N（T20–T25）
+
+**背景**：Reviewer 對 T20–T25 判 PASS-WITH-CONDITIONS（2 阻塞 + A/N）。CEO 拍板處置，以下逐條。
+
+**S2-a（T23 與 PRD 功能 3 衝突）**：採「改 PRD 不改實作」。`PRD.md` 功能 3 補「轨迹点在 **zoom ≥ 6** 显示为圆点；低 zoom 全景视图（< 6）仅绘制折线以保证性能（折线完整不省略）」，並加修訂記錄 **v1.17**（引用 T23 / `DATA-FINDINGS §8`）；`DATA-FINDINGS §8.4` 反向連回該 PRD 條款，並註明 `DOT_MIN_ZOOM` 即其閾值。
+
+**S2-b（低 zoom 開關靜默空操作）**：採建議①。`TripMap` 匯出 `DOT_MIN_ZOOM`、新增 `onZoomChange` prop（`ZoomWatcher` 於 mount + `zoomend` 回報）；`TripsPage` 上提 `mapZoom` state，軌跡點開關在 `zoom < 6` 時 `disabled`，外層 `<span class="trips-toggle-wrap">` 承載 `title`（disabled button 收不到 pointer 事件，自身 title 不會顯示）。CSS 加 `.trips-toggle:disabled` 樣式。
+
+**S3（activityType 未裁跨午夜）**：抽 `segmentVertices(segment)`（含無 `timestampMs` 的插值排序鍵）為單一真相，`clipSegmentPath(segment, range)` 依時間裁頂點，`buildTimelineRoute` 與 `prepareTrips` 共用。**取捨**：`clipSegmentPath` 對 `path.length < 2` 的段原樣返回，不展開 start/end fallback，以免改變所有無路徑段的 `totalPathPoints` 語義。補單測：`clipSegmentPath` 跨午夜裁點、open range 全保留、插值判定、path-less 不展開、`prepareTrips` 實際裁掉（= activityType 渲染輸入）。
+> **訂正（S2 複審後）**：本條首輪敘述為「`prepareTrips`（→ `positions`/`routePoints`/`boundsOf`）共用裁切」——**與事實不符**：首輪只裁了 `segment.path`，`boundsOf` 仍 grow 未裁的 `start`/`end`，且下游 `path.length >= 2` fallback 會用未裁端點畫線，導致裁到 1 點時仍重現 01-29 幾何。S2 複審已將 `boundsOf` 與三處 `>= 2 → > 0` fallback 一併修正（見頂部 09:45 條目），此句現才成立。
+
+**A 級**：
+- `ExportButton.tsx`：`URL.revokeObjectURL` 改 `setTimeout(..., 1000)`（避免 Firefox/舊 Safari 取消下載）；加 Esc 關閉 + 開啟後 focus 進對話框 + 關閉還焦 trigger（focus trap 未做，範圍外）。
+- `CopyCoordsButton.tsx`：加 `aria-live="polite"`。
+- `TripMap.tsx` / `PlacesMap.tsx` 的停留 `<Tooltip>` 加 `interactive`（讓 tooltip 自身內容 `pointer-events:auto`，觸屏可點到內含按鈕）。
+> **訂正（S2 複審後）**：首輪寫「interactive tooltip 不再於 mouseout 自動關閉」——**錯誤**。Leaflet 在 `!permanent` 時仍綁 `mouseout: closeTooltip`；`interactive` 只讓 tooltip 內容可互動，hover tooltip 仍可能因 mouseout 關閉。因此**可靠入口是「左欄選停留 → permanent（selected）tooltip」**，hover 觸發的複製按鈕在觸屏上不保證可穩定點擊（本輪接受此限制，不硬解）。仍成立的副作用：tooltip 區域 `pointer-events:auto` 會小範圍攔截地圖拖拽。
+- 補單測：`coords.test.ts`（clipboard guard reject / 成功寫入 / URL / note）、`±5min` 邊界（恰好 = 覆蓋、略超 = 保留）、`cap → downsampled` 傳播（`prepareTimeline` route cap、`prepareTrips` combined path cap）。另 `coords.ts` 加 `typeof navigator` 守衛以便在 node 測試環境不炸。
+
+**N 級**：`.trip-tip-actions .trip-tip-link { margin-top: 0 }`（與複製按鈕對齊）；NOTES T25 條目 `ExportDialog.tsx → ExportButton.tsx`；PRD 功能 10 移到功能 9 之後。
+
+**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **164 passed**（12 檔；+13：coords 4 + clipSegmentPath 5 + ±5min 2 + cap 傳播 2）。**未 commit、未 push**。
+
+## 2026-09-15 09:05 — Dev（覆核 T20–T22 + T23/T24/T25）
+
+**覆核 T20–T22（CEO 直接實作、未提交）**：讀 diff 逐項核對 PRD 驗收 → **T21/T22 正確**（按頂點覆蓋 ±5min、跨午夜按 `sortMs` 裁到 range，單測已覆蓋）；**T20 發現缺口**：Security 點名的 `PlacesMap.tsx` 外鏈仍是裸的 `<a>Open in Google Maps</a>`，無隱私標注、無複製坐標。已修：
+- 抽出 `lib/coords.ts`（`writeCoordsToClipboard` + `COORDS_PRIVACY_NOTE` + `googleMapsUrl`）與 `components/CopyCoordsButton.tsx`，TripMap/PlacesMap 共用。
+- `PlacesMap` 的停留 marker 改用 `<Tooltip>`（座標 + 複製坐標 + Google Maps 連結 + 外鏈警示），與 TripMap 一致。
+- 順手加固：`navigator.clipboard` 在非安全上下文可能不存在 → 回傳 rejected promise（不再同步 throw），UI 顯示「複製失敗」。
+- 驗證（sample，Places）：setView 台北 → 169 停留；hover marker → tooltip 含「複製坐標 / 在 Google Maps 開啟 / 外部链接会把坐标与你的 IP 发送给 Google」，href 正確。
+
+**T23 渲染效能壓測**：production build + 真實 123.4MB `Timeline-20260820.json`（route 30k 點）。基線縮放 p95 461ms、longtask max 1796ms（明顯卡頓）。處置：①`TripMap` 低 zoom（<6）只畫折線不畫點（`DOT_MIN_ZOOM` + `ZoomWatcher`）②`GLOBAL_PATH_POINT_CAP 30000→12000`、`RAW_POINT_CAP 20000→12000`。結果：平移 ~34fps、縮放 277–538ms、秒級凍結消除。完整數據 `DATA-FINDINGS.md §8`。
+
+**T24 移動端**：CSS `@media (max-width:768px)`：單月曆、Trips/Places 抽屜 overlay（地圖全高）、頂欄收拢、觸控 ≥44px、Header nav 橫向滾動。375×667 實測（sample）：單月、地圖 471px 全高、抽屜 280px、可見地圖 191px、全按鈕 44px、無橫向溢出。
+
+**T25 行程導出**：`lib/export.ts` + `ExportButton.tsx`（DataBar 入口）。GeoJSON/KML，導出當前篩選範圍軌跡 + 停留；確認彈窗 + 隱私護欄（剝離 metadata、不自動上傳、本地 Blob）。實測 GeoJSON 1 LineString+191 Point、KML 192 Placemark、0 網絡請求、無檔名泄漏。
+
+**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **151 passed**（+8 export 單測；T20–T22 基線 143）。**未 commit、未 push**，待 Reviewer。
+
+**已知問題 / 待決**：①低 zoom 隱藏點層後「顯示/隱藏軌跡點」按鈕在 zoom<6 無視覺效果（語義仍在，PRD 功能 3「每個頂點都顯示為圓點」在低 zoom 有偏差，已記 DATA-FINDINGS §8）②點層首次掛載（z6）仍有 ~250ms 尖峰，徹底解法是改用非 React 批量圖層（本次未做）③效能數據為 headless 環境，絕對值有噪聲。
+
+## 2026-09-15 08:30 — Dev T22（跨午夜：标注 + 路径裁剪）
+
+**用户困惑**：选 2025-01-30 出现 2025-01-29。根因 = overlap 语义纳入**跨午夜记录**（visit 01-29 16:58→01-30 08:47；timelinePath 01-29 22:00→01-30 00:00），且段的路径点整段带入。CEO 建议 A+C、团队共识：记录保留并标注，路径点裁剪。
+
+**实现**：
+- `buildTimelineRoute`：在 `candidates.sort` 后、去重前，按顶点 `sortMs` 裁到 `range`（`startMs`/`endMs` 非 null 时）。跨午夜段不再把前一天的点画到地图。
+- `TimelineList`：读 store `dateRange.startMs`，对 `visit.startMs < rangeStartMs` 的停留加 badge「跨夜 · 自 MM-DD」。
+- `TripMap`：新增 `rangeStartMs` prop；停留 tooltip 加同款标注；`TripsPage` 两处（MapPane / 直连）传入。
+- CSS：`.timeline-badge` / `.trip-tip-overnight`（琥珀虚线胶囊）。
+
+**测试**（143，+1）：新增「clips an overlapping segment's vertices to the selected range (T22)」——段跨 range，仅中间顶点保留。
+
+**验证**（sample data）：选 2026-07-21 → 过夜停留显示 badge「跨夜 · 自 07-20」；时间线列表的轨迹点只有 07-21 的（07-20 的已被裁掉）。143 单测 + build + lint 全绿。
+
+**流程备注**：本任务由 CEO 直接执行（用户指示「先做 T22」）；**T23–T25 + README 应交 Dev 执行、Reviewer 审查**。T20/T21/T22 目前均未提交。
+
+## 2026-09-15 07:15 — Dev T20 + T21（外链隐私 + 覆盖判定修正）
+
+**来源**：2026-09-15 brainstorm 团队讨论（Security Engineer 提阻塞项、Reviewer 提正确性风险）。先改 PRD（功能 5 外链例外、功能 2 跨午夜、v1.15）再开 T20/T21。
+
+**T20 外链隐私（Security 阻塞项）**：`googleMapsUrl()` 把精确坐标放进 URL 送 google.com，点击还泄漏 IP/Referer，与「数据不出设备」矛盾。改：
+- 地图点弹窗默认动作 = **「复制坐标」**（`navigator.clipboard.writeText`，纯本机）；Google Maps 外链保留但加注「外部链接会把坐标与你的 IP 发送给 Google」。
+- 停留 tooltip 同样加复制按钮 + 注明；CSS `.trip-popup-copy` / `.trip-tip-copy`（tooltip 内需 `pointer-events:auto`）。
+- Landing 隐私承诺 + 设置页「数据生命周期」补「外链例外」。
+- 验证：点弹窗含复制+链接+提示；点「复制坐标」→「已复制」，`performance.getEntriesByType('resource')` 过滤 google/maps **为空**（默认路径零外送）；左栏选停留 → tooltip 齐全。
+
+**T21 coveredByRaw 边界修正（Reviewer 提的正确性风险）**：原逻辑「段跨度内命中一个 raw 点 → 整段丢弃语义路径」。30 天保留窗边界、或 raw 有缺口时，长段会被误判「已覆盖」→ 路线空洞。改为**按顶点**判定：顶点时间 ±5min 内有 raw 点才丢弃，否则保留。跨边界/跨缺口的段仍贡献未覆盖顶点。
+
+**测试**（142，+1 净）：新增「边界不留洞」用例（raw 只覆盖段前 30min → 段末端顶点保留、source=mixed）；改写「已被 raw 覆盖」用例（顶点级覆盖）。`npm run test` 142 / build / lint 全绿。
+
+**待办**：T22（A1 跨午夜标注+裁剪）、T23（性能压测）、T24（移动端）、T25（导出）；README 修复排最后（等 UI 定稿）。
+
 ## 2026-09-14 21:10 — Dev T18 + T19（双月历日期选择 + 更换数据）
 
 **需求来源**：用户三条——①DatePicker 难用（选 A：双月历范围选择器）②选 2025-01-30 却出现 2025-01-29（**用户暂缓决定**，见下）③选了 JSON 后能否换（→ 放日期范围上方：按钮 + 文件名）。

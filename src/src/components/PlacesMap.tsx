@@ -11,8 +11,10 @@
 import { useCallback, useEffect, useRef } from 'react'
 import L from 'leaflet'
 import type { Circle as LeafletCircle } from 'leaflet'
-import { Circle, CircleMarker, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
+import { Circle, CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import type { Point, Visit } from '../lib/types'
+import { COORDS_PRIVACY_NOTE, googleMapsUrl } from '../lib/coords'
+import CopyCoordsButton from './CopyCoordsButton'
 import { useTimelineStore } from '../store/timelineStore'
 
 export const PLACES_RING_COLOR = '#f59e0b'
@@ -180,14 +182,27 @@ export default function PlacesMap({
             },
           }}
         >
-          <a
-            href={`https://www.google.com/maps?q=${visit.lat},${visit.lng}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-          >
-            Open in Google Maps
-          </a>
+          <Tooltip direction="top" offset={[0, -6]} className="trip-tooltip" interactive>
+            <span className="trip-tip-title">
+              {visit.name ?? `${visit.lat.toFixed(5)}, ${visit.lng.toFixed(5)}`}
+            </span>
+            <span className="trip-tip-meta">
+              {visit.lat.toFixed(5)}, {visit.lng.toFixed(5)}
+            </span>
+            <span className="trip-tip-actions">
+              <CopyCoordsButton lat={visit.lat} lng={visit.lng} />
+              <a
+                className="trip-tip-link"
+                href={googleMapsUrl(visit.lat, visit.lng)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                在 Google Maps 開啟
+              </a>
+            </span>
+            <span className="trip-tip-note">{COORDS_PRIVACY_NOTE}</span>
+          </Tooltip>
         </CircleMarker>
       ))}
       {center && (

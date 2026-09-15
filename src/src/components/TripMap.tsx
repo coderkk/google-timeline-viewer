@@ -6,11 +6,13 @@
 // structure (which days are selected) changes. The map boots on a fixed
 // center/zoom rather than a `bounds` prop: fitting at init against a container
 // that is not yet laid out crashes the renderer.
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { CircleMarker as LeafletCircleMarker } from 'leaflet'
 import type { Point, RawPoint, Segment, Visit } from '../lib/types'
+import { COORDS_PRIVACY_NOTE, googleMapsUrl, writeCoordsToClipboard } from '../lib/coords'
+import CopyCoordsButton from './CopyCoordsButton'
 import {
   activityColor,
   bridgeGapLabel,
@@ -18,6 +20,7 @@ import {
   fmtDateTime,
   fmtDuration,
   ROUTE_POINT_CAP,
+  toInputDate,
   type BridgeLine,
   type TimelineVertex,
 } from '../lib/trips'
@@ -38,6 +41,12 @@ export interface TripMapProps {
    * as a dot. Falls back to `rawPoints` when omitted.
    */
   route?: readonly TimelineVertex[]
+  /**
+   * Start of the selected range, or null when open-ended. Used to label a stop
+   * that began before the range (an overnight stay) instead of silently showing
+   * it as part of the selected day (T22).
+   */
+  rangeStartMs?: number | null
   /**
    * Dashed "no-record" links between consecutive timeline segments, aligned
    * with `segments` (indices point into that same list, which must therefore
@@ -63,6 +72,12 @@ export interface TripMapProps {
    * "timeline" = single continuous polyline of rawSignals + visit markers.
    */
   mode?: 'activityType' | 'timeline'
+  /**
+   * Reports the current zoom level (on mount and on every `zoomend`). The page
+   * uses it to disable the "trajectory points" toggle below `DOT_MIN_ZOOM`,
+   * where the dot layers are intentionally not drawn (T23).
+   */
+  onZoomChange?: (zoom: number) => void
 }
 
 interface ControllerProps {
@@ -127,9 +142,52 @@ function FitController({ fitBounds, fitKey, invalidateKey, flyTarget }: Controll
 // it is a one-time import side effect, never a render-time mutation.
 const canvasRenderer = L.canvas({ padding: 0.5 })
 
-/** Google Maps deep link for a coordinate. */
-function googleMapsUrl(lat: number, lng: number): string {
-  return `https://www.google.com/maps?q=${lat},${lng}`
+/**
+ * Leaflet draws every vector layer on one shared canvas, so each pan/zoom
+ * repaints all of them. At a low zoom (the decade-spanning "全部" view) the
+ * per-vertex dots are a dense blob that costs tens of thousands of canvas arcs
+ * per frame while adding little visually — the polyline already shows the
+ * route. The dots are therefore only mounted once the user zooms in far enough
+ * for individual points to be meaningful. Reported on `zoomend` so the dot
+ * layers mount/unmount once per zoom level, never per frame.
+ */
+export const DOT_MIN_ZOOM = 6
+
+function ZoomWatcher({ onZoom }: { onZoom: (zoom: number) => void }) {
+  const map = useMap()
+  useEffect(() => {
+    onZoom(map.getZoom())
+    const handler = (): void => onZoom(map.getZoom())
+    map.on('zoomend', handler)
+    return () => {
+      map.off('zoomend', handler)
+    }
+  }, [map, onZoom])
+  return null
+}
+
+/** Small clipboard button used inside the shared map popup (plain DOM). */
+function makeCopyButton(lat: number, lng: number): HTMLButtonElement {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'trip-popup-copy'
+  button.textContent = '复制坐标'
+  button.addEventListener('click', (event) => {
+    event.stopPropagation()
+    writeCoordsToClipboard(lat, lng)
+      .then(() => {
+        button.textContent = '已复制'
+      })
+      .catch(() => {
+        button.textContent = '复制失败'
+      })
+      .finally(() => {
+        window.setTimeout(() => {
+          button.textContent = '复制坐标'
+        }, 1500)
+      })
+  })
+  return button
 }
 
 /**
@@ -179,17 +237,29 @@ function pointPopupContent(opts: {
     wrap.appendChild(meta)
   }
 
+  const actions = document.createElement('div')
+  actions.className = 'trip-popup-actions'
+  actions.appendChild(makeCopyButton(opts.lat, opts.lng))
+
   const link = document.createElement('a')
   link.className = 'trip-popup-link'
   link.href = googleMapsUrl(opts.lat, opts.lng)
   link.target = '_blank'
   link.rel = 'noopener noreferrer'
   link.textContent = '在 Google Maps 開啟'
-  wrap.appendChild(link)
+  link.addEventListener('click', (event) => event.stopPropagation())
+  actions.appendChild(link)
+  wrap.appendChild(actions)
+
+  const note = document.createElement('div')
+  note.className = 'trip-popup-note'
+  note.textContent = COORDS_PRIVACY_NOTE
+  wrap.appendChild(note)
 
   return wrap
 }
 
+/** Clipboard button for the React-rendered visit tooltip. */
 export default function TripMap(props: TripMapProps) {
   const {
     segments,
@@ -206,7 +276,35 @@ export default function TripMap(props: TripMapProps) {
     flyTarget,
     showRoutePoints = true,
     mode = 'activityType',
+    rangeStartMs = null,
+    onZoomChange,
   } = props
+
+  // Current zoom level, reported by ZoomWatcher. Starts below DOT_MIN_ZOOM so
+  // the first paint never mounts tens of thousands of dot layers; the initial
+  // fit (or the first zoomend) reports the real level.
+  const [zoom, setZoom] = useState(0)
+  const dotsVisible = showRoutePoints && zoom >= DOT_MIN_ZOOM
+
+  // Stable so ZoomWatcher's effect (which depends on this callback) does not
+  // re-subscribe on every render.
+  //
+  // `onZoomChange` is only called when the dot-availability boolean
+  // (`zoom >= DOT_MIN_ZOOM`) flips — not on every zoom level. Reporting every
+  // `zoomend` would re-render the whole TripsView (the page state it feeds)
+  // on each zoom step for no reason.
+  const lastDotsAvailable = useRef<boolean | null>(null)
+  const handleZoom = useCallback(
+    (next: number): void => {
+      setZoom(next)
+      const available = next >= DOT_MIN_ZOOM
+      if (lastDotsAvailable.current !== available) {
+        lastDotsAvailable.current = available
+        onZoomChange?.(next)
+      }
+    },
+    [onZoomChange],
+  )
 
   // Timeline mode: single polyline through the prepared route, plus a dot for
   // every vertex (the "trail of points"). The route may be raw GPS fixes or
@@ -225,7 +323,11 @@ export default function TripMap(props: TripMapProps) {
   const positions = useMemo(
     () =>
       segments.map((segment) => {
-        const source = segment.path.length >= 2 ? segment.path : [segment.start, segment.end]
+        // `> 0`, not `>= 2`: a segment clipped to a single in-range vertex must
+        // draw just that vertex — falling back to the (unclipped) semantic
+        // start/end would reintroduce the previous day's geometry (T22/S2).
+        // Leaflet renders a 1-point polyline safely.
+        const source = segment.path.length > 0 ? segment.path : [segment.start, segment.end]
         return source.map((point): LatLngExpression => [point.lat, point.lng])
       }),
     [segments],
@@ -275,6 +377,7 @@ export default function TripMap(props: TripMapProps) {
         invalidateKey={invalidateKey}
         flyTarget={flyTarget}
       />
+      <ZoomWatcher onZoom={handleZoom} />
       {/* Timeline mode: single continuous route line + a dot at every vertex
           (the trail of points). The line is drawn regardless of the
           "trajectory points" toggle — that toggle only controls the dots. */}
@@ -289,7 +392,7 @@ export default function TripMap(props: TripMapProps) {
             }}
             renderer={canvasRenderer}
           />
-          {showRoutePoints &&
+          {dotsVisible &&
             timelineRoute.map((point, index) => (
               <CircleMarker
                 key={`tl-${index}`}
@@ -325,7 +428,7 @@ export default function TripMap(props: TripMapProps) {
       {/* Raw GPS fixes (rawSignals) render as a faint dense trail underneath
           the stitched/activity polylines. Gated by the same trajectory-points
           toggle since both are raw dot trails. */}
-      {mode === 'activityType' && showRoutePoints &&
+      {mode === 'activityType' && dotsVisible &&
         rawPoints.map((point, index) => (
           <CircleMarker
             key={`raw-${index}`}
@@ -387,7 +490,7 @@ export default function TripMap(props: TripMapProps) {
           />
         )
       })}
-      {mode === 'activityType' && routePoints.map((point, index) => (
+      {mode === 'activityType' && dotsVisible && routePoints.map((point, index) => (
         <CircleMarker
           key={`rp-${index}`}
           center={[point.lat, point.lng]}
@@ -427,9 +530,14 @@ export default function TripMap(props: TripMapProps) {
                 if (el) circles.current.set(index, el)
               }}
             >
-            <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip" permanent={selected}>
+            <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip" permanent={selected} interactive>
               <span className="trip-tip-title">{title}</span>
               {visit.address !== undefined && <span className="trip-tip-addr">{visit.address}</span>}
+              {rangeStartMs !== null && visit.startMs < rangeStartMs && (
+                <span className="trip-tip-overnight">
+                  跨夜 · 自 {toInputDate(visit.startMs).slice(5)}
+                </span>
+              )}
               {visit.name !== undefined && (
                 <span className="trip-tip-meta">
                   {visit.lat.toFixed(5)}, {visit.lng.toFixed(5)}
@@ -438,15 +546,19 @@ export default function TripMap(props: TripMapProps) {
               <span className="trip-tip-meta">
                 {fmtDateTime(visit.startMs)} · {fmtDuration(visit.endMs - visit.startMs)}
               </span>
-              <a
-                className="trip-tip-link"
-                href={googleMapsUrl(visit.lat, visit.lng)}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                在 Google Maps 開啟
-              </a>
+              <span className="trip-tip-actions">
+                <CopyCoordsButton lat={visit.lat} lng={visit.lng} />
+                <a
+                  className="trip-tip-link"
+                  href={googleMapsUrl(visit.lat, visit.lng)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  在 Google Maps 開啟
+                </a>
+              </span>
+              <span className="trip-tip-note">{COORDS_PRIVACY_NOTE}</span>
             </Tooltip>
           </CircleMarker>
         )

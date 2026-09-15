@@ -218,6 +218,22 @@ body {
   margin-left: 0;
 }
 
+/* Wrapper carries the tooltip for the disabled state: a disabled <button> does
+   not receive pointer events, so its own `title` would never show. */
+.trips-toggle-wrap {
+  display: inline-flex;
+}
+
+.trips-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.trips-toggle:disabled:hover {
+  color: var(--color-text-dim);
+  background: transparent;
+}
+
 /* Mode toggle (timeline / activity type) */
 .trips-mode-toggle {
   display: inline-flex;
@@ -668,6 +684,20 @@ body {
   color: var(--color-text-dim);
 }
 
+/* "Overnight" marker for a stop that began before the selected range (T22). */
+.timeline-badge,
+.trip-tip-overnight {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 16px;
+  color: #f59e0b;
+  border: 1px dashed #f59e0b;
+  vertical-align: middle;
+}
+
 /* --- Places view --------------------------------------------------------- */
 
 .places-help {
@@ -918,10 +948,62 @@ body {
 
 .trip-popup-link {
   display: inline-block;
-  margin-top: 4px;
   font-size: 11px;
   color: var(--color-accent);
   text-decoration: underline;
+}
+
+/* Copy-coordinate default + labelled external link (privacy) */
+.trip-popup-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.trip-popup-copy,
+.trip-tip-copy {
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.trip-popup-copy:hover,
+.trip-tip-copy:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.trip-popup-note,
+.trip-tip-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--color-text-dim);
+  max-width: 220px;
+}
+
+.trip-tip-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* The actions row already provides the top spacing; cancel the link's own so
+   the copy button and link sit on one aligned line. */
+.trip-tip-actions .trip-tip-link {
+  margin-top: 0;
+}
+
+/* Leaflet tooltips are pointer-events:none; re-enable the interactive bits. */
+.trip-tip-copy {
+  pointer-events: auto;
 }
 
 .page h1,
@@ -1700,4 +1782,239 @@ code {
 
 .site-footer-brand:hover {
   color: var(--color-accent);
+}
+
+/* --- Export dialog (T25) -------------------------------------------------- */
+.export-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.export-dialog {
+  width: min(460px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+  color: var(--color-text);
+}
+
+.export-title {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+
+.export-facts {
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.export-facts > div {
+  display: flex;
+  gap: 10px;
+}
+
+.export-facts dt {
+  flex: 0 0 40px;
+  color: var(--color-text-dim);
+  font-size: 12px;
+  padding-top: 2px;
+}
+
+.export-facts dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.export-format {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.export-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.export-radio.active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.export-notes {
+  margin: 0 0 18px;
+  padding-left: 18px;
+  color: var(--color-text-dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.export-notes li {
+  margin: 4px 0;
+}
+
+.export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.export-cancel,
+.export-confirm {
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.export-cancel {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.export-confirm {
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  color: #fff;
+}
+
+/* --- Mobile adaptation (T24) ---------------------------------------------- */
+/* CSS-only: the app keeps its single DOM structure and reflows at 768px. */
+@media (max-width: 768px) {
+  /* Header: nav may overflow at 375px — keep it on one scrollable line and
+     stop the brand from wrapping onto two rows. */
+  .site-header-inner {
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .site-brand {
+    font-size: 16px;
+    white-space: nowrap;
+  }
+
+  .site-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .site-nav-link {
+    flex: 0 0 auto;
+    padding: 6px 8px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Dual-month picker collapses to a single month; the nav buttons still step
+     one month at a time. */
+  .drp-cal-months > .drp-cal-month:nth-child(2) {
+    display: none;
+  }
+
+  /* Trips/Places: the map fills the viewport and the side panel becomes a
+     bottom sheet (drawer) that overlays it, so the map keeps full height. The
+     existing "收起面板" toggle still hides the drawer entirely. */
+  .trips-body {
+    position: relative;
+    flex-direction: column;
+  }
+
+  .trips-map-wrap {
+    order: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .trips-side {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 500;
+    width: auto;
+    max-height: 42vh;
+    border-right: none;
+    border-top: 1px solid var(--color-border);
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Topbar: wrap into compact rows rather than a single crowded line. */
+  .trips-topbar {
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .trips-title {
+    font-size: 16px;
+  }
+
+  .trips-summary {
+    order: 5;
+    width: 100%;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Legend chips are redundant on a narrow screen and cost a topbar row. */
+  .trips-legend {
+    display: none;
+  }
+
+  .trips-toggle {
+    margin-left: 0;
+  }
+
+  /* Keep the topbar controls on a single row (mode toggle + points + panel)
+     so they don't each claim a 44px row. */
+  .trips-mode-btn,
+  .trips-toggle {
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 11px;
+  }
+
+  /* Touch targets: >=44px on every tappable control. */
+  .trips-toggle,
+  .trips-mode-btn,
+  .data-bar-btn,
+  .drp-preset,
+  .drp-clear,
+  .drp-cal-nav,
+  .drp-day,
+  .stop-item,
+  .timeline-item,
+  .places-radius,
+  .export-radio,
+  .export-cancel,
+  .export-confirm {
+    min-height: 44px;
+  }
+
+  .places-radius {
+    min-width: 44px;
+  }
 }

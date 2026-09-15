@@ -4,6 +4,7 @@
 // the handful of stops. Rows are grouped under local-day headers.
 import type { Visit } from '../lib/types'
 import { fmtDuration, toInputDate, type TimelineVertex } from '../lib/trips'
+import { useTimelineStore } from '../store/timelineStore'
 
 export interface TimelineListProps {
   points: readonly TimelineVertex[]
@@ -20,6 +21,8 @@ interface Row {
   kind: 'point' | 'visit'
   title: string
   meta?: string
+  /** Set on a visit that started before the selected range (overnight). */
+  overnight?: string
   visitIndex?: number
   visit?: Visit
   point?: TimelineVertex
@@ -38,6 +41,11 @@ export default function TimelineList({
   onSelectPoint,
   onSelectVisit,
 }: TimelineListProps) {
+  // A record that starts before the selected range but overlaps it (an
+  // overnight stay) is kept — but must be labelled, not silently shown as if it
+  // belonged to the selected day (T22).
+  const rangeStartMs = useTimelineStore((state) => state.dateRange.startMs)
+
   const rows: Row[] = []
   for (let i = 0; i < points.length; i++) {
     const p = points[i]
@@ -51,12 +59,14 @@ export default function TimelineList({
     })
   }
   visits.forEach((visit, index) => {
+    const overnight = rangeStartMs !== null && visit.startMs < rangeStartMs
     rows.push({
       key: `v-${index}`,
       timeMs: visit.startMs,
       kind: 'visit',
       title: visit.name ?? `${visit.lat.toFixed(5)}, ${visit.lng.toFixed(5)}`,
       meta: `${timeLabel(visit.startMs)}–${timeLabel(visit.endMs)} · ${fmtDuration(visit.endMs - visit.startMs)}`,
+      overnight: overnight ? `跨夜 · 自 ${toInputDate(visit.startMs).slice(5)}` : undefined,
       visitIndex: index,
       visit,
     })
@@ -96,7 +106,12 @@ export default function TimelineList({
                 >
                   <span className="timeline-time">{timeLabel(row.timeMs)}</span>
                   <span className="timeline-body">
-                    <span className="timeline-title">{row.title}</span>
+                    <span className="timeline-title">
+                      {row.title}
+                      {row.overnight !== undefined && (
+                        <span className="timeline-badge">{row.overnight}</span>
+                      )}
+                    </span>
                     {row.meta !== undefined && <span className="timeline-meta">{row.meta}</span>}
                   </span>
                 </button>

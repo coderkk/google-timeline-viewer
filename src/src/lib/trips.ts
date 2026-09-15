@@ -2,7 +2,7 @@
 // simplification, render caps (per-segment Douglas-Peucker + global point /
 // marker budget), activity styling and stop<->segment linkage. Everything here
 // stays framework-agnostic so it is easy to unit test.
-import type { Point, RawPoint, Segment, TimelineData, Visit } from './types'
+import type { PathPoint, Point, RawPoint, Segment, TimelineData, Visit } from './types'
 
 export interface DateRangeFilter {
   startMs: number | null
@@ -63,12 +63,17 @@ export interface TimelineVertex extends Point {
 // --- Rendering budget -------------------------------------------------------
 
 export const SEGMENT_POINT_SIMPLIFY_MAX = 1500
-export const GLOBAL_PATH_POINT_CAP = 30000
+// T23: lowered from 30000 after the release performance pass. The decade-spanning
+// "全部" view merged ~30k vertices; mounting that many React CircleMarker layers
+// (even on one canvas) stalled zoom for hundreds of ms. 12000 keeps the low-zoom
+// route readable while roughly halving the worst-case repaint/mount cost. Narrow
+// ranges are unaffected (their route is below the cap anyway).
+export const GLOBAL_PATH_POINT_CAP = 12000
 export const MAX_SEGMENTS = 12000
 export const MARKER_CAP = 4000
 export const ROUTE_POINT_CAP = 5000
 /** Render budget for raw `rawSignals` GPS fixes (dense trail dots). */
-export const RAW_POINT_CAP = 20000
+export const RAW_POINT_CAP = 12000
 export const LIST_LIMIT = 500
 
 // -- Date helpers ------------------------------------------------------------
@@ -178,9 +183,16 @@ export function boundsOf(segments: Segment[], visits: Visit[]): Bounds | null {
     if (lng > maxLng) maxLng = lng
   }
   for (const s of segments) {
-    grow(s.start.lat, s.start.lng)
-    grow(s.end.lat, s.end.lng)
-    for (const p of s.path) grow(p.lat, p.lng)
+    // Prefer the rendered path when one exists: after range clipping it may be
+    // shorter than (or entirely inside) the semantic start/end span, and growing
+    // the bounds from the unclipped endpoints would re-introduce the previous
+    // day (T22/S2). Path-less segments keep the start/end fallback.
+    if (s.path.length > 0) {
+      for (const p of s.path) grow(p.lat, p.lng)
+    } else {
+      grow(s.start.lat, s.start.lng)
+      grow(s.end.lat, s.end.lng)
+    }
   }
   for (const v of visits) grow(v.lat, v.lng)
   if (!Number.isFinite(minLat)) return null
@@ -281,6 +293,66 @@ function sumPathLengths(segments: Segment[]): number {
   return segments.reduce((sum, s) => sum + s.path.length, 0)
 }
 
+// -- Segment path clipping (T22/S3) ------------------------------------------
+
+/** A segment path vertex plus the ordering key used to merge/clip by time. */
+interface SegmentVertex {
+  point: PathPoint
+  sortMs: number
+}
+
+/**
+ * Expand a segment into timed vertices. The path falls back to the semantic
+ * start/end when the export carries no per-vertex path. Vertices without an
+ * export time get an interpolated ordering key so they still land in segment
+ * order; their displayed time stays absent (never fabricated).
+ */
+function segmentVertices(segment: Segment): SegmentVertex[] {
+  const path: PathPoint[] =
+    segment.path.length >= 2
+      ? segment.path
+      : [
+          { lat: segment.start.lat, lng: segment.start.lng },
+          { lat: segment.end.lat, lng: segment.end.lng },
+        ]
+  const span = segment.endMs - segment.startMs
+  return path.map((point, i) => {
+    const hasTime = typeof point.timestampMs === 'number' && Number.isFinite(point.timestampMs)
+    const sortMs = hasTime
+      ? (point.timestampMs as number)
+      : path.length > 1
+        ? segment.startMs + (span * i) / (path.length - 1)
+        : segment.startMs
+    return { point, sortMs }
+  })
+}
+
+/**
+ * Clip a segment's path to the selected range by each vertex's time (T22).
+ * Segments are pulled in when they merely *overlap* the range, so without this
+ * a cross-midnight segment draws the previous day's trail. Shared by the
+ * timeline merge (`buildTimelineRoute`) and the activityType renderer (clipped
+ * inside `prepareTrips`) so both modes agree.
+ *
+ * Path-less segments (`path.length < 2`) are returned untouched: they carry no
+ * real vertices to clip, and expanding their start/end fallback here would
+ * change `totalPathPoints` for every such segment. Known limitation: a
+ * path-less segment that spans midnight is still drawn as the unclipped
+ * `[start, end]` straight line (the pre-existing fallback in `boundsOf`,
+ * `polylineEndpoints` and `TripMap`'s `positions`), because there is no vertex
+ * to clip — it is recorded here rather than silently assumed fixed.
+ */
+export function clipSegmentPath(segment: Segment, range: DateRangeFilter): PathPoint[] {
+  if (segment.path.length < 2) return segment.path
+  return segmentVertices(segment)
+    .filter((vertex) => {
+      if (range.startMs !== null && vertex.sortMs < range.startMs) return false
+      if (range.endMs !== null && vertex.sortMs > range.endMs) return false
+      return true
+    })
+    .map((vertex) => vertex.point)
+}
+
 /**
  * Build the renderable trips payload for a date range. Per-segment paths are
  * DP-simplified past the per-segment threshold, then segment count, path points
@@ -309,7 +381,11 @@ export function prepareTrips(
   }
 
   const prepared = sliced.map((s) => {
-    let path = s.path
+    // T22/S3: clip the path to the selected range before simplifying, so a
+    // cross-midnight segment that merely *overlaps* the range cannot draw the
+    // previous day's trail in the activityType view either. Uses the same
+    // per-vertex time rule as the timeline merge.
+    let path = clipSegmentPath(s, range)
     if (path.length > SEGMENT_POINT_SIMPLIFY_MAX) {
       path = simplifyPath(path, SEGMENT_POINT_SIMPLIFY_MAX)
     }
@@ -396,15 +472,25 @@ export function buildTimelineRoute(
   // otherwise the same journey would be drawn twice. Outside the window (no raw
   // fix in span) the semantic path is all we have and is used.
   const rawTimes = inRangeRaw.map((p) => p.timestampMs)
-  const coveredByRaw = (startMs: number, endMs: number): boolean => {
+  // Raw retention window. A semantic vertex is dropped only when a raw fix
+  // exists *near that vertex's time* — the finer raw trail already draws that
+  // moment, so keeping the coarse vertex too would double-draw it. The check is
+  // per-vertex (not per-segment) on purpose: a segment that straddles the raw
+  // window boundary, or spans a gap in the raw stream, must still contribute
+  // its uncovered vertices, otherwise the route develops a hole (T21).
+  const COVER_MS = 5 * 60 * 1000
+  const coveredByRaw = (t: number): boolean => {
+    if (rawTimes.length === 0) return false
     let lo = 0
     let hi = rawTimes.length
     while (lo < hi) {
       const mid = (lo + hi) >> 1
-      if (rawTimes[mid] < startMs) lo = mid + 1
+      if (rawTimes[mid] < t) lo = mid + 1
       else hi = mid
     }
-    return lo < rawTimes.length && rawTimes[lo] <= endMs
+    const next = lo < rawTimes.length ? rawTimes[lo] - t : Infinity
+    const prev = lo > 0 ? t - rawTimes[lo - 1] : Infinity
+    return Math.min(next, prev) <= COVER_MS
   }
 
   interface TimedVertex extends TimelineVertex {
@@ -421,18 +507,16 @@ export function buildTimelineRoute(
 
   let segmentCount = 0
   for (const s of inRangeSegments) {
-    if (coveredByRaw(s.startMs, s.endMs)) continue
-    const path: TimelineVertex[] =
-      s.path.length >= 2 ? s.path : [{ lat: s.start.lat, lng: s.start.lng }, { lat: s.end.lat, lng: s.end.lng }]
-    const span = s.endMs - s.startMs
-    for (let i = 0; i < path.length; i++) {
-      const p = path[i]
+    // Shared with `clipSegmentPath` (activityType): same per-vertex time rule,
+    // including the interpolation used for vertices without an export time.
+    for (const { point: p, sortMs } of segmentVertices(s)) {
       const hasTime = typeof p.timestampMs === 'number' && Number.isFinite(p.timestampMs)
-      const sortMs = hasTime
-        ? (p.timestampMs as number)
-        : path.length > 1
-          ? s.startMs + (span * i) / (path.length - 1)
-          : s.startMs
+      // T22: a segment is pulled in when it *overlaps* the range, but its
+      // vertices must not stray outside it — otherwise selecting one day draws
+      // the previous day's trail too. Clip by the vertex's time.
+      if (range.startMs !== null && sortMs < range.startMs) continue
+      if (range.endMs !== null && sortMs > range.endMs) continue
+      if (coveredByRaw(sortMs)) continue
       candidates.push({ lat: p.lat, lng: p.lng, timestampMs: hasTime ? p.timestampMs : undefined, sortMs })
       segmentCount++
     }
@@ -564,7 +648,10 @@ export interface BridgeLine {
 
 /** First/last vertex of the polyline TripMap actually renders for a segment. */
 function polylineEndpoints(s: Segment): { first: Point; last: Point } {
-  return s.path.length >= 2
+  // `> 0`, not `>= 2`: after range clipping a segment may hold a single vertex;
+  // using the unclipped semantic start/end here would bridge back to the
+  // previous day (T22/S2).
+  return s.path.length > 0
     ? { first: s.path[0], last: s.path[s.path.length - 1] }
     : { first: s.start, last: s.end }
 }

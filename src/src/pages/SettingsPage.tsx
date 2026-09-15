@@ -130,6 +130,10 @@ export default function SettingsPage() {
             <li>不写入 localStorage / IndexedDB——刷新或关闭页面后数据即被丢弃，这是预期行为。</li>
             <li>不上传任何服务器；没有登录、没有账号，也没有分析 / 遥测 / 错误上报 SDK。</li>
             <li>唯一的对外请求是地图瓦片，默认发往 OpenStreetMap 公共服务器。</li>
+            <li>
+              外部链接例外：点选地点时默认「复制坐标」——纯本机操作，不联网；若你主动点「在 Google
+              Maps 開啟」，该坐标与你的 IP 会发送给 Google。
+            </li>
           </ul>
         </div>
       </section>

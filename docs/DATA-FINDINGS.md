@@ -155,3 +155,58 @@ Android Timeline Export 与 Takeout 产出的**顶层结构、字段 schema 完�
 - 距离口径相关的诚实性由视觉手段承担：桥梁为**虚线**且 tooltip「衔接 +N 分钟」如实说明「此处无直接轨迹记录」，不伪造实线移动。
 - 语义/展示：衔接桥的 `BridgeLine.gapMs` 为**带符号真实时间差**（负 = 重叠，0 = 相接），tooltip 绝不显示负数——`bridgeGapLabel` 对 <60s（含全部负值）一律显示「衔接」，正值按「衔接 +N 分钟/小时/天」。summary「N 处衔接」仍是实际绘制桥数。
 - 实测回归（T14.3，livedata）：2025-01-30 20 段 → 17 桥（19 相邻对 − 2 退化）；2026 最忙本地日 2016-01-14 30 段 → 24 桥（29 − 5 退化），其中 21 条重叠桥（旧纯时间规则仅 3 条）。
+---
+
+## 8. 渲染性能压测（T23，2026-09-15）
+
+> 方法：production build（`vite preview`）+ 真实 `docs/livedata/Timeline-20260820.json`（123.4MB），
+> 浏览器 headless Chromium，1280×800，默认「时间轴」模式、日期范围「全部」（2012-12-30 → 2026-08-20，13.7 年）。
+> 指标：`requestAnimationFrame` 帧间隔 + `PerformanceObserver('longtask')`；手势 = 鼠标拖拽平移 / 滚轮缩放。
+> **注意**：headless + 瓦片网络使数据有噪声，绝对值仅作相对参考。
+
+### 8.1 压测前的基线（`GLOBAL_PATH_POINT_CAP=30000` / `RAW_POINT_CAP=20000`，无低 zoom 分層）
+
+| 场景 | 帧数 | 平均帧 | p95 | p99 | >50ms 帧 | longtask max |
+|---|---|---|---|---|---|---|
+| 平移（8 次拖拽） | 366 | 23.8ms | 39.6ms | 99.9ms | 11 | 120ms |
+| 缩放（5 in + 5 out，跨越点层挂载阈值） | 113 | 82.3ms | **461ms** | 671ms | 24 | **1796ms** |
+
+结论：**缩放明显卡顿**（p95 461ms、单次 longtask 达 1.8s），根因是「全部」视图合并出 ~30k 顶点：
+① 一条 30k 顶点折线每次重绘；② 跨入高 zoom 时一次性挂载 ~30k 个 React `CircleMarker` 图层。
+
+### 8.2 处置（两项「最便宜」手段）
+
+1. **低 zoom 只画折线、不画点**（`TripMap.tsx: DOT_MIN_ZOOM=6` + `ZoomWatcher`）：`zoom < 6` 时
+   timeline 路线点 / activityType 原始点与路线点均不挂载；折线始终保留。跨阈值只在 `zoomend` 触发一次挂载/卸载，
+   不随每帧发生。
+2. **降 cap**（`trips.ts`）：`GLOBAL_PATH_POINT_CAP 30000 → 12000`、`RAW_POINT_CAP 20000 → 12000`。
+   仅影响大范围（「全部」）视图；单日/小范围轨迹本就低于 cap，不受影响。
+
+### 8.3 压测后（`GLOBAL_PATH_POINT_CAP=12000`，低 zoom 分層）
+
+| 场景 | 帧数 | 平均帧 | p95 | p99 | >50ms 帧 | longtask max |
+|---|---|---|---|---|---|---|
+| 平移（8 次拖拽，zoom 2，点层关闭） | 341 | 29.7ms | 47.6ms | 283ms | 17 | 698ms |
+| 缩放（`setZoom` 动画，2→4→6→8→6→4→2，跨点层阈值） | — | — | — | — | — | 每次 277–538ms |
+
+- 平移稳定在 ~34fps，p50 16.7ms（60fps），偶发 tile/GC 长任务（p99 偏高，噪声为主）。
+- 缩放每次 transition：z4/z8/z2 ≈ 277–292ms（≈ Leaflet 250ms 动画本身）；**z6 首次挂载点层 ≈ 538ms**（动画 + 挂载）。
+  对比基线单次 longtask 1796ms，跨阈值尖峰显著下降。
+- 点层挂载尖峰仍约 +250ms（12000 个 React 图层）；若后续要再优化，方向是改用单一 Leaflet
+  `LayerGroup`/canvas 批量绘制替代 per-vertex React 组件（本次不做，属结构改动）。
+
+### 8.4 结论
+
+「全部」视图平移/缩放由**明显卡顿**改善为**可接受**（缩放不再出现秒级冻结）。诚实性不受影响：
+summary 仍如实显示 cap 后的点数与「已降采样显示」；低 zoom 隐藏的是**视觉上不可分辨**的密集圆点，
+折线仍完整。此行为已写入 **PRD 功能 3（v1.17）**——「轨迹点在 zoom ≥ 6 显示为圆点；低 zoom 全景视图
+（< 6）仅绘制折线以保证性能（折线完整不省略）」；`TripMap` 的 `DOT_MIN_ZOOM` 即该条款的实现阈值。
+
+### 8.5 已知限制：path-less 且跨午夜的段
+
+`clipSegmentPath`（T22/S2）只裁**實際存在的路徑頂點**；`path.length < 2` 的段原樣返回（不展開
+`start`/`end` fallback，以免改變所有無路徑段的 `totalPathPoints` 語義）。因此一個**沒有
+`timelinePath` 且跨越午夜**的語意段，仍會以**未裁的 `[start, end]` 直線**繪製（`boundsOf` /
+`polylineEndpoints` / `TripMap.positions` 的既有 fallback），可能露出一點前一日端點。這是既有
+fallback 的固有限制——沒有頂點可裁；真實資料的跨午夜段多帶 `timelinePath`，故影響極小。
+若日後要消除，需在 fallback 端點間求與 range 邊界的交點（幾何插值），屬獨立改動。

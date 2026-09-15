@@ -10,6 +10,7 @@ import {
   bridgeLines,
   budgetRoutePoints,
   buildTimelineRoute,
+  clipSegmentPath,
   dayKeyOf,
   endOfDayMs,
   filterRawPoints,
@@ -892,15 +893,19 @@ describe('prepareTimeline (T15)', () => {
     const segs = [
       segment({ id: 'a', startMs: start, endMs: start + 3600_000, path: [point(0, 0), point(1, 1)] }),
     ]
+    // Raw fixes near BOTH segment vertices → every semantic vertex is covered,
+    // so the segment path is dropped entirely and the route is raw-only.
     const raw = [
-      { lat: 10, lng: 10, timestampMs: start + 60_000 },
-      { lat: 11, lng: 11, timestampMs: start + 120_000 },
+      { lat: 10, lng: 10, timestampMs: start },
+      { lat: 10.5, lng: 10.5, timestampMs: start + 120_000 },
+      { lat: 11, lng: 11, timestampMs: start + 3600_000 },
     ]
     const result = prepareTimeline([], { startMs: null, endMs: null }, raw, segs)
     expect(result.routeSource).toBe('raw')
     expect(result.route).toEqual([
-      { lat: 10, lng: 10, timestampMs: start + 60_000 },
-      { lat: 11, lng: 11, timestampMs: start + 120_000 },
+      { lat: 10, lng: 10, timestampMs: start },
+      { lat: 10.5, lng: 10.5, timestampMs: start + 120_000 },
+      { lat: 11, lng: 11, timestampMs: start + 3600_000 },
     ])
   })
 })
@@ -943,21 +948,62 @@ describe('buildTimelineRoute (T16/T17)', () => {
     ])
   })
 
-  it('skips a segment path already covered by raw fixes (no double-drawn trace)', () => {
+  it('drops semantic vertices already covered by a nearby raw fix (no double-drawn trace)', () => {
     const t0 = localNoon(2026, 7, 1, 8)
     const raw = [
       { lat: 10, lng: 10, timestampMs: t0 },
-      { lat: 11, lng: 11, timestampMs: t0 + 60_000 },
+      { lat: 11, lng: 11, timestampMs: t0 + 30 * 60_000 },
+      { lat: 12, lng: 12, timestampMs: t0 + 3600_000 },
     ]
-    // Same journey also present as a semantic segment inside the raw window.
+    // Same journey also present as a semantic segment; every vertex has a raw
+    // fix at the same time, so the whole segment path is dropped.
     const segs = [
-      segment({ id: 'covered', startMs: t0, endMs: t0 + 3600_000, path: [point(10, 10), point(11, 11)] }),
+      segment({
+        id: 'covered',
+        startMs: t0,
+        endMs: t0 + 3600_000,
+        path: [
+          { lat: 10, lng: 10, timestampMs: t0 },
+          { lat: 11, lng: 11, timestampMs: t0 + 30 * 60_000 },
+          { lat: 12, lng: 12, timestampMs: t0 + 3600_000 },
+        ],
+      }),
     ]
     const r = buildTimelineRoute(raw, segs, { startMs: null, endMs: null })
     expect(r.source).toBe('raw')
     expect(r.points).toEqual([
       { lat: 10, lng: 10, timestampMs: t0 },
-      { lat: 11, lng: 11, timestampMs: t0 + 60_000 },
+      { lat: 11, lng: 11, timestampMs: t0 + 30 * 60_000 },
+      { lat: 12, lng: 12, timestampMs: t0 + 3600_000 },
+    ])
+  })
+
+  it('keeps uncovered semantic vertices so a raw-window boundary leaves no hole (T21)', () => {
+    const t0 = localNoon(2026, 7, 1, 8)
+    // Raw only covers the first ~30 min; the rest of the segment is uncovered.
+    const raw = [
+      { lat: 10, lng: 10, timestampMs: t0 },
+      { lat: 10.1, lng: 10.1, timestampMs: t0 + 30 * 60_000 },
+    ]
+    const segs = [
+      segment({
+        id: 'straddle',
+        startMs: t0,
+        endMs: t0 + 3600_000,
+        path: [
+          { lat: 10, lng: 10, timestampMs: t0 },
+          { lat: 10.1, lng: 10.1, timestampMs: t0 + 30 * 60_000 },
+          { lat: 20, lng: 20, timestampMs: t0 + 3600_000 },
+        ],
+      }),
+    ]
+    const r = buildTimelineRoute(raw, segs, { startMs: null, endMs: null })
+    expect(r.source).toBe('mixed')
+    // Covered vertices are dropped; the uncovered segment end is kept.
+    expect(r.points).toEqual([
+      { lat: 10, lng: 10, timestampMs: t0 },
+      { lat: 10.1, lng: 10.1, timestampMs: t0 + 30 * 60_000 },
+      { lat: 20, lng: 20, timestampMs: t0 + 3600_000 },
     ])
   })
 
@@ -992,6 +1038,26 @@ describe('buildTimelineRoute (T16/T17)', () => {
     expect(r.points).toEqual([{ lat: 1, lng: 1 }, { lat: 2, lng: 2 }])
   })
 
+  it('clips an overlapping segment\'s vertices to the selected range (T22)', () => {
+    const t0 = localNoon(2025, 1, 30, 10)
+    const segs = [
+      segment({
+        id: 'span',
+        startMs: t0,
+        endMs: t0 + 2 * 3600_000,
+        path: [
+          { lat: 1, lng: 1, timestampMs: t0 }, // before the range
+          { lat: 2, lng: 2, timestampMs: t0 + 3600_000 }, // inside
+          { lat: 3, lng: 3, timestampMs: t0 + 2 * 3600_000 }, // after the range
+        ],
+      }),
+    ]
+    // Segment overlaps the range, but only the middle vertex falls inside it.
+    const range = { startMs: t0 + 30 * 60_000, endMs: t0 + 90 * 60_000 }
+    const r = buildTimelineRoute([], segs, range)
+    expect(r.points).toEqual([{ lat: 2, lng: 2, timestampMs: t0 + 3600_000 }])
+  })
+
   it('uses [start, end] when a segment has no path points', () => {
     const segs = [
       segment({ id: 'a', startMs: localNoon(2025, 1, 30), endMs: localNoon(2025, 1, 30) + 3600_000, start: point(1, 2), end: point(3, 4), path: [] }),
@@ -1016,5 +1082,187 @@ describe('buildTimelineRoute (T16/T17)', () => {
     expect(r.points).toHaveLength(0)
     expect(r.source).toBe('raw')
     expect(r.downsampled).toBe(false)
+  })
+})
+
+describe('clipSegmentPath (T22/S3 activityType clipping)', () => {
+  const day = new Date(2025, 0, 30, 0, 0).getTime()
+  const at = (h: number, m = 0): number => new Date(2025, 0, 29, h, m).getTime()
+
+  it('drops vertices before the range start from a cross-midnight segment', () => {
+    const seg = segment({
+      id: 'overnight',
+      startMs: at(22),
+      endMs: day,
+      path: [
+        { lat: 1, lng: 1, timestampMs: at(22) },
+        { lat: 2, lng: 2, timestampMs: at(23) },
+        { lat: 3, lng: 3, timestampMs: day },
+      ],
+    })
+    expect(clipSegmentPath(seg, { startMs: day, endMs: null })).toEqual([
+      { lat: 3, lng: 3, timestampMs: day },
+    ])
+  })
+
+  it('keeps every vertex for an open-ended range', () => {
+    const seg = segment({
+      id: 'open',
+      startMs: at(22),
+      endMs: day,
+      path: [
+        { lat: 1, lng: 1, timestampMs: at(22) },
+        { lat: 3, lng: 3, timestampMs: day },
+      ],
+    })
+    expect(clipSegmentPath(seg, { startMs: null, endMs: null })).toHaveLength(2)
+  })
+
+  it('uses interpolated times for vertices without a timestamp', () => {
+    // 22:00 → 00:00, five vertices → keys at 22:00, 22:30, 23:00, 23:30, 00:00.
+    // A 23:00 range start keeps only the last three (no per-vertex time exists,
+    // so the map must not fabricate one — only the ordering key is used).
+    const seg = segment({
+      id: 'interp',
+      startMs: at(22),
+      endMs: day,
+      path: Array.from({ length: 5 }, (_, i) => point(1 + i, 2 + i)),
+    })
+    const clipped = clipSegmentPath(seg, { startMs: new Date(2025, 0, 29, 23, 0).getTime(), endMs: null })
+    expect(clipped).toHaveLength(3)
+    expect(clipped[0]).toEqual(point(3, 4))
+    expect(clipped.every((p) => p.timestampMs === undefined)).toBe(true)
+  })
+
+  it('returns path-less segments untouched (no fallback expansion)', () => {
+    const seg = segment({ id: 'nopath', startMs: at(22), endMs: day, path: [] })
+    expect(clipSegmentPath(seg, { startMs: day, endMs: null })).toEqual([])
+  })
+
+  it('is applied by prepareTrips so the activityType renderer clips too', () => {
+    const seg = segment({
+      id: 'overnight',
+      startMs: at(22),
+      endMs: day,
+      path: [
+        { lat: 1, lng: 1, timestampMs: at(22) },
+        { lat: 3, lng: 3, timestampMs: day },
+      ],
+    })
+    const prepared = prepareTrips([seg], [], { startMs: day, endMs: null })
+    expect(prepared.segments[0].path).toEqual([{ lat: 3, lng: 3, timestampMs: day }])
+  })
+})
+
+describe('raw coverage boundary ±5min (T21)', () => {
+  const t0 = new Date(2026, 6, 1, 8).getTime()
+  const raw = [{ lat: 10, lng: 10, timestampMs: t0 }]
+
+  it('drops a semantic vertex exactly at the 5-minute boundary', () => {
+    const seg = segment({
+      id: 'edge',
+      startMs: t0,
+      endMs: t0 + 3600_000,
+      path: [
+        { lat: 10, lng: 10, timestampMs: t0 },
+        { lat: 11, lng: 11, timestampMs: t0 + 5 * 60_000 },
+      ],
+    })
+    const r = buildTimelineRoute(raw, [seg], { startMs: null, endMs: null })
+    expect(r.points).toEqual([{ lat: 10, lng: 10, timestampMs: t0 }])
+  })
+
+  it('keeps a semantic vertex just beyond the 5-minute boundary', () => {
+    const beyond = t0 + 5 * 60_000 + 1000
+    const seg = segment({
+      id: 'beyond',
+      startMs: t0,
+      endMs: t0 + 3600_000,
+      path: [
+        { lat: 10, lng: 10, timestampMs: t0 },
+        { lat: 11, lng: 11, timestampMs: beyond },
+      ],
+    })
+    const r = buildTimelineRoute(raw, [seg], { startMs: null, endMs: null })
+    expect(r.points).toEqual([
+      { lat: 10, lng: 10, timestampMs: t0 },
+      { lat: 11, lng: 11, timestampMs: beyond },
+    ])
+  })
+})
+
+describe('cap → downsampled → summary propagation', () => {
+  it('flags downsampled in prepareTimeline when the route hits the global cap', () => {
+    const t0 = new Date(2026, 6, 1, 0).getTime()
+    // Spatial step > DEDUP_DEG (~1e-5) so consecutive-duplicate collapse does
+    // not hide the cap.
+    const raw = Array.from({ length: GLOBAL_PATH_POINT_CAP + 100 }, (_, i) => ({
+      lat: 1 + i * 1e-4,
+      lng: 2,
+      timestampMs: t0 + i * 1000,
+    }))
+    const payload = prepareTimeline([], { startMs: null, endMs: null }, raw, [])
+    expect(payload.route).toHaveLength(GLOBAL_PATH_POINT_CAP)
+    expect(payload.downsampled).toBe(true)
+  })
+
+  it('flags downsampled in prepareTrips when combined path points exceed the cap', () => {
+    const segs = Array.from({ length: 10 }, (_, k) =>
+      segment({
+        id: `s${k}`,
+        startMs: Date.UTC(2026, 6, 1, k),
+        endMs: Date.UTC(2026, 6, 1, k, 30),
+        path: Array.from({ length: 1500 }, (_, i) => point(k + i * 1e-4, 0)),
+      }),
+    )
+    const prepared = prepareTrips(segs, [], { startMs: null, endMs: null })
+    expect(prepared.downsampled).toBe(true)
+    expect(prepared.totalPathPoints).toBeLessThanOrEqual(GLOBAL_PATH_POINT_CAP)
+  })
+})
+
+describe('S2: clipped paths must not be undone by downstream fallbacks', () => {
+  const day = new Date(2025, 0, 30, 0, 0).getTime()
+  const prev22 = new Date(2025, 0, 29, 22, 0).getTime()
+  const prev23 = new Date(2025, 0, 29, 23, 0).getTime()
+
+  const overnight = segment({
+    id: 'overnight',
+    startMs: prev22,
+    endMs: day,
+    start: point(1, 1), // 01-29 semantic start — must NOT leak into bounds/bridges
+    end: point(9, 9),
+    path: [
+      { lat: 1, lng: 1, timestampMs: prev22 },
+      { lat: 5, lng: 5, timestampMs: prev23 },
+      { lat: 9, lng: 9, timestampMs: day },
+    ],
+  })
+
+  it('excludes clipped-away pre-range vertices from the fitted bounds', () => {
+    const prepared = prepareTrips([overnight], [], { startMs: day, endMs: null })
+    expect(prepared.segments[0].path).toEqual([{ lat: 9, lng: 9, timestampMs: day }])
+    const bounds = boundsOf(prepared.segments, [])
+    expect(bounds).toEqual({ minLat: 9, minLng: 9, maxLat: 9, maxLng: 9 })
+  })
+
+  it('still falls back to semantic start/end for a path-less segment', () => {
+    const seg = segment({ id: 'nopath', path: [], start: point(1, 2), end: point(3, 4) })
+    expect(boundsOf([seg], [])).toEqual({ minLat: 1, minLng: 2, maxLat: 3, maxLng: 4 })
+  })
+
+  it('bridges from a single-vertex clipped path, not the unclipped endpoints', () => {
+    const later = segment({
+      id: 'later',
+      startMs: day + 3600_000,
+      endMs: day + 7200_000,
+      start: point(10, 10),
+      end: point(11, 11),
+      path: [point(10, 10), point(11, 11)],
+    })
+    const prepared = prepareTrips([overnight, later], [], { startMs: day, endMs: null })
+    const bridges = bridgeLines(prepared.segments)
+    // from = overnight's single rendered vertex (9,9), NOT its semantic start (1,1)
+    expect(bridges[0].from).toMatchObject({ lat: 9, lng: 9 })
   })
 })

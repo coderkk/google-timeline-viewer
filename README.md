@@ -2,10 +2,10 @@
 
 > Google Timeline 位置历史本地查看器
 
-<!-- badges: npm / CI / license — 部署后替换占位符 -->
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](#)
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](#)
-[![Demo](https://img.shields.io/badge/Demo-live-orange.svg)](#)
+<!-- badges -->
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/coderkk/google-timeline-viewer/actions/workflows/deploy.yml/badge.svg)](https://github.com/coderkk/google-timeline-viewer/actions/workflows/deploy.yml)
+[![Demo](https://img.shields.io/badge/Demo-live-orange.svg)](https://coderkk.github.io/google-timeline-viewer/)
 
 ---
 
@@ -18,33 +18,60 @@
 
 ---
 
+## What's new / 近期更新
+
+- **时间轴模式（默认）**：把 GPS 原始点与语义段轨迹按时间合并成一条连续路线；可切换「按活动类型」查看分段着色与衔接线。
+- **逐点真实时间**：路线点显示经过时间；点击任一点弹出 GPS 坐标，默认「复制坐标」（纯本机），并明确标注 Google Maps 外链会发送坐标与 IP。
+- **双月历范围选择器**：点起始日 → 点结束日，区间高亮，支持前后翻月/年，保留「全部 / 近 30 天 / 近 1 年」快捷。
+- **左侧时间线**：轨迹点与停留按时间排序、按日分组，点击飞到该点。
+- **行程导出（GeoJSON / KML）**：导出当前筛选范围的轨迹与停留，含确认弹窗与隐私护栏（剥离文件 metadata、绝不上传）。
+- **更换数据**：随时查看当前载入的文件名并一键更换。
+- **移动端适配**：< 768px 单月历、底部抽屉面板、地图全屏、触控目标 ≥ 44px。
+- **跨午夜记录**：起点在范围外、时段与范围重叠的停留会标注「跨夜 · 自 MM-DD」，轨迹顶点裁剪到所选范围内。
+
+完整里程碑见 [CHANGELOG.md](CHANGELOG.md)。
+
+---
+
 ## 截图
 
 ### Landing 首页
 
-![Landing 完整截图](landing-full.png)
+![Landing 完整截图](docs/screenshots/landing-full.png)
 
-![Landing Hero](landing-hero.png)
+![Landing Hero](docs/screenshots/landing-hero.png)
 
 ### Built with OPC 3.0 section
 
-![Built with OPC 3.0](landing-builtwith.png)
+![Built with OPC 3.0](docs/screenshots/landing-builtwith.png)
 
-### Trips 视图（行程回放）
+### Trips 视图（时间轴模式，含左侧时间线 + 双月历）
 
-![Trips 视图](trips.png)
+![Trips 时间轴视图](docs/screenshots/trips.png)
+
+### Trips 视图（按活动类型）
+
+![Trips 按活动类型](docs/screenshots/trips-activity.png)
 
 ### Places 视图（点击查访）
 
-![Places 视图](places.png)
+![Places 视图](docs/screenshots/places.png)
+
+### 行程导出（GeoJSON / KML）
+
+![导出行程](docs/screenshots/export.png)
+
+### 移动端（375–390px）
+
+![移动端适配](docs/screenshots/mobile.png)
 
 ### 导出教程页
 
-![教程页](help.png)
+![教程页](docs/screenshots/help.png)
 
 ### 设置页
 
-![设置页](settings.png)
+![设置页](docs/screenshots/settings.png)
 
 ---
 
@@ -53,7 +80,7 @@
 ### 本地运行
 
 ```bash
-git clone https://github.com/<user>/google-timeline-viewer.git
+git clone https://github.com/coderkk/google-timeline-viewer.git
 cd google-timeline-viewer/src
 npm install
 npm run dev
@@ -63,9 +90,7 @@ npm run dev
 
 ### 在线 Demo
 
-🔗 **https://\<user\>.github.io/google-timeline-viewer/**
-
-<!-- 部署后替换为真实链接 -->
+🔗 **https://coderkk.github.io/google-timeline-viewer/**
 
 ---
 
@@ -104,13 +129,14 @@ Google Maps 头像 → 设置 → 个人内容 / 位置和隐私 → 导出时�
 
 ## 隐私声明
 
-**位置数据是最敏感的个人信息。本工具的设计原则是：你的坐标永远不出你的设备。**
+**位置数据是最敏感的个人信息。本工具的设计原则是：除下列外部请求外，你的坐标不出你的设备。**
 
 - **全部在浏览器内存中处理**——不写入 `localStorage`、不写入 `IndexedDB`、不缓存到磁盘。
 - **刷新页面即清空**，关闭标签页数据彻底消失，这是预期行为。
 - **无后端、无登录、无账号**——没有任何服务器在等待接收你的数据。
 - **无任何统计 / 遥测 / 错误上报 SDK**——应用代码不会偷偷联网。
 - **地图瓦片**：默认请求 OpenStreetMap 公共服务器的瓦片图片，此请求会暴露你的 IP 地址和当前地图视野的坐标范围。设置页可切换为自托管或内网瓦片服务器，彻底消除外部请求。
+- **Google Maps 外链为 opt-in**：地图点弹窗的默认动作是「复制坐标」（纯本机、不联网）；只有当你主动点「在 Google Maps 開啟」时，该坐标与你的 IP 才会发送给 Google。此披露同样出现在 Landing 首页与设置页的「数据生命周期」中。
 
 ---
 
@@ -146,7 +172,7 @@ React 19 · TypeScript · Vite 8 · Leaflet + react-leaflet · Zustand · react-
 ```
 
 - **解析层（Web Worker）**：JSON 解析与格式识别在 Worker 线程中执行，不阻塞 UI；文件超 100MB 时提前提示。
-- **空间索引（SpatialGrid）**：1°×1° 均匀网格 + haversine 大圆距离精确过滤，支持 10–5000KM 范围查询，37000+ 停留点查询响应在毫秒级。
+- **空间索引（SpatialGrid）**：1°×1° 均匀网格 + haversine 大圆距离精确过滤，支持 1–100 KM 范围查询，37000+ 停留点查询响应在毫秒级。
 - **状态管理（Zustand）**：导入数据、示例数据加载、日期范围、瓦片源等全局状态均为纯内存存储，刷新即清空。
 
 ---
@@ -163,10 +189,10 @@ React 19 · TypeScript · Vite 8 · Leaflet + react-leaflet · Zustand · react-
 
 每一步都留有记录，可回溯。让一个人也能像一个小团队一样，把一件事从头带到交付。
 
-[OPC 3.0](https://github.com/opencode/opc-3.0) 是一套轻量的「一人公司 AI 团队」工作流——用 AI 协作角色 + 文档驱动的流程，帮你把产品从想法做到落地。
+[OPC 3.0](https://github.com/coderkk/opc-3.0) 是一套轻量的「一人公司 AI 团队」工作流——用 AI 协作角色 + 文档驱动的流程，帮你把产品从想法做到落地。
 
 ---
 
 ## 许可证
 
-本项目采用 [MIT License](#) 发布。详见仓库中的 LICENSE 文件。
+本项目采用 [MIT License](LICENSE) 发布。详见仓库中的 LICENSE 文件。

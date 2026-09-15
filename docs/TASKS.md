@@ -1,10 +1,15 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T18 -->
+<!-- next: T27 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
 ## 📋 To Do
+
+
+
+
+
 
 ## ⏸ KIV
 
@@ -25,6 +30,10 @@
 
 ## ✅ Done
 
+- [x] ~~T26: README / portfolio 修复（Writer 2026-09-15 brainstorm）~~ (09-15→09-15) [P1] — ①**圖片路徑全裂**：README 裸檔名 → `docs/screenshots/…`（11 個相對目標全部存在，腳本逐一驗證）②**重拍 10 張截圖**（production build + sample data，1440×900 / 390px）涵蓋新 UI：`landing-full/landing-hero/landing-builtwith`、`trips`（時間軸+左側時間線+雙月曆）、`trips-activity`（活動類型+圖例+銜接）、`places`（查詢結果）、`export`（匯出彈窗）、`mobile`（375–390px）、`help`、`settings` ③**重複圖**：`landing-hero` 與 `landing-builtwith` 原 md5 相同 → 重拍為不同內容（現 md5 相異）④新增 `LICENSE`（MIT，coderkk，2026）⑤**佔位符**：`<user>` → `coderkk`、badge `(#)` → LICENSE / Actions / demo 真實連結、clone/demo URL 填實 ⑥新增「What's new / 近期更新」段落 ⑦新增 `CHANGELOG.md`（T1–T25 里程碑，**未打 tag**）⑧順修 Places 半徑文案 `10–5000KM` → `1–100 KM`。驗證：`tsc`/`lint`/`build` 全綠、167 單測不變（僅動文件與截圖）。**修正（Reviewer 複審）**：S2 README 隱私聲明補「外鏈例外」（絕對句改「除下列外部請求外」，補 Google Maps 外鏈 opt-in 與瓦片說明，與 Landing/設置頁對齊）；A1 CHANGELOG 補 T10.1–T10.3 / T12 / T13.6 / T13.7 並加 T26 Docs 條目；A2 重截 `settings.png`（含「外部链接例外」條目）
+- [x] ~~T23: 渲染性能压测（发布前）~~ (09-15→09-15) [P1] — production build + 真实 123.4MB livedata，「全部」视图（2012→2026，route 30k 点）量测。基线：平移 avg 23.8ms/p95 39.6ms、缩放 avg 82.3ms/**p95 461ms/longtask max 1796ms（明显卡顿）**。处置（最便宜）：①`TripMap` 低 zoom 只画折线不画点（`DOT_MIN_ZOOM=6` + `ZoomWatcher`，`zoomend` 触发一次挂载）②`GLOBAL_PATH_POINT_CAP 30000→12000`、`RAW_POINT_CAP 20000→12000`。结果：平移 ~34fps（p95 47.6ms）、缩放每次 277–538ms（z6 首挂点层 +~250ms），秒级冻结消除 → 可接受。完整数据见 `DATA-FINDINGS.md §8`；151 单测+build+lint 全绿。**修正（Reviewer S2）**：S2-a 於 PRD 功能 3 補「zoom ≥ 6 顯示圓點／低 zoom 僅折線」條款 + v1.17，`DATA-FINDINGS §8.4` 連回該條款；S2-b 軌跡點開關在 zoom < 6 時 `disabled` + wrapper `title`（zoom 狀態經 `onZoomChange` 上提至 `TripsPage`；僅在跨 `DOT_MIN_ZOOM` 布林翻轉時上報，避免每級 zoom 重繪 `TripsView`）
+- [x] ~~T24: 移动端适配~~ (09-15→09-15) [P2] — CSS media query（`max-width:768px`）为主：双月历降单月（隐藏第二个 `.drp-cal-month`）、Trips/Places 左栏改**底部抽屜**（`position:absolute` overlay，地图保持全高，收起面板可全屏）、顶栏收拢（隐藏 legend、controls 单行、summary 省略号）、触控目标 ≥44px（`.drp-day/.drp-preset/.drp-cal-nav/.trips-mode-btn/.trips-toggle/.data-bar-btn/.stop-item/.timeline-item/.places-radius/.export-*`）、Header nav 单行横向滚动。验证（375×667，sample）：单月历、地图全高 471px、抽屜 280px、抽屜上方可见地图 191px、所有按钮 44px、无横向溢出；Places + 导出弹窗同验通过
+- [x] ~~T25: 行程导出（GeoJSON/KML）~~ (09-15→09-15) [P2] — 新增 `lib/export.ts`（buildGeoJson/buildKml/檔名/格式）+ `ExportButton.tsx`（DataBar「导出」入口）。导出**当前筛选范围**轨迹（LineString）+ 停留（Point）。护栏：确认弹窗列出范围与内容、明示「只导出当前筛选」「已剥离原始檔名/装置/路径 metadata」「导出档不受本工具保护，勿上传」、檔名仅由日期范围生成、Blob 本地下载零网络。验证（sample 全部）：GeoJSON 1 LineString + 191 Point、檔名 `timeline-all-all.geojson`、无檔名泄漏、点击后 0 请求；KML 192 Placemark、XML 转义、`timeline-all-all.kml`；375px 弹窗适配。8 单测。**修正（Reviewer A/N）**：`URL.revokeObjectURL` 延後 1s（避免 Firefox/舊 Safari 取消下載）、Esc 關閉 + 開啟後 focus 管理 + 關閉還焦、檔名訂正 `ExportButton.tsx`
 - [x] ~~T1: 项目脚手架 + 应用框架~~ (09-13→09-13) — Vite+React19+TS+Leaflet+Router+Zustand；路由/Header/Footer 骨架；build 通过
 - [x] ~~T2: 数据解析层（四格式 + Web Worker）~~ (09-13→09-13) — 18 单测通过；build/lint 通过；Reviewer 审查延后至下个节奏点
 - [x] ~~T3: 模拟示例数据~~ (09-13→09-13) — gen-sample-data.mjs 产出 54 天/5 城市直出格式数据；载入模块 + 单测通过；UI 角标就绪
@@ -56,5 +65,10 @@
 
 - [x] ~~T18: 双月历范围选择器~~ (09-14→09-14) — 用户反馈原生 date input 难用，选 A 方案；`DateRangePicker` 重写为双月历：点起始日→点结束日、区间高亮、前后翻月/年（«‹›»）、标今日、清除、范围文字（起始→结束）；保留 全部/近30天/近1年 快捷（应用时同步跳到该月）；单边=只点一天即从该日起。CSS 以 .drp-cal-* 取代 .drp-fields/.drp-field。验证（sample data）：点 09-10→09-14 → 标签「2026-09-10 → 2026-09-14」、start/end 高亮 + 3 个 in-range、地图过滤为 68 点；Trips/Places 共用。141 单测+build+lint 全绿
 - [x] ~~T19: 更换数据 + 显示文件名~~ (09-14→09-14) — store 增 `dataLabel`（importFiles=文件名/多档「等 N 个文件」、loadSample=模拟数据、clearData=null）；新增 `DataBar`（「当前数据」+ 文件名 + 「更换数据」按钮 → clearData），置于日期范围**上方**（Trips + Places）；`clearData` 首次被接线。验证（sample data）：显示「模拟数据」、点更换数据回空状态（导入按钮出现、DataBar 消失）。141 单测+build+lint 全绿
+
+- [x] ~~T20: Google Maps 外链隐私处理~~ (09-15→09-15) — 根因: 外链把精确坐标送 google.com（+IP/Referer），与「数据不出设备」矛盾（Security 阻塞项）。改: `TripMap` 点弹窗默认动作改「复制坐标」（`navigator.clipboard`，纯本机）；Google Maps 外链保留并加注「外部链接会把坐标与你的 IP 发送给 Google」；停留 tooltip 同样加复制按钮 + 注明；CSS `.trip-popup-copy`/`.trip-tip-copy`（tooltip 内 pointer-events:auto）；Landing 隐私承诺 + 设置页「数据生命周期」补「外链例外」。验证（sample）：点弹窗含复制按钮+链接+提示；点「复制坐标」→「已复制」且 `performance` 无任何 google/maps 请求（默认路径零外送）；左栏选停留 → tooltip 同样齐全。142 单测+build+lint 全绿
+- [x] ~~T21: coveredByRaw 边界修正（路线空洞）~~ (09-15→09-15) — 根因（Reviewer 提）: 原逻辑「段跨度内命中一个 raw 点即整段丢弃语义路径」→ 30 天保留窗边界或 raw 有缺口时，长段被误判「已覆盖」→ 路线空洞。改: `buildTimelineRoute` 的覆盖判定由**按段**改为**按顶点**——顶点时间附近（±5min）有 raw 点才丢弃，否则保留；跨边界/跨缺口的段仍贡献未覆盖顶点。测试: 新增「边界不留洞（T21）」用例（raw 只覆盖前 30min，段末端顶点保留 → source=mixed）；改写「已被 raw 覆盖的段」用例。142 单测+build+lint 全绿
+
+- [x] ~~T22: A1 跨午夜（标注 + 路径裁剪）~~ (09-15→09-15) — 用户困惑「选 2025-01-30 出现 2025-01-29」= overlap 语义纳入跨午夜记录（visit 01-29 16:58→01-30 08:47、timelinePath 01-29 22:00→01-30 00:00）。CEO 建议 A+C，团队共识。改：①`buildTimelineRoute` 在排序后、去重前按 `sortMs` 裁剪顶点到 range（跨午夜段不再画到前一天）；②`TimelineList` 对「startMs < range.startMs」的停留加 badge「跨夜 · 自 MM-DD」（读 store dateRange）；③`TripMap` 停留 tooltip 加「跨夜 · 自 MM-DD」（新增 `rangeStartMs` prop，TripsPage 两处传入）；CSS `.timeline-badge`/`.trip-tip-overnight`（琥珀虚线）。测试：新增「clips an overlapping segment's vertices（T22）」。验证（sample）：选 2026-07-21 → badge「跨夜 · 自 07-20」、时间线只有 07-21 的轨迹点（07-20 被裁）。143 单测+build+lint 全绿。**修正（Reviewer S2 複審）**：T22 裁切原僅覆蓋時間軸模式，activityType 仍畫 01-29——抽 `clipSegmentPath` 於 `prepareTrips` 裁 `segment.path`，並把下游 fallback 門檻 `path.length >= 2 → > 0`（`TripMap.positions` / `polylineEndpoints` / `boundsOf`），消除未裁 `start/end` 端點對裁切的抵銷；+3 回歸測試（`boundsOf` 不含 01-29、path-less 段保留 start/end fallback、`bridgeLines` 用裁後單點頂點）。path-less 且跨午夜段仍走未裁 fallback（固有限制，見 `DATA-FINDINGS §8.5`）
 
 ## ❌ Cancelled

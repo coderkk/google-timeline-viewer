@@ -3,7 +3,7 @@ import DataBar from '../components/DataBar'
 import DateRangePicker from '../components/DateRangePicker'
 import StopList from '../components/StopList'
 import TimelineList from '../components/TimelineList'
-import TripMap, { type LatLngBoundsMatrix } from '../components/TripMap'
+import TripMap, { DOT_MIN_ZOOM, type LatLngBoundsMatrix } from '../components/TripMap'
 import {
   boundsOf,
   boundsIncludeRawPoints,
@@ -43,6 +43,8 @@ function MapPane({
   mode,
   segments,
   route,
+  rangeStartMs,
+  onZoomChange,
 }: {
   prepared: PreparedTrips | TimelinePayload
   fitBounds: LatLngBoundsMatrix | null
@@ -52,6 +54,8 @@ function MapPane({
   mode: 'activityType' | 'timeline'
   segments: readonly Segment[]
   route: readonly TimelineVertex[]
+  rangeStartMs: number | null
+  onZoomChange: (zoom: number) => void
 }) {
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
   // Generic camera target: a stop or a timeline point (both just need lat/lng).
@@ -119,6 +123,7 @@ function MapPane({
           markers={prepared.markers}
           rawPoints={prepared.points}
           route={route}
+          rangeStartMs={rangeStartMs}
           bridges={bridges}
           highlightedSegments={highlightedSegments}
           selectedMarkerIndex={selectedMarkerIndex}
@@ -129,6 +134,7 @@ function MapPane({
           flyTarget={flyTarget}
           showRoutePoints={showRoutePoints}
           mode={mode}
+          onZoomChange={onZoomChange}
         />
       </div>
     </>
@@ -139,6 +145,11 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showRoutePoints, setShowRoutePoints] = useState(true)
   const [mode, setMode] = useState<'activityType' | 'timeline'>('timeline')
+  // Reported by the map. Below DOT_MIN_ZOOM the dot layers are intentionally
+  // not drawn (T23), so the toggle is disabled rather than silently doing
+  // nothing.
+  const [mapZoom, setMapZoom] = useState(0)
+  const pointsToggleDisabled = mapZoom < DOT_MIN_ZOOM
 
   const preparedTrips = useMemo(
     () => prepareTripsForData(data, dateRange),
@@ -233,13 +244,19 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
           </button>
         </div>
         {showPointsToggle && (
-          <button
-            type="button"
-            className="trips-toggle trips-toggle--plain"
-            onClick={() => setShowRoutePoints((visible) => !visible)}
+          <span
+            className="trips-toggle-wrap"
+            title={pointsToggleDisabled ? `放大到 zoom ${DOT_MIN_ZOOM} 以上才显示轨迹点` : undefined}
           >
-            {showRoutePoints ? '隐藏轨迹点 ●' : '显示轨迹点 ○'}
-          </button>
+            <button
+              type="button"
+              className="trips-toggle trips-toggle--plain"
+              disabled={pointsToggleDisabled}
+              onClick={() => setShowRoutePoints((visible) => !visible)}
+            >
+              {showRoutePoints ? '隐藏轨迹点 ●' : '显示轨迹点 ○'}
+            </button>
+          </span>
         )}
         <button
           type="button"
@@ -261,6 +278,8 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             mode={mode}
             segments={preparedTrips.segments}
             route={preparedTimeline.route}
+            rangeStartMs={dateRange.startMs}
+            onZoomChange={setMapZoom}
           />
         ) : (
           <div className="trips-map-wrap">
@@ -270,6 +289,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
               markers={currentPrepared.markers}
               rawPoints={currentPrepared.points}
               route={preparedTimeline.route}
+              rangeStartMs={dateRange.startMs}
               bridges={bridges}
               highlightedSegments={new Set<number>()}
               selectedMarkerIndex={null}
@@ -280,6 +300,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
               flyTarget={null}
               showRoutePoints={showRoutePoints}
               mode={mode}
+              onZoomChange={setMapZoom}
             />
           </div>
         )}
