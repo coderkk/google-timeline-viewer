@@ -2,6 +2,93 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-15 21:31 — Dev T32 收尾（Reviewer PASS）
+
+**Reviewer 判定**：PASS（N1 建议级可并入收尾）。
+
+**收尾项**：
+- **N1 已补**：`DATA-FINDINGS.md` §9.4 末尾补 completeness 量化对比——visits（30,682 / 37,287）显著多于 activity-keyed chain movements（26,027 / 29,875），部分 visit 可能仅通过 timelinePath trace 与其他段连接；过滤 traces 时这些 visit 将缺失 incoming/outgoing。
+- **N2 格式统一（一般，可选）**：核查 `scripts/out/` 三份报告——所有小数已是句点（`29.9 min`/`46.6 min`/`10.8 min`），无逗号小数残留；**无须改动**（报告中的逗号均为千分位）。
+- **N3 已知边界（不修）**：path-less 且跨午夜的段仍以未裁 `[start,end]` fallback 绘制，属既有固有限制（见 `DATA-FINDINGS §8.5`），本轮不涉及。
+- **TASKS 同步**：T32 Doing → Done（09-15 完成）；Backlog B5 注记「侦察完成：visit/activity 0 重叠，三角现象源于 timelinePath traces（23%），待用户拍板是否开实验分支」；next 指针保持 T33。
+- **Commit**：`fd1cffa`（本收尾 commit；仅 scripts/analyze-visit-activity-overlap.mjs + scripts/out/ + docs/DATA-FINDINGS.md + docs/NOTES.md + docs/TASKS.md + docs/TASKS.yaml；livedata gitignored，src/ 零改动）。注：hash 为自引用，若后续 amend 改变则以 git log 实际头为准。
+
+**T32 结论一句话**：visit/activity-keyed 是干净时间分区（0 重叠），T29 三角全部来自 timelinePath traces（~23% chain movements），是否开 experiment 分支交用户拍板。
+
+## 2026-09-15 21:30 — Dev T32 B5 侦察：livedata visit/activity 重叠形态量化
+
+**目标**：量化 livedata（2025/2026 两份文件）中 visit 段与 activity 段的时间重叠形态，为 T29 行程链在重叠形态下的正确性提供依据。
+
+**脚本**：`scripts/analyze-visit-activity-overlap.mjs`（Node ESM，独立，~3.7s/文件），O(V log S + k) 扫描，T29 配对模拟（事件排序 + 前后扫描，与 `lib/tripChain.ts` 逻辑一致）。报告输出至 `scripts/out/overlap-report-{20250213,20260820}.txt`。
+
+**核心发现 — 两层结果**：
+
+### [1] 任务字面定义：visit ↔ activity-keyed segments
+
+**零重叠**。两份文件中，visit（停留）和 activity（出行）段形成**干净的时间分区**——Google 不产生 visit 和 activity 重叠。T29 的纯前后假设在此配对下 100% 正确。
+
+| 文件 | visits | activity-segments | 重叠对 |
+|---|---|---|---|
+| 2025 | 30,682 | 26,843 | **0** |
+| 2026 | 37,287 | 30,702 | **0** |
+
+### [2] T29 实际输入：visit ↔ ALL segments（含 timelinePath-only traces）
+
+`parse/common.ts` 的 `addSegment` 把 `timelinePath`-only 记录（2h GPS 轨迹窗口）也当作 `Segment` 推入 `state.segments`，因此 `prepareTrips` 传给 `buildTripChain` 的 `segments` 包含两类：activity-keyed + timelinePath traces。**重叠全部来自 trace 段**。
+
+| | 2025 | 2026 |
+|---|---|---|
+| segment 总数 | 52,498 | 60,073 |
+| 其中 activity-keyed | 26,843 | 30,702 |
+| 其中 timelinePath-only trace | 25,655 | 29,371 |
+| 重叠对 | **35,349** | **43,092** |
+| 形态 A（trace ⊇ visit） | 8,579 | 10,988 |
+| 形态 B（visit ⊇ trace） | 4,581 | 5,519 |
+| 形态 C（head overlap） | 6,985 | 8,657 |
+| 形态 D（tail overlap） | 15,204 | 17,928 |
+| 中位重叠 | 46.6 min | 45.3 min |
+| 最大重叠 | 120 min | 120 min |
+| broad b2b（trace 重叠 ≥2 visits） | 6,931 / 11,174 pairs | 9,208 / 15,194 pairs |
+
+### T29 三角（back-to-back）实例
+
+模拟 T29 配对：一个 segment 同时作为 V1 的 outgoing 和 V2 的 incoming，且时间上与两者都重叠。
+
+| | 2025 | 2026 |
+|---|---|---|
+| 三角 segment 数 | **9,558** | **11,117** |
+| 三角 visit-pair 数 | 12,037 | 15,517 |
+| 占全部 chain movement 比例 | ~23% | ~23% |
+| 三角中位重叠 | 11.9 min | 10.8 min |
+
+**样本摘要（两文件共享同一条数据）**：
+```
+seg=timelinePath-trace  2017-12-16 02:00:00 → 04:00:00  (5.96923, 116.06471)
+  fromVisit  00:50:59 → 06:40:49  overlap 120min
+  toVisit    01:49:41 → 04:36:21  overlap 120min
+```
+→ 一个 2h GPS trace 窗口同时与两个长停留（~6h、~3h）重叠，T29 把它配成 V1→trace→V2 的链，trace 的 duration/distance 为整 2h 窗口而非真实旅途。
+
+97%+ 三角实例发生在**时间范围不同的 distinct visits**（非同时间重复记录），现象真实存在。
+
+### 领域结论
+
+1. **activity-keyed segments 与 visits 之间无重叠**：Google 将 timeline 划分为干净的 visit/activity 分区，T29 的「取最近前驱/后继」在 activity 配对层面完全正确。
+
+2. **timelinePath traces 是重叠的唯一来源**：它们是 2h GPS 轨迹窗口，物理上跨越该时段内的 visits（手机在停留期间也记录 ambient GPS）。
+
+3. **T29 的三角问题**：约 23% 的 chain movements 实际是 2h trace 窗口而非真实旅途。在行程链 UI 中，这些 movements 显示 2h duration 和整条 trace path，可能误导用户。但实际上，chain movements 的**时长**标签是 trace 窗口的 span，而 **activityType**（transport mode）缺失（trace 无 activity type），显示为默认「移动」。
+
+4. **实际影响评估**：从三角样本看，涉及的 visits 多为长时间停留（数小时），trace 覆盖了整个停留期。用户不太可能注意到这些「移动」行的 duration 不准确，因为这些停留本身是"在家"或"在公司"等长停留，trace 是 ambient GPS 而非真正的移动轨迹。
+
+**对是否开 experiment/b5-livedata-overlap 分支的建议**：现象规模大（23%）但实际用户影响中等——多数三角涉及的是 ambient trace（ambient GPS during long stays），而非真实移动数据的错乱。**建议开分支做轻量实验**：在 buildTripChain 的 segment 输入中过滤掉无 activityType 的 timelinePath-only traces（只保留 activity-keyed segments 作为 chain candidates），实测链 UI 在 livedata 下是否更准确。如果去掉 traces 后链的 completeness 不受影响（因为 activity-keyed 覆盖了所有真实移动），则可正式合并；否则保留现状（trace 作为链 movement 仍是真实 GPS 数据，只是 duration 粒度较粗）。
+
+**补充数据格式发现**：
+- 时间戳字段名为 `startTime`/`endTime`（非 DATA-FINDINGS §2 所述的 `startTimestamp`/`endTimestamp`）。
+- 两文件段总数差异：83,202 vs 97,382（2026 多 16% 段，来自 13+ 年累积数据量）。
+- `timelineMemory` 段仅 22 条（两文件相同），按设计忽略。
+- 存在 1,082 对 exact duplicate visit records（同 start/end 时间范围，不同 placeId 候选），占总 visits 的 ~3.5%。
+
 ## 2026-09-15 20:30 — Dev T31 fallback 门槛口径统一（收尾）
 
 **背景**：2026-09-15 流程 retro A3——fallback 门槛在同一套语义下同时存在 `>=2` 与 `>0` 两种写法，过去两轮（T27 S3 / T22 S2）都在此踩坑回退。本次统一口径，不再改产品语义（L2）。

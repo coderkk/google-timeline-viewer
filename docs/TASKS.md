@@ -1,8 +1,9 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T32 -->
+<!-- next: T33 -->
 
 ## 🔨 Doing（WIP ≤ 2）
+
 
 ## 📋 To Do
 
@@ -21,10 +22,12 @@
 - [ ] [P2] 行程分享/导出（GeoJSON/KML）— （→ PRD 不做）(09-13)
 - [ ] [P2] 跨设备多 Takeout 合并去重 — （→ PRD 不做）(09-13)；含 T-K2③ rawSignals 滚动窗口互补合并（segments/visits 时间指纹去重 + points 互补合并）(09-14)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
-- [ ] [P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）(09-14)
+- [ ] [P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）；侦察完成：visit/activity 0 重叠，三角现象源于 timelinePath traces（23%），待用户拍板是否开实验分支 (09-14)
 - [ ] [P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算 (09-14)
 
 ## ✅ Done
+
+- [x] ~~T32: B5 侦察 — livedata visit/activity 重叠形态量化~~ (09-15→09-15) [P2] — scripts/analyze-visit-activity-overlap.mjs 输出两份 livedata 的 visit↔activity 时间重叠统计；**零重叠**（activity-keyed vs visit）+ trace 层面 ~23% 三角；结论写入 NOTES + DATA-FINDINGS §9；Reviewer PASS（N1 caveat 已补、N2 报告已是 dot decimals 无须改、N3 path-less 跨午夜为固有限制）。不碰产品代码
 
 - [x] ~~T31: fallback 门槛口径统一~~ (09-15→09-15) [P2] — 6 处 `>0` 统一走 `hasPath`（`boundsOf`/`polylineEndpoints`）或 `segmentPathOrEndpoints()`（其余 4 处）；渲染层 `>=2` 闸门统一走 `hasRenderablePath()`；`grep '\.path\.length [><=]'` 只出现在 `hasPath`/`hasRenderablePath`/`segmentVertices`/`parse` 四处；211 单测 + build + lint 全绿。来源: 2026-09-15 retro A3（→ PRD v1.21）；Reviewer PASS（零遗留）
 

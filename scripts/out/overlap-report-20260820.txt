@@ -1,0 +1,235 @@
+═══ Timeline-20260820.json ═══
+  semanticSegments: 97,382 = visit 37,287 + activity 30,702 + trace 29,371 + memory 22
+  elapsed 3769ms (load 1977ms)
+
+  [1] 任务字面定义: visit ↔ activity-keyed segments:
+    visits: 37,287   segments: 30,702
+    overlap pairs: 0
+      A (seg ⊇ visit):  0
+      B (visit ⊇ seg):  0
+      C (head overlap): 0
+      D (tail overlap): 0
+      E (exact equal):  0
+    max overlap: 0 min   median overlap: 0 min
+    broad b2b (seg overlaps >=2 visits): 0 segs / 0 pairs, median overlap 0 min
+    T29 chain movements: 29,875
+    T29 triangle (movement overlapping both flanking visits): 0 segs / 0 pairs, median overlap 0 min
+
+  [2] T29 实际输入: visit ↔ ALL segments (activity + trace):
+    visits: 37,287   segments: 60,073
+    overlap pairs: 43,092
+      A (seg ⊇ visit):  10,988
+      B (visit ⊇ seg):  5,519
+      C (head overlap): 8,657
+      D (tail overlap): 17,928
+      E (exact equal):  0
+    max overlap: 120 min   median overlap: 45.3 min
+    broad b2b (seg overlaps >=2 visits): 9,208 segs / 15,194 pairs, median overlap 30.2 min
+    T29 chain movements: 48,284
+    T29 triangle (movement overlapping both flanking visits): 11,117 segs / 15,517 pairs, median overlap 10.8 min
+    triangle samples (5 shown):
+      #1 seg=timelinePath-trace 2017-11-25 06:00:00 → 2017-11-25 08:00:00  (6.01946, 116.11805 → 6.02255, 116.11882)
+           fromVisit 2017-11-25 05:21:52 → 2017-11-25 09:02:00  overlap 120min
+           toVisit   2017-11-25 05:21:52 → 2017-11-25 09:49:16  overlap 120min
+      #2 seg=timelinePath-trace 2017-12-16 02:00:00 → 2017-12-16 04:00:00  (5.96923, 116.06471 → 5.96923, 116.06471)
+           fromVisit 2017-12-16 00:50:59 → 2017-12-16 06:40:49  overlap 120min
+           toVisit   2017-12-16 01:49:41 → 2017-12-16 04:36:21  overlap 120min
+      #3 seg=timelinePath-trace 2018-05-05 08:00:00 → 2018-05-05 10:00:00  (5.98607, 116.07725 → 5.98607, 116.07725)
+           fromVisit 2018-05-05 07:04:04 → 2018-05-05 13:14:21  overlap 120min
+           toVisit   2018-05-05 07:43:38 → 2018-05-05 11:31:33  overlap 120min
+      #4 seg=timelinePath-trace 2019-12-08 06:00:00 → 2019-12-08 08:00:00  (5.98794, 116.07781 → 5.98794, 116.07781)
+           fromVisit 2019-12-08 05:55:58 → 2019-12-08 10:31:16  overlap 120min
+           toVisit   2019-12-08 05:55:58 → 2019-12-08 10:39:42  overlap 120min
+      #5 seg=timelinePath-trace 2023-10-01 00:00:00 → 2023-10-01 02:00:00  (5.96705, 116.06522 → 5.96296, 116.06975)
+           fromVisit 2023-09-30 23:45:50 → 2023-10-01 02:11:09  overlap 120min
+           toVisit   2023-09-30 23:45:50 → 2023-10-01 04:25:51  overlap 120min
+
+[
+  {
+    "file": "Timeline-20260820.json",
+    "loadMs": 1977,
+    "segmentComposition": {
+      "totalSemanticSegments": 97382,
+      "visitKeyedRecords": 37287,
+      "activityKeyedSegments": 30702,
+      "timelinePathOnlyTraces": 29371,
+      "timelineMemoryIgnored": 22
+    },
+    "visitActivityOverlap": {
+      "visitCount": 37287,
+      "segmentCount": 30702,
+      "overlapPairs": 0,
+      "overlapTypeCounts": {
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "D": 0,
+        "E": 0
+      },
+      "maxOverlapMinutes": 0,
+      "medianOverlapMinutes": 0,
+      "b2bSegmentCount": 0,
+      "b2bPairCount": 0,
+      "b2bMedianOverlapMinutes": 0,
+      "chainMovementCount": 29875,
+      "triangleSegmentCount": 0,
+      "triangleVisitorPairCount": 0,
+      "triangleMedianOverlapMinutes": 0,
+      "triangleSamples": []
+    },
+    "t29InputOverlap": {
+      "visitCount": 37287,
+      "segmentCount": 60073,
+      "overlapPairs": 43092,
+      "overlapTypeCounts": {
+        "A": 10988,
+        "B": 5519,
+        "C": 8657,
+        "D": 17928,
+        "E": 0
+      },
+      "maxOverlapMinutes": 120,
+      "medianOverlapMinutes": 45.3,
+      "b2bSegmentCount": 9208,
+      "b2bPairCount": 15194,
+      "b2bMedianOverlapMinutes": 30.2,
+      "chainMovementCount": 48284,
+      "triangleSegmentCount": 11117,
+      "triangleVisitorPairCount": 15517,
+      "triangleMedianOverlapMinutes": 10.8,
+      "triangleSamples": [
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2017-11-25 06:00:00",
+          "segEnd": "2017-11-25 08:00:00",
+          "segStartCoord": "6.01946, 116.11805",
+          "segEndCoord": "6.02255, 116.11882",
+          "fromVisitStart": "2017-11-25 05:21:52",
+          "fromVisitEnd": "2017-11-25 09:02:00",
+          "toVisitStart": "2017-11-25 05:21:52",
+          "toVisitEnd": "2017-11-25 09:49:16",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        },
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2017-12-16 02:00:00",
+          "segEnd": "2017-12-16 04:00:00",
+          "segStartCoord": "5.96923, 116.06471",
+          "segEndCoord": "5.96923, 116.06471",
+          "fromVisitStart": "2017-12-16 00:50:59",
+          "fromVisitEnd": "2017-12-16 06:40:49",
+          "toVisitStart": "2017-12-16 01:49:41",
+          "toVisitEnd": "2017-12-16 04:36:21",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        },
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2018-05-05 08:00:00",
+          "segEnd": "2018-05-05 10:00:00",
+          "segStartCoord": "5.98607, 116.07725",
+          "segEndCoord": "5.98607, 116.07725",
+          "fromVisitStart": "2018-05-05 07:04:04",
+          "fromVisitEnd": "2018-05-05 13:14:21",
+          "toVisitStart": "2018-05-05 07:43:38",
+          "toVisitEnd": "2018-05-05 11:31:33",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        },
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2019-12-08 06:00:00",
+          "segEnd": "2019-12-08 08:00:00",
+          "segStartCoord": "5.98794, 116.07781",
+          "segEndCoord": "5.98794, 116.07781",
+          "fromVisitStart": "2019-12-08 05:55:58",
+          "fromVisitEnd": "2019-12-08 10:31:16",
+          "toVisitStart": "2019-12-08 05:55:58",
+          "toVisitEnd": "2019-12-08 10:39:42",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        },
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2023-10-01 00:00:00",
+          "segEnd": "2023-10-01 02:00:00",
+          "segStartCoord": "5.96705, 116.06522",
+          "segEndCoord": "5.96296, 116.06975",
+          "fromVisitStart": "2023-09-30 23:45:50",
+          "fromVisitEnd": "2023-10-01 02:11:09",
+          "toVisitStart": "2023-09-30 23:45:50",
+          "toVisitEnd": "2023-10-01 04:25:51",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        },
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2023-10-29 02:00:00",
+          "segEnd": "2023-10-29 04:00:00",
+          "segStartCoord": "5.96785, 116.07925",
+          "segEndCoord": "5.96995, 116.07540",
+          "fromVisitStart": "2023-10-29 01:47:51",
+          "fromVisitEnd": "2023-10-29 06:47:22",
+          "toVisitStart": "2023-10-29 01:55:17",
+          "toVisitEnd": "2023-10-29 05:35:18",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        },
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2024-02-11 14:00:00",
+          "segEnd": "2024-02-11 16:00:00",
+          "segStartCoord": "3.07977, 101.74473",
+          "segEndCoord": "3.08056, 101.74526",
+          "fromVisitStart": "2024-02-11 13:39:57",
+          "fromVisitEnd": "2024-02-12 00:19:47",
+          "toVisitStart": "2024-02-11 13:45:59",
+          "toVisitEnd": "2024-02-12 00:19:47",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        },
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2024-02-28 08:00:00",
+          "segEnd": "2024-02-28 10:00:00",
+          "segStartCoord": "5.99214, 116.09270",
+          "segEndCoord": "5.98999, 116.09197",
+          "fromVisitStart": "2024-02-28 05:51:44",
+          "fromVisitEnd": "2024-02-28 10:01:18",
+          "toVisitStart": "2024-02-28 06:16:53",
+          "toVisitEnd": "2024-02-28 10:01:18",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        },
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2024-03-18 04:00:00",
+          "segEnd": "2024-03-18 06:00:00",
+          "segStartCoord": "5.99129, 116.09277",
+          "segEndCoord": "5.98930, 116.09203",
+          "fromVisitStart": "2024-03-17 23:27:18",
+          "fromVisitEnd": "2024-03-18 10:57:23",
+          "toVisitStart": "2024-03-18 03:42:50",
+          "toVisitEnd": "2024-03-18 10:21:16",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        },
+        {
+          "segType": "timelinePath-trace",
+          "segStart": "2024-04-19 04:00:00",
+          "segEnd": "2024-04-19 06:00:00",
+          "segStartCoord": "6.02837, 116.11923",
+          "segEndCoord": "5.98849, 116.09329",
+          "fromVisitStart": "2024-04-18 23:36:18",
+          "fromVisitEnd": "2024-04-19 09:11:49",
+          "toVisitStart": "2024-04-18 23:57:55",
+          "toVisitEnd": "2024-04-19 07:46:10",
+          "fromOverlapMin": 120,
+          "toOverlapMin": 120
+        }
+      ]
+    },
+    "elapsedMs": 3769
+  }
+]

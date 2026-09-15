@@ -210,3 +210,77 @@ summary 仍如实显示 cap 后的点数与「已降采样显示」；低 zoom �
 `polylineEndpoints` / `TripMap.positions` 的既有 fallback），可能露出一點前一日端點。這是既有
 fallback 的固有限制——沒有頂點可裁；真實資料的跨午夜段多帶 `timelinePath`，故影響極小。
 若日後要消除，需在 fallback 端點間求與 range 邊界的交點（幾何插值），屬獨立改動。
+
+---
+
+## 9. visit 与 activity 的时间分区（B5 侦察，T32，2026-09-15）
+
+> 分析工具：`scripts/analyze-visit-activity-overlap.mjs`（Node ESM，~3.7s/文件）。
+> 数据源：`docs/livedata/Timeline-20250213.json`（83,202 段）、`Timeline-20260820.json`（97,382 段）。
+
+### 9.1 核心发现：visit 与 activity-keyed segments 是干净的时间分区
+
+在两份 livedata 文件中，`visit` 段（停留）与 `activity` 段（出行）**不存在任何时间重叠**。它们形成不相交的时间序列：一个 visit 结束后，下一个 activity 开始（或反之），间隔为 0ms（相邻）或正 gap，绝无负 gap。
+
+**0 个重叠对**被发现（2025: 30,682 visits + 26,843 activity-segments；2026: 37,287 + 30,702）。
+
+这意味着 Google Timeline 的数据模型在 semanticSegments 层面将「停留」和「出行」作为互斥的语义段，时间上不重叠。T29 行程链的「取最近前驱/后继 segment」配对逻辑在 activity-segment 层面是完全正确的。
+
+### 9.2 timelinePath traces：T29 输入的重叠来源
+
+**关键数据格式事实**：`parse/common.ts` 的 `addSegment` 将 `timelinePath`-only 记录（2 小时 GPS 轨迹窗口）也推入 `state.segments`。因此 `prepareTrips` 传给 T29 `buildTripChain` 的 `segments` 数组包含两层：
+
+| 段来源 | 2025 文件 | 2026 文件 |
+|---|---|---|
+| activity-keyed（真正移动段） | 26,843 | 30,702 |
+| timelinePath-only traces（2h GPS 窗口） | 25,655 | 29,371 |
+| `state.segments` 合计 | 52,498 | 60,073 |
+
+**visit 与 timelinePath traces 的重叠统计**（仅 traces，0 来自 activity-keyed）：
+
+| | 2025 | 2026 |
+|---|---|---|
+| 重叠对 | 35,349 | 43,092 |
+| 形态 A（trace ⊇ visit） | 8,579 | 10,988 |
+| 形态 B（visit ⊇ trace） | 4,581 | 5,519 |
+| 形态 C（head overlap） | 6,985 | 8,657 |
+| 形态 D（tail overlap） | 15,204 | 17,928 |
+| 中位重叠 | 46.6 min | 45.3 min |
+| 最大重叠 | 120 min | 120 min |
+| 重叠 ≥2 visits 的 trace 段 | 6,931 | 9,208 |
+
+### 9.3 T29 三角（back-to-back）现象
+
+模拟 T29 的事件排序 + 前后扫描配对，发现：
+
+| | 2025 | 2026 |
+|---|---|---|
+| 三角 segment（同一 movement 是 V1 outgoing 且 V2 incoming） | 9,558 | 11,117 |
+| 占全部 chain movements 比例 | ~23% | ~23% |
+| 三角 visit-pair 数 | 12,037 | 15,517 |
+| 三角中位重叠 | 11.9 min | 10.8 min |
+
+**三角的本质**：这些 segment 全部是 `timelinePath`-only 的 2 小时 GPS 窗口（`activity`-keyed segments 0 个三角）。它们在 T29 链中被配为「从停留 A 到停留 B 的移动」，但 duration 标签显示的是整 2h 窗口的跨度，而非真实旅途时长；activityType 为 undefined（trace 无活动类型），显示为默认「移动」。
+
+**典型样本**：
+```
+trace 2017-12-16 02:00:00 → 04:00:00 (5.96923, 116.06471)
+  fromVisit: 00:50:59 → 06:40:49 (overlap 120 min)
+  toVisit:   01:49:41 → 04:36:21 (overlap 120 min)
+```
+
+三角实例中 97%+ 发生在时间范围不同的 distinct visit pairs（非同时间重复记录）。
+
+### 9.4 对 T29 配对的影响评估
+
+- **activity-keyed 配对**：完全正确，无重叠干扰。
+- **timelinePath trace 配对**：~23% 的 chain movements 是 2h trace 窗口而非真实旅途；行程链 UI 显示的 duration/distance 是 trace 窗口值，粒度较粗。
+- **用户感知影响**：多数三角涉及长停留（数小时），trace 是 ambient GPS（手机在停留期间记录的 GPS），用户不太可能注意到 duration 值偏大。
+- **潜在改善**：在 `buildTripChain` 的 segment 输入中过滤无 `activityType` 的 timelinePath-only traces（仅保留 activity-keyed segments 作为 chain candidates），可能提升链 UI 的 duration 准确度；需实验验证 completeness 是否受影响。
+- **Completeness caveat**：visits 总数（30,682 / 37,287）显著多于 activity-keyed chain movements（26,027 / 29,875）——部分 visit 可能仅通过 timelinePath trace 与其他段连接；若过滤 traces，这些 visit 在行程链中将缺失 incoming/outgoing。
+
+### 9.5 格式补充发现
+
+- 时间戳字段名为 `startTime` / `endTime`（非 §2.2 概述中的 `startTimestamp` / `endTimestamp`）。
+- `timelineMemory` 段仅 22 条（两文件相同），按设计忽略。
+- 两文件存在 1,082 对 exact duplicate visit records（同 start/end 范围、不同 placeId 候选），占 visits 的 ~3.5%。
