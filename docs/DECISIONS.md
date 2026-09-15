@@ -61,6 +61,10 @@
 ## 2026-09-15 20:40 — T31 验收通过（fallback 门槛口径统一）
 决定: T31 验收通过：抽出 `MIN_PATH_LEN`/`hasPath`/`segmentPathOrEndpoints`/`MIN_POLYLINE_LEN`/`hasRenderablePath` 共用常量，6 处 `>0` 几何源选择与 4 处渲染层 `>=2` 闸门统一单一口径；解析层 `>=2`（缝合池）有意保留并注释差异。理由: 2026-09-15 retro A3，消除 `>=2` vs `>0` 两次回退根源（T20-25/T27）；211 单测 + build + lint 全绿；Reviewer PASS 零遗留（N1 措辞已同步）。
 
+## 2026-09-15 22:20 — T33 验收通过：by-activity 行程链过滤 timelinePath-only traces（B5 方案 A merge）
+决定: T33 验收通过，实验分支 `experiment/b5-livedata-overlap` fast-forward 并入 main。改动：解析层 `addSegment` 为 Segment 设 `hasActivitySemantics` 标记（判据 = activityRec ∥ activityType ∥ start/end 坐标任意存在），`buildTripChain` 内部用 `isActivityMovement()` 过滤（undefined 默认保留，兼容旧手写段）。timeline 模式零改动。
+理由: livedata 全量验证——三角 12,037/15,517 → 0/0、孤立停留 0/0（**推翻侦察 §5.2 误判的「15-20% 缺口」**：量纲错误，链边是段去重计数不可与停留数相减）、≈2h 假移动 19,891/22,701 → 75/75、中位链时长 50.4/47.8 → 15.0/14.8 min；216 单测 + build + lint 全绿；Reviewer PASS 零遗留。用户拍板「修正在按活动类型就可以」。分析：docs/RESEARCH-B5.md；结果：docs/EXPERIMENT-B5.md。
+
 ## 2026-09-15 21:35 — B5 开「分支实验模式」+ T32 侦察验收
 决定: ①B5 采用**分支实验模式**：main=对照组、`experiment/b5-livedata-overlap`=实验组，用户本地真数据对比后拍板 merge/关闭/取代码——替代无法做的 A/B（纯本地无埋点、无后端、隐私承诺）。规则：实验期宽松 Review、merge 门控走完整流程、>1 周未定提醒。②T32 侦察验收通过（commit c5c8d67，Reviewer PASS）。
 理由: ①无行为数据可替用户决策，分支=人肉 A/B，最诚实的验证路径；②侦察发现（scripts/analyze-visit-activity-overlap.mjs，两文件全量）——visit 与 activity-keyed 段**零重叠**（干净时间分区，30,682/37,287 visits），T29 在此层面 100% 正确；**三角现象（~23% chain movements）全部来自 timelinePath-only traces**（2h GPS 窗口 ambient GPS），非 activity 段——B5 原设「visit↔activity 关联展示」问题在语义段层面**不存在**，真实盲区是 trace 段进链导致 duration/距离标签偏粗。

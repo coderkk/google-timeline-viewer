@@ -4,13 +4,6 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T33: 实验分支 — by activity 行程链过滤 timelinePath-only traces（B5 方案 A）**
-  - 验收: 分支 `experiment/b5-livedata-overlap` 上实现；buildTripChain 输入只收 activity-keyed 段（丢弃 timelinePath-only traces）；三角归零；livedata 全量链统计对比（main vs 分支）；by activity 单测更新 + 全绿；不碰时间轴路径
-  - 档位: L3（实验分支）— 跨解析/链逻辑，需真实数据验证
-  - 指派: Dev
-  - 来源: B5（docs/RESEARCH-B5.md §5）；用户拍板「先改 by activity」
-  - 时间: 09-15 创建
-
 ## 📋 To Do
 
 
@@ -28,10 +21,12 @@
 - [ ] [P2] 行程分享/导出（GeoJSON/KML）— （→ PRD 不做）(09-13)
 - [ ] [P2] 跨设备多 Takeout 合并去重 — （→ PRD 不做）(09-13)；含 T-K2③ rawSignals 滚动窗口互补合并（segments/visits 时间指纹去重 + points 互补合并）(09-14)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
-- [ ] [P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）；**侦察完成**（T32）：visit/activity 0 重叠、三角源于 timelinePath traces（23%），详见 **docs/RESEARCH-B5.md**；待用户拍板是否开 experiment 分支 (09-14)
+- [x] ~~[P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）~~ **(09-14→09-15 完成)** — 侦察（T32）证伪「visit↔activity 重叠」假设；真问题=timelinePath traces 混入 by-activity 链（23% 假移动）；实验分支（T33）验证方案 A 净改善（三角归零+零孤岛），已 merge；分析见 docs/RESEARCH-B5.md，结果见 docs/EXPERIMENT-B5.md
 - [ ] [P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算 (09-14)
 
 ## ✅ Done
+
+- [x] ~~T33: 实验分支 — by activity 行程链过滤 timelinePath-only traces（B5 方案 A）~~ (09-15→09-15) [P2] — buildTripChain 内部过滤 `hasActivitySemantics !== false`（解析层 addSegment 设置标记）；三角 12,037/15,517 → 0/0、孤岛 0/0（推翻侦察 §5.2 误判的「15-20% 缺口」）、≈2h 假移动 19,891/22,701 → 75/75；ingle 216 全绿 + build + lint；Reviewer PASS；实验分支 `experiment/b5-livedata-overlap` fast-forward 并入 main；结果详见 docs/EXPERIMENT-B5.md
 
 - [x] ~~T32: B5 侦察 — livedata visit/activity 重叠形态量化~~ (09-15→09-15) [P2] — scripts/analyze-visit-activity-overlap.mjs 输出两份 livedata 的 visit↔activity 时间重叠统计；**零重叠**（activity-keyed vs visit）+ trace 层面 ~23% 三角；结论写入 NOTES + DATA-FINDINGS §9；Reviewer PASS（N1 caveat 已补、N2 报告已是 dot decimals 无须改、N3 path-less 跨午夜为固有限制）。不碰产品代码
 

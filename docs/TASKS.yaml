@@ -1,5 +1,5 @@
 # TASKS: Google Timeline Viewer
-# next: T33
+# next: T34
 # 注：历史任务（T1–T30）的 tier 为 2026-09-15 三档制度引入后的回填估计；T31 起按实际判定。
 
 ## Doing
@@ -66,20 +66,26 @@
     - 09-13 创建
   notes: scripts/ 独立 node 脚本，替代误入 src 的 bench
 
-- id: T-B5
-  title: livedata 完整支持（新版 Timeline.json 语义段重叠合并）
-  status: backlog
+- id: T33
+  title: 实验分支 — by activity 行程链过滤 timelinePath-only traces（B5 方案 A）
+  status: done
   tier: L3
   priority: P2
   assignee: Dev
-  source: PRD#功能3 延伸
-  created: 09-14
+  source: B5 → RESEARCH-B5.md §5；用户拍板「先改 by activity」
+  created: 09-15
+  completed: 09-15
   timechain:
-    - 09-14 创建
-    - 09-15 分支实验模式拍板 → 拆 T32 侦察先行
+    - 09-15 创建
+    - 09-15 实验分支 implement + compare 全量验证
+    - 09-15 Reviewer PASS → fast-forward 并入 main
+  acceptance: >-
+    buildTripChain 只收 activity-keyed 段；三角归零；livedata 全量对比
+    （main vs 分支）；不碰时间轴路径；216 单测 + build + lint 全绿
   notes: >-
-    activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示；
-    T32 侦察完成 → 详见 docs/RESEARCH-B5.md；待用户拍板是否开 experiment 分支
+    三角 12,037/15,517 → 0/0；isolated visits 0/0（推翻侦察 §5.2 误判的
+    「15-20% 缺口」——量纲陷阱：链边是段去重计数，不可与停留数相减）；
+    ≈2h 假移动 19,891/22,701 → 75/75；结果详见 docs/EXPERIMENT-B5.md
 
 - id: T-B6
   title: raw 点渲染性能压测
