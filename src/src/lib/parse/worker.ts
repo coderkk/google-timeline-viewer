@@ -3,6 +3,7 @@
 // merged dataset come back through messages. Oversized files (>100MB by
 // default) emit a `large` notice first so the UI can warn the user.
 import type { TimelineData } from '../types'
+import { detectLang, translate } from '../i18n'
 import ParseWorker from './parse.worker?worker'
 import type { ParseFilesRequest, WorkerResponse } from './parse.worker'
 
@@ -42,7 +43,7 @@ export function parseFilesInWorker(
     }
     worker.onerror = (event) => {
       worker.terminate()
-      reject(new Error(event.message || 'Worker 解析失败'))
+      reject(new Error(event.message || translate(detectLang(), 'import.workerFailed')))
     }
 
     for (const file of files) {

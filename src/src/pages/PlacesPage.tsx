@@ -5,9 +5,9 @@ import PlacesMap from '../components/PlacesMap'
 import VisitHistoryPanel from '../components/VisitHistoryPanel'
 import { SpatialGrid, type CircleHit } from '../lib/geo/SpatialGrid'
 import { groupVisitsByLocation, visitGroupKey } from '../lib/geo/visitHistory'
-import { fmtDistanceKm, PLACE_RADII_KM, PLACES_RESULT_LIMIT } from '../lib/geo/places'
-import { SAMPLE_LABEL } from '../lib/sample'
-import { filterVisits, fmtDateTime, fmtDuration, type DateRangeFilter } from '../lib/trips'
+import { PLACE_RADII_KM, PLACES_RESULT_LIMIT } from '../lib/geo/places'
+import { useI18n } from '../lib/i18n'
+import { filterVisits, type DateRangeFilter } from '../lib/trips'
 import type { Point, TimelineData, Visit } from '../lib/types'
 import { useTimelineStore } from '../store/timelineStore'
 import EmptyState from './EmptyState'
@@ -60,6 +60,7 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
   // All query updates happen inside timer callbacks (never synchronously in an
   // effect) to satisfy the strict react-hooks set-state-in-effect rule.
   const [queryState, setQueryState] = useState<QueryState>({ sig: null, slow: false, results: [] })
+  const { t, formatNumber, formatDateTime, formatDuration, formatDistanceKm } = useI18n()
 
   // Rebuilds only when the dataset or the global date filter changes: both are
   // stable store references, so the memo re-runs exactly then.
@@ -128,9 +129,9 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
   const hidden = results.length - shown.length
   const overlayText =
     center && awaitingSlow
-      ? '查询中…'
+      ? t('places.querying')
       : center && fresh && results.length === 0
-        ? '此处无停留记录'
+        ? t('places.noStopsHere')
         : null
 
   const map = (
@@ -159,10 +160,10 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
     <aside className="trips-side">
       <DataBar />
       <DateRangePicker />
-      <div className="places-help">点击地图任意位置，查看该处历史上的停留点及访问时间。</div>
+      <div className="places-help">{t('places.help')}</div>
       <div className="places-controls">
-        <div className="stop-list-head">查询半径</div>
-        <div className="places-radii-label">1–100 KM</div>
+        <div className="stop-list-head">{t('places.radius')}</div>
+        <div className="places-radii-label">{t('places.radiiLabel')}</div>
         <div className="places-radii">
           {PLACE_RADII_KM.map((radius) => (
             <button
@@ -182,20 +183,22 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
             {center.lat.toFixed(5)}, {center.lng.toFixed(5)}
           </div>
           <div className="places-card-count">
-            {awaitingSlow || !fresh ? '查询中…' : `${results.length} 个停留点在此范围内`}
+            {awaitingSlow || !fresh
+              ? t('places.querying')
+              : t('places.stopsInRange', { n: formatNumber(results.length) })}
           </div>
         </div>
       )}
       <div className="stop-list">
         <div className="stop-list-head">
-          {center ? `范围内停留点（${results.length}）` : '停留点'}
+          {center ? t('places.stopsInRange', { n: formatNumber(results.length) }) : t('places.stops')}
         </div>
         {!center ? (
-          <div className="stop-list-empty">点击地图开始查询</div>
+          <div className="stop-list-empty">{t('places.clickMap')}</div>
         ) : awaitingSlow || !fresh ? (
-          <div className="stop-list-empty">查询中…</div>
+          <div className="stop-list-empty">{t('places.querying')}</div>
         ) : results.length === 0 ? (
-          <div className="stop-list-empty">此处无停留记录</div>
+          <div className="stop-list-empty">{t('places.noStopsHere')}</div>
         ) : (
           <ul className="stop-list-items">
             {shown.map((hit, index) => {
@@ -212,11 +215,12 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
                     className={active ? 'stop-item selected' : 'stop-item'}
                     onClick={() => handleSelect(visit)}
                   >
-                    <span className="stop-name">{visit.name ?? '坐标附近'}</span>
+                    <span className="stop-name">{visit.name ?? t('places.nearby')}</span>
                     {visit.address !== undefined && <span className="stop-address">{visit.address}</span>}
                     <span className="stop-meta">
-                      {fmtDateTime(visit.startMs)} → {fmtDateTime(visit.endMs)} ·{' '}
-                      {fmtDuration(visit.endMs - visit.startMs)} · 距离 {fmtDistanceKm(hit.distanceKm)}
+                      {formatDateTime(visit.startMs)} → {formatDateTime(visit.endMs)} ·{' '}
+                      {formatDuration(visit.endMs - visit.startMs)} ·{' '}
+                      {t('places.distance', { d: formatDistanceKm(hit.distanceKm) })}
                     </span>
                   </button>
                 </li>
@@ -226,7 +230,7 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
         )}
         {hidden > 0 && (
           <div className="stop-list-more">
-            仅显示前 {shown.length} 条，还有 {hidden} 条 — 请缩小半径或日期范围
+            {t('places.more', { shown: formatNumber(shown.length), hidden: formatNumber(hidden) })}
           </div>
         )}
       </div>
@@ -236,15 +240,19 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
   return (
     <section className="trips-shell">
       <div className="trips-topbar">
-        <h2 className="trips-title">Places</h2>
-        {dataSource === 'sample' && <span className="badge-sample">{SAMPLE_LABEL}</span>}
+        <h2 className="trips-title">{t('places.title')}</h2>
+        {dataSource === 'sample' && <span className="badge-sample">{t('landing.sampleLabel')}</span>}
         <span className="trips-summary">
-          {grid.recordCount} 停留（总 {data.meta.visitCount}）· 当前半径 {radiusKm} km · 1–100 KM 可选
+          {t('places.summary', {
+            n: formatNumber(grid.recordCount),
+            total: formatNumber(data.meta.visitCount),
+            radius: formatNumber(radiusKm),
+          })}
         </span>
         <span className="trips-legend">
           <span className="chip">
             <i style={{ background: '#f59e0b' }} />
-            查询范围
+            {t('places.legend')}
           </span>
         </span>
         <button
@@ -252,7 +260,7 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
           className="trips-toggle"
           onClick={() => setSidebarOpen((open) => !open)}
         >
-          {sidebarOpen ? '收起面板 «' : '展开面板 »'}
+          {sidebarOpen ? t('trips.panel.collapse') : t('trips.panel.expand')}
         </button>
       </div>
       <div className="trips-body">{sidebarOpen ? <>{sidebar}{map}</> : map}</div>

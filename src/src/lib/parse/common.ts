@@ -429,7 +429,7 @@ export function addRawPoint(
   if (state.points.length >= MAX_RAW_POINTS) {
     if (!state.rawTruncated) {
       state.rawTruncated = true
-      state.warnings.push(`${ctx}: raw points 超过 ${MAX_RAW_POINTS / 1_000_000} 万，已截断`)
+      state.warnings.push(`${ctx}: raw points 超过 ${MAX_RAW_POINTS / 10_000} 万，已截断`)
     }
     return
   }

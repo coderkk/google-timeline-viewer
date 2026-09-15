@@ -7,10 +7,12 @@ import TripsPage from './pages/TripsPage'
 import PlacesPage from './pages/PlacesPage'
 import HelpPage from './pages/HelpPage'
 import SettingsPage from './pages/SettingsPage'
+import { useI18n } from './lib/i18n'
 import { useTimelineStore } from './store/timelineStore'
 
 export default function App() {
   const themeMode = useTimelineStore((state) => state.themeMode)
+  const { t, lang } = useI18n()
 
   useEffect(() => {
     const root = document.documentElement
@@ -20,6 +22,11 @@ export default function App() {
       root.setAttribute('data-theme', themeMode)
     }
   }, [themeMode])
+
+  useEffect(() => {
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hans' : 'en'
+    document.title = t('app.title')
+  }, [t, lang])
 
   return (
     <>

@@ -1,7 +1,9 @@
 import { Link, NavLink } from 'react-router-dom'
 import { NAV_LINKS, SITE_NAME } from '../lib/site'
+import { useI18n } from '../lib/i18n'
 
 export default function Header() {
+  const { t } = useI18n()
   return (
     <header className="site-header">
       <div className="site-header-inner">
@@ -16,7 +18,7 @@ export default function Header() {
               end={link.to === '/'}
               className={({ isActive }) => (isActive ? 'site-nav-link active' : 'site-nav-link')}
             >
-              {link.label}
+              {t(link.labelKey)}
             </NavLink>
           ))}
         </nav>

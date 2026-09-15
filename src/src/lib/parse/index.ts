@@ -92,7 +92,7 @@ export function mergeTimelineData(list: TimelineData[], warnings: string[] = [])
   let points = list.flatMap((data) => data.points)
   if (points.length > MAX_RAW_POINTS) {
     points = points.slice(0, MAX_RAW_POINTS)
-    warnings.push(`累计 raw points 超过 ${MAX_RAW_POINTS / 1_000_000} 万，已截断`)
+    warnings.push(`累计 raw points 超过 ${MAX_RAW_POINTS / 10_000} 万，已截断`)
   }
   return {
     points,

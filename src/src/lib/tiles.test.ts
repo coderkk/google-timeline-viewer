@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  CUSTOM_TILE_NANE,
   OSM_ATTRIBUTION,
   OSM_TILE_SOURCE,
   OSM_TILE_URL,
@@ -19,10 +18,6 @@ describe('tiles', () => {
     })
   })
 
-  it('marks user-entered sources as custom', () => {
-    expect(CUSTOM_TILE_NANE).toBe('自定义')
-  })
-
   it('accepts a well-formed tile URL', () => {
     expect(tileUrlError('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')).toBeNull()
     expect(tileUrlError(OSM_TILE_URL)).toBeNull()
@@ -35,24 +30,24 @@ describe('tiles', () => {
   })
 
   it('rejects URLs that miss any of the {z}/{x}/{y} tokens', () => {
-    const message = tileUrlError('https://example.com/tiles.png')
-    expect(message).not.toBeNull()
-    expect(message).toContain('{z}')
-    expect(message).toContain('{x}')
-    expect(message).toContain('{y}')
+    const error = tileUrlError('https://example.com/tiles.png')
+    expect(error?.key).toBe('tiles.error.missingPlaceholders')
+    expect(error?.params?.missing).toContain('{z}')
+    expect(error?.params?.missing).toContain('{x}')
+    expect(error?.params?.missing).toContain('{y}')
   })
 
   it('rejects URLs missing only a subset of the tokens', () => {
-    const message = tileUrlError('https://example.com/{z}/{x}.png')
-    expect(message).not.toBeNull()
-    expect(message).toContain('缺少瓦片占位符 {y}（')
+    const error = tileUrlError('https://example.com/{z}/{x}.png')
+    expect(error?.key).toBe('tiles.error.missingPlaceholders')
+    expect(error?.params?.missing).toBe('{y}')
   })
 
   it('rejects unparsable or non-http(s) URLs', () => {
-    expect(tileUrlError('not a url')).not.toBeNull()
-    expect(tileUrlError('ftp://example.com/{z}/{x}/{y}.png')).not.toBeNull()
-    expect(tileUrlError('file:///tmp/{z}/{x}/{y}.png')).not.toBeNull()
-    expect(tileUrlError('javascript:alert(1)')).not.toBeNull()
+    expect(tileUrlError('not a url')?.key).toBe('tiles.error.unparseable')
+    expect(tileUrlError('ftp://example.com/{z}/{x}/{y}.png')?.key).toBe('tiles.error.scheme')
+    expect(tileUrlError('file:///tmp/{z}/{x}/{y}.png')?.key).toBe('tiles.error.scheme')
+    expect(tileUrlError('javascript:alert(1)')?.key).toBe('tiles.error.scheme')
   })
 })
 
@@ -66,15 +61,14 @@ describe('tileUrlNotes', () => {
   it('warns about cleartext http:// tile sources', () => {
     const notes = tileUrlNotes('http://192.168.1.10/tiles/{z}/{x}/{y}.png')
     expect(notes.map((n) => n.kind)).toEqual(['cleartext'])
-    expect(notes[0].text).toContain('明文传输')
-    expect(notes[0].text).toContain('https')
+    expect(notes[0].key).toBe('tiles.note.insecure')
   })
 
   it('explains {s} subdomains and flags the OSM conflict', () => {
     const notes = tileUrlNotes('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
     expect(notes.map((n) => n.kind)).toEqual(['subdomains', 'osm-subdomains'])
-    expect(notes[0].text).toContain('a/b/c')
-    expect(notes[1].text).toContain('OSM 公共服务器不支持 {s}')
+    expect(notes[0].key).toBe('tiles.note.subdomains')
+    expect(notes[1].key).toBe('tiles.note.osmNoSubdomains')
   })
 
   it('combines cleartext and {s} notes, with no OSM conflict for non-OSM hosts', () => {

@@ -2,6 +2,7 @@
 // privacy-safe default action (local only); the Google Maps link next to it is
 // an explicit external action and is labelled separately.
 import { useState } from 'react'
+import { useI18n } from '../lib/i18n'
 import { writeCoordsToClipboard } from '../lib/coords'
 
 export default function CopyCoordsButton({
@@ -14,6 +15,8 @@ export default function CopyCoordsButton({
   className?: string
 }) {
   const [state, setState] = useState<'idle' | 'done' | 'error'>('idle')
+  const { t } = useI18n()
+  const label = state === 'done' ? t('map.copied') : state === 'error' ? t('map.copyFailed') : t('map.copyCoords')
   return (
     <button
       type="button"
@@ -29,7 +32,7 @@ export default function CopyCoordsButton({
           })
       }}
     >
-      {state === 'done' ? '已复制' : state === 'error' ? '复制失败' : '复制坐标'}
+      {label}
     </button>
   )
 }

@@ -45,3 +45,6 @@
 
 ## 2026-09-15 09:50 — T20–T25 验收通过（Dev→Reviewer 两轮修正后 PASS）
 决定: T20（外链隐私）/T21（coveredByRaw 按顶点）/T22（跨午夜标注+裁剪）/T23（渲染性能）/T24（移动端）/T25（GeoJSON/KML 导出）验收通过，可提交部署。理由: 流程改为 Dev 执行 + Reviewer 审查（不再由 CEO 直接写码）；Reviewer 首轮 PASS-WITH-CONDITIONS（S2 T23 vs PRD 冲突、S3 activityType 未裁剪），第二轮抓到 S3 修正被 `length>=2` fallback 抵销而 FAIL，Dev 三处 fallback 修为 `>0` + 回归测试后 **PASS**；167 单测 + build + lint 全绿。S2 决策：改 PRD（功能 3 加「zoom≥6 才画圆点，低 zoom 只画折线」+ v1.17），不改实现（避免 30k 点秒级冻结回归）。S3 决策：补 activityType 裁剪（PRD 验收未限定模式）。T20 补了 PlacesMap 的裸外链缺口（Security 阻塞项）。遗留：README 修复排最后（等 UI 定稿）。
+
+## 2026-09-15 11:45 — T27/T28 验收通过（Dev↔Reviewer 四轮后 PASS）
+决定: T27（行程统计报表，功能 11）/ T28（多语言 EN/简体中文，功能 12）验收通过，可提交部署。理由: Dev 执行 + Reviewer 审查；Reviewer 首轮 PASS-WITH-CONDITIONS（S3 store 内已解析字串不随语言切换；A1 活躍天数未裁范围；A2 距离口径随模式；A3 截断单位错 100×）→ Dev 修 → 二轮又抓到 `segmentsDistanceKm` 的 `>=2` fallback 与渲染器 `>0` 不一致 → Dev 修 → 三轮 Reviewer 抓到 Dev 为 N1 加的 `map.stop()` 造成「收起面板白屏」**致命回归（FAIL）** → Dev 回退 → 四轮 **PASS**。190→191 单测 + build + lint 全绿。决策：S3/A1/A2/A3 必修；A2 采「距离口径随模式」（各用该模式绘制几何，sample 8236 vs 8124 km）；A4（同名不同地合并）/A5（worker 未知警告模板）/N1（Leaflet `_leaflet_pos` 既有噪音）记录接受，不修。i18n：自建轻量 catalog（无新依赖）、默认跟随浏览器语言（zh*→中文，其余→English）、设置页手动切换、**不持久化**（维持隐私承诺）。遗留：`SAMPLE_LABEL`/`COORDS_PRIVACY_NOTE`/旧 zh helper 死码待清。

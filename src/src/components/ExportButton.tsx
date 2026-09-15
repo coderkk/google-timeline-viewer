@@ -14,7 +14,8 @@ import {
   exportMimeType,
   type ExportFormat,
 } from '../lib/export'
-import { fmtRangeLabel, prepareTimeline } from '../lib/trips'
+import { prepareTimeline } from '../lib/trips'
+import { useI18n } from '../lib/i18n'
 import { useTimelineStore } from '../store/timelineStore'
 
 const FORMAT_LABEL: Record<ExportFormat, string> = {
@@ -29,6 +30,7 @@ export default function ExportButton() {
   const [format, setFormat] = useState<ExportFormat>('geojson')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const { t, formatNumber, formatRangeLabel } = useI18n()
 
   // Only computed while the dialog is open, so the (potentially heavy) filter
   // pass never runs on ordinary page renders.
@@ -60,13 +62,17 @@ export default function ExportButton() {
 
   if (!data) return null
 
-  const rangeLabel = fmtRangeLabel(dateRange)
+  const rangeLabel = formatRangeLabel(dateRange)
   const routePoints = payload?.route.length ?? 0
   const visitCount = payload?.visits.length ?? 0
 
   const download = (): void => {
     if (!payload) return
-    const content = buildExport(format, { route: payload.route, visits: payload.visits })
+    const content = buildExport(
+      format,
+      { route: payload.route, visits: payload.visits },
+      { routeName: t('export.kmlRouteName'), docName: t('export.kmlDocName') },
+    )
     const blob = new Blob([content], { type: exportMimeType(format) })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
@@ -87,29 +93,32 @@ export default function ExportButton() {
         type="button"
         className="data-bar-btn"
         onClick={() => setOpen(true)}
-        title="导出当前筛选范围内的轨迹与停留"
+        title={t('data.exportTitle')}
       >
-        导出
+        {t('data.export')}
       </button>
       {open && (
-        <div className="export-overlay" role="dialog" aria-modal="true" aria-label="导出行程">
+        <div className="export-overlay" role="dialog" aria-modal="true" aria-label={t('export.title')}>
           <div className="export-dialog" ref={dialogRef} tabIndex={-1}>
-            <h3 className="export-title">导出行程</h3>
+            <h3 className="export-title">{t('export.title')}</h3>
 
             <dl className="export-facts">
               <div>
-                <dt>范围</dt>
+                <dt>{t('export.range')}</dt>
                 <dd>{rangeLabel}</dd>
               </div>
               <div>
-                <dt>内容</dt>
+                <dt>{t('export.contents')}</dt>
                 <dd>
-                  {routePoints.toLocaleString()} 个轨迹点（LineString）· {visitCount.toLocaleString()} 个停留点（Point）
+                  {t('export.contentsValue', {
+                    points: formatNumber(routePoints),
+                    visits: formatNumber(visitCount),
+                  })}
                 </dd>
               </div>
             </dl>
 
-            <div className="export-format" role="radiogroup" aria-label="导出格式">
+            <div className="export-format" role="radiogroup" aria-label={t('export.title')}>
               {(['geojson', 'kml'] as const).map((option) => (
                 <label key={option} className={format === option ? 'export-radio active' : 'export-radio'}>
                   <input
@@ -125,18 +134,18 @@ export default function ExportButton() {
             </div>
 
             <ul className="export-notes">
-              <li>只导出当前筛选范围内的数据（可在上方日期范围调整）。</li>
-              <li>已剥离原始文件名、装置标识与文件路径等 metadata，不含任何本工具内部信息。</li>
-              <li>导出文件不受本工具保护：一旦下载到磁盘，请自行妥善保管，切勿上传到不可信的第三方服务。</li>
-              <li>本工具全程在本机生成文件，不会上传、不产生任何网络请求。</li>
+              <li>{t('export.note1')}</li>
+              <li>{t('export.note2')}</li>
+              <li>{t('export.note3')}</li>
+              <li>{t('export.note4')}</li>
             </ul>
 
             <div className="export-actions">
               <button type="button" className="export-cancel" onClick={close}>
-                取消
+                {t('export.cancel')}
               </button>
               <button type="button" className="export-confirm" onClick={download}>
-                下载 {FORMAT_LABEL[format]} (.{exportExtension(format)})
+                {t('export.download', { format: FORMAT_LABEL[format], ext: exportExtension(format) })}
               </button>
             </div>
           </div>

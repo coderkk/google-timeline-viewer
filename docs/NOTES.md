@@ -2,6 +2,81 @@
 
 > 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
 
+## 2026-09-15 11:40 — Dev 回退 N1「防禦性修正」（引入白屏致命回歸）
+
+**誠實記錄**：上一則（11:25）我為 N1 在 `FitController` 的 effect cleanup 加了 `map.stop()`。**這是錯的**——它引入了致命回歸。
+
+**症狀（Reviewer 實測，deterministic）**：載入示例 → 點 Trips 頂欄「收起面板」→ `#root` children = 0、**整頁白屏**；console `TypeError: Cannot read properties of undefined (reading '_leaflet_pos')`，堆疊為 `getCenter → setZoom → stop`（effect cleanup）。
+
+**根因**：`sidebarOpen` 切換時 `MapPane` / 直連 `TripMap` 兩棵樹互換 → `FitController` 卸載 → cleanup 執行；此時 react-leaflet 已開始移除 map/pane，`map.stop()` 內部的 `setZoom → getCenter → _getMapPanePos` 讀到**已卸離的 pane** 而 throw，React 樹崩潰 → 白屏。
+
+**處置：直接回退** `map.stop()`，恢復 cleanup 只 `cancelAnimationFrame(raf)`。並在該 cleanup 留註解：**永遠不要在 unmount cleanup 呼叫任何 map 方法**（N1 的消音若要做，只能在非 unmount 時機用 ref 區分，且必須實測；本輪不做）。
+
+**N1 狀態**：恢復為**非阻塞已知 console 噪音**（`_leaflet_pos` @ `_onZoomTransitionEnd`，快速離開地圖且動畫未完時偶發），不影響功能，不修。
+
+**實測（production build + Playwright，回退後）**：
+1. 載入示例 → Trips：`#root` children=1
+2. **收起面板 → 展開面板**：collapsed map present=true；expand 後 map present=true、1051×462、children=1 —— **不白屏**
+3. 時間軸 ↔ 按活動類型：children=1
+4. Places → Trips：children=1
+5. Settings 切語言 → Trips：children=1
+全程 **0 個 pageerror**（無 `_leaflet_pos`）。截圖：`.playwright-mcp/gtv-expand-ok.png`。
+
+**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **191 passed**。**未 commit、未 push**。`stats.ts` 的 S3 修正未動。
+
+## 2026-09-15 11:25 — Dev 修正 Reviewer S3 最終 + N1 判斷
+
+**S3（`segmentsDistanceKm` fallback 門檻與渲染器不一致）**：`lib/stats.ts` 的 `s.path.length >= 2 ? s.path : [s.start, s.end]` 改為 **`> 0`**。對照渲染器 `TripMap.positions`（`> 0`）、`polylineEndpoints`（`> 0`）、`boundsOf`（`> 0`）——`prepareTrips` 裁切後跨午夜段可能只剩 1 個頂點，地圖只畫 1 點不畫線，距離須為 0；原 `>= 2` 會 fallback 到**未裁切的 `[start,end]`**，把範圍外整條腿的距離算進 activityType 的總距離。**補測試**：`segmentsDistanceKm([單點段]) === 0`，且該段 `start` 與 `path[0]` 不同（證明若走 fallback 會有非零距離）。
+
+**N1（Leaflet `TypeError: ... '_leaflet_pos'` @ `_onZoomTransitionEnd`）— 判斷為既有，非本輪引入**：
+- 觸發：快速離開 `#/app`、地圖於 zoom 動畫期間卸載時，`transitionend` 在 map pane 已被移除後仍觸發 Leaflet `_onZoomTransitionEnd`，讀取已卸離的 `_leaflet_pos` 而拋錯。
+- 為何既有：zoom 動畫由 `FitController` 的 `map.fitBounds(...)`（T5 起）觸發，其生命週期在本輪（T27/T28）**完全未改**；本輪新增的 `TripStatsPanel` 是純 DOM、`stats.ts` 是純函式、i18n 只改文字。故與 T27/T28 無關。
+- 處置：採 Reviewer 允許的**可選低風險收斂**——在 `FitController` 的 effect cleanup 加 `map.stop()`（child cleanup 先於 `MapContainer` 的 `map.remove()` 執行，會取消進行中的動畫，避免 detached pane 上的 `transitionend`）。未做其他改動。
+- 註：headless 環境用多次快速切頁**未能穩定重現**（時序敏感），故上述為根因分析 + 防禦性收斂，非「已驗證修復」。
+
+**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **191 passed**（14 檔；190 → +1 S3 測試）。**未 commit、未 push**。
+
+## 2026-09-15 11:10 — Dev 修正 Reviewer T27/T28（S3 + A1/A2/A3）
+
+**背景**：Reviewer 對 T27/T28 判 PASS-WITH-CONDITIONS（S3 必修、A1/A2/A3 必修、A4/A5/N 記錄）。
+
+**S3（store 內已解析字串不隨語言切換）**：store 不再存放任何已翻譯字串。
+- `dataLabel` 只存**首個檔名**，另加 `dataFileCount`；sample 以 `dataSource==='sample'` 推導；`DataBar` 顯示時才組合（sample → `t('data.sample')`；多檔 → `${name} ${t('data.filesSuffix',{count})}`）。
+- 自訂瓦片名改用中性 sentinel `CUSTOM_TILE_NAME='custom'`（`lib/tiles.ts`），`SettingsPage` 由 `isDefault` 推導顯示 `OpenStreetMap` 或 `t('settings.customTileName')`。
+- **實測**：設简中 → 載入示例 → DataBar「模拟数据」；切 English → DataBar「Sample data」（無 CJK）；Settings 自訂瓦片名 en「Custom」/ zh「自定义」。
+
+**A1（活躍天數/日均停留未裁到範圍）**：`computeTripStats` 新增 `range`，對段與停留的 interval 及停留時長做 `clampInterval`（range 邊為 null 不裁）。跨午夜記錄不再把範圍外那天計入活躍日，`totalStayMs` 只含範圍內部分。補測試：單日範圍 + 跨午夜段/停留 → 活躍天數 = 1、時長 = 範圍內部分；open range 不裁。
+
+**A2（距離口徑隨模式）**：新增 `segmentsDistanceKm`（逐段 path 或 start→end 的 haversine 和）；`computeTripStats` 加 `distanceSource: 'route' | 'segments'`，`TripStatsPanel` 依 `mode`（timeline→route、activityType→segments）傳入，確保與地圖繪製口徑一致。**實測 sample「全部」**：timeline **8236 km** vs activityType **8124 km**（兩者確實不同，符合兩模式畫的幾何不同）。未採更複雜的「統一幾何」方案，因 Reviewer 明確要求「與地圖口徑一致」，而兩模式地圖本就畫不同幾何。
+
+**A3（截斷警告單位錯 100×）**：`MAX_RAW_POINTS=2_000_000` 原以 `/1_000_000` 標「万」→ 顯示「2 万」（實為 20k）。改除數為 `10_000` →「200 万」；`localizeWarning` en 規則同步做 万→M 換算（200万 → 2M）。補/改測試：parse 測試斷言含 `200 万`；i18n 測試斷言 `累计 raw points 超过 200 万` → `Cumulative raw points exceeded 2M`。
+
+**A4/A5/N1（記錄，不修）**：
+- **A4**：地點聚合沿用 `name → address → 粗座標`，**同名不同地會被合併**——已在 `lib/stats.ts` 檔頭註明。
+- **A5**：Web Worker 的**未知**解析 warning 模板 `localizeWarning` 不匹配時原樣輸出，英文 UI 可能殘留中文（diagnostic，正常檔案不顯示）——已記。
+- **N1**：死碼 `SAMPLE_LABEL` / `COORDS_PRIVACY_NOTE` / `trips.ts` 舊 zh 格式化 helper **暫不刪**（待 CEO 決定）。
+
+**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **190 passed**（14 檔；186 → +4：A1 裁切、A2 segmentsDistance、open-range、A3 單位）。**未 commit、未 push**。
+
+## 2026-09-15 10:55 — Dev T27 行程統計報表 + T28 多語言（EN/简中）
+
+**T27（功能 11）**：新增 `lib/stats.ts`（`routeDistanceKm` / `computeTripStats`）+ `components/TripStatsPanel.tsx`。
+- **面板位置**：Trips 左側欄，DataBar → DateRangePicker → **TripStatsPanel** → 時間線/停留列表。理由：與日期範圍同區、隨篩選即時更新、時間軸與活動類型兩種模式都可見、不佔用頂欄也不遮地圖；移動端抽屜內同樣可讀。
+- **口徑**：總距離 = timeline route 連續頂點 haversine 累加；活躍天數 = 段與停留 `[start,end]` 覆蓋的本地日聯集（用 `setDate` 逐日步進，DST 安全，並對病態長跨度設 20000 天上限）；日均距離 = 總距離/活躍天數；日均停留 = Σ(visit 時長)/活躍天數；地點頻次 = `groupVisitsByLocation` 聚合後按次數（同次數比時長）排序取 Top 5。
+- **效率**：全部 O(n) 掃描，`useMemo` 綁定 `[route, segments, visits]`，不在 render 做 O(n²)。
+- **sample 實測（全部）**：總距離 **8236 km**、活躍 **55 天**、日均 **150 km/天**、日均停留 **16h 11m**；Top 5：家（模拟）78 次 · 339h30m、公司（模拟）37 · 375h25m、Bella 咖啡館 32 · 36h20m、大安森林公園 10 · 15h、南門市場 10 · 7h30m。
+- 單測 `stats.test.ts`（距離、跨日活躍天數、日均、Top N cap、零活動）。
+
+**T28（功能 12）**：自建輕量 i18n，**無新增依賴**。
+- 架構：`src/lib/i18n/zh.ts`（key 的 source of truth）+ `en.ts`（`satisfies Record<MessageKey,string>`，缺/多 key 即型別錯誤）+ `index.tsx`（`I18nProvider` / `useI18n()` / `detectLang` / `translate` / 格式化）+ `warnings.ts`（解析 warning 的英文模板映射）。
+- **預設語言**：`navigator.language` 以 `zh` 開頭 → 简中，其餘 → English。**設置頁手動切換**（English / 简体中文）。**不持久化**——刷新回瀏覽器語言（已實測）。
+- **格式化隨語言**：日期 `2026-09-15` vs `Sep 15, 2026`、時間 `14:05`、時長 `9小时5分` vs `9h 5m`、千分位（`Intl.NumberFormat`）、距離 `公里`/`km`、月標題、週首字母。
+- **覆蓋範圍**：Header/Footer、Landing、EmptyState、ImportPanel、DataBar、DateRangePicker、Trips（summary/legend/toggle/empty/downsampled）、TripStatsPanel、TimelineList、StopList、TripMap（tooltip + 點擊 popup）、Places、VisitHistoryPanel、Help（含步驟/FAQ/格式表）、Settings、ExportButton、tiles 驗證訊息、store（大檔確認/未識別/範例標籤/自訂瓦片名）、`document.title` 與 `<html lang>`。
+- **未覆蓋 / 限制（誠實列出）**：①Web Worker 的解析 warning 以 `localizeWarning` 對已知模板做 best-effort 英譯；**未匹配的新模板會原樣輸出**。②`import.workerFailed` 等 worker 端錯誤訊息在產生時用 `detectLang()`（瀏覽器語言），不隨手動切換；③多檔 `dataLabel` 在導入當下以當時語言生成（切語言後不重算）；④`sample/SAMPLE_LABEL`、`coords/COORDS_PRIVACY_NOTE`、`trips.ts` 的 zh 格式化 helper 保留但已不在 UI 使用（供舊測試/相容）。
+- **驗證**：production build + Playwright（瀏覽器 en-US）**逐頁掃描 CJK**：Landing / Trips / Places（含查詢結果）/ Help / Settings / 匯出彈窗 → **無 UI 中文殘留**（僅 sample 資料地名與語言選項「简体中文」為刻意保留）；切換简中後 summary/stats/日曆標題均正確；**刷新後回英文**（無持久化）。單測 `i18n.test.ts`（key 集合一致、en catalog 無 CJK、detectLang、formatters、localizeWarning）。
+
+**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **186 passed**（14 檔；167 → +19：stats 8 + i18n 8 + localizeWarning 3）。**未 commit、未 push**。
+
 ## 2026-09-15 10:55 — Dev 更新 OPC 3.0 連結（改指作者網站）
 
 **CEO 新決定**：OPC 3.0 連結改指向使用者的個人網站 **`https://coderkk.net`**（原本指向私有 repo `coderkk/opc-3.0`，公開訪客會 404）。

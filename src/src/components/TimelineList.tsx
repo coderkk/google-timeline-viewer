@@ -3,7 +3,8 @@
 // "where was I at what time" (and jump the map there) instead of only seeing
 // the handful of stops. Rows are grouped under local-day headers.
 import type { Visit } from '../lib/types'
-import { fmtDuration, toInputDate, type TimelineVertex } from '../lib/trips'
+import type { TimelineVertex } from '../lib/trips'
+import { useI18n } from '../lib/i18n'
 import { useTimelineStore } from '../store/timelineStore'
 
 export interface TimelineListProps {
@@ -45,6 +46,7 @@ export default function TimelineList({
   // overnight stay) is kept — but must be labelled, not silently shown as if it
   // belonged to the selected day (T22).
   const rangeStartMs = useTimelineStore((state) => state.dateRange.startMs)
+  const { t, formatNumber, formatDate, formatDay, formatDuration } = useI18n()
 
   const rows: Row[] = []
   for (let i = 0; i < points.length; i++) {
@@ -65,8 +67,8 @@ export default function TimelineList({
       timeMs: visit.startMs,
       kind: 'visit',
       title: visit.name ?? `${visit.lat.toFixed(5)}, ${visit.lng.toFixed(5)}`,
-      meta: `${timeLabel(visit.startMs)}–${timeLabel(visit.endMs)} · ${fmtDuration(visit.endMs - visit.startMs)}`,
-      overnight: overnight ? `跨夜 · 自 ${toInputDate(visit.startMs).slice(5)}` : undefined,
+      meta: `${timeLabel(visit.startMs)}–${timeLabel(visit.endMs)} · ${formatDuration(visit.endMs - visit.startMs)}`,
+      overnight: overnight ? t('list.overnight', { date: formatDay(visit.startMs) }) : undefined,
       visitIndex: index,
       visit,
     })
@@ -80,13 +82,13 @@ export default function TimelineList({
 
   return (
     <div className="timeline-list">
-      <div className="stop-list-head">时间线（{rows.length}）</div>
+      <div className="stop-list-head">{t('list.timelineHead', { n: formatNumber(rows.length) })}</div>
       {shown.length === 0 ? (
-        <div className="stop-list-empty">该日期范围内没有轨迹，换个日期试试</div>
+        <div className="stop-list-empty">{t('list.timelineEmpty')}</div>
       ) : (
         <ul className="timeline-items">
           {shown.map((row) => {
-            const day = toInputDate(row.timeMs)
+            const day = formatDate(row.timeMs)
             const showDay = day !== lastDay
             lastDay = day
             const selected = row.kind === 'visit' && row.visitIndex === selectedVisitIndex
@@ -122,7 +124,7 @@ export default function TimelineList({
       )}
       {hidden > 0 && (
         <div className="stop-list-more">
-          列表仅显示前 {shown.length} 条，还有 {hidden} 条 — 请缩小日期范围
+          {t('list.more', { shown: formatNumber(shown.length), hidden: formatNumber(hidden) })}
         </div>
       )}
     </div>

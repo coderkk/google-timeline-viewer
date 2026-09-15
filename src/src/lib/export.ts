@@ -82,19 +82,28 @@ export function buildGeoJson(input: ExportInput): string {
   return JSON.stringify({ type: 'FeatureCollection', features }, null, 2)
 }
 
+export interface ExportLabels {
+  /** Placemark name for the trajectory LineString. */
+  routeName: string
+  /** KML <Document><name>. */
+  docName: string
+}
+
+const DEFAULT_LABELS: ExportLabels = { routeName: 'Trajectory', docName: 'Timeline trip export' }
+
 /**
  * KML document: one LineString Placemark for the trajectory plus a Point
  * Placemark per stay. Built as strings (KML is XML) with every interpolated
  * text value escaped.
  */
-export function buildKml(input: ExportInput): string {
+export function buildKml(input: ExportInput, labels: ExportLabels = DEFAULT_LABELS): string {
   const placemarks: string[] = []
   if (input.route.length >= 2) {
     const coords = input.route.map((p) => `${p.lng},${p.lat},0`).join(' ')
     placemarks.push(
       [
         '    <Placemark>',
-        '      <name>轨迹</name>',
+        `      <name>${escapeXml(labels.routeName)}</name>`,
         '      <LineString>',
         '        <tessellate>1</tessellate>',
         `        <coordinates>${coords}</coordinates>`,
@@ -120,7 +129,7 @@ export function buildKml(input: ExportInput): string {
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<kml xmlns="http://www.opengis.net/kml/2.2">',
     '  <Document>',
-    '    <name>Timeline 行程导出</name>',
+    `    <name>${escapeXml(labels.docName)}</name>`,
     ...placemarks,
     '  </Document>',
     '</kml>',
@@ -128,8 +137,8 @@ export function buildKml(input: ExportInput): string {
   ].join('\n')
 }
 
-export function buildExport(format: ExportFormat, input: ExportInput): string {
-  return format === 'geojson' ? buildGeoJson(input) : buildKml(input)
+export function buildExport(format: ExportFormat, input: ExportInput, labels?: ExportLabels): string {
+  return format === 'geojson' ? buildGeoJson(input) : buildKml(input, labels)
 }
 
 export function exportMimeType(format: ExportFormat): string {

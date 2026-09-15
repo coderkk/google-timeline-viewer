@@ -1,6 +1,6 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T27 -->
+<!-- next: T29 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
@@ -19,17 +19,17 @@
 
 ## 📭 Backlog（上 = 优先）
 
-- [ ] [P2] 行程统计报表 — 总距离/日均运动量/地点频次（→ PRD 不做，发布后）(09-13)
 - [ ] [P2] 离线瓦片 / 自托管瓦片服务器 — 彻底消除瓦片请求隐私（→ PRD 不做）(09-13)
 - [ ] [P2] 行程分享/导出（GeoJSON/KML）— （→ PRD 不做）(09-13)
 - [ ] [P2] 跨设备多 Takeout 合并去重 — （→ PRD 不做）(09-13)；含 T-K2③ rawSignals 滚动窗口互补合并（segments/visits 时间指纹去重 + points 互补合并）(09-14)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
-- [ ] [P2] 多语言（英文为主，可换中文）— 需要 i18n 依赖，v2 加入（→ PRD 约束）(09-13)
 - [ ] [P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）(09-14)
 - [ ] [P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算 (09-14)
 
 ## ✅ Done
 
+- [x] ~~T27: 行程统计报表（功能 11）~~ (09-15→09-15) [P1] — 新增 `lib/stats.ts` + `components/TripStatsPanel.tsx`。**位置**：Trips 左側欄 DataBar → DateRangePicker → **TripStatsPanel** → 時間線/停留列表（理由：與日期範圍同區、隨篩選即時更新、兩種模式都可見、不動頂欄與地圖）。**口徑**：總距離 = timeline route 連續頂點 haversine 累加（`routeDistanceKm`）；活躍天數 = 段與停留 `[start,end]` 覆蓋的本地日聯集（`setDate` 逐日步進，DST 安全）；日均距離 = 總距離/活躍天數；日均停留 = Σ停留時長/活躍天數；地點頻次 = `groupVisitsByLocation` 聚合（次數 + 累計時長）Top 5。純本地、`useMemo` 於篩選輸入。**sample 實測（全部）**：8236 km / 55 天 / 150 km/天 / 16h11m/天；Top：家78次、公司37、Bella 32、大安森林公園10、南門市場10。單測 `stats.test.ts`（距離、跨日活躍天數、日均、Top N、零活動）。**修正（Reviewer A1/A2）**：①`computeTripStats` 新增 `range`，段與停留的 interval 及停留時長一律 **clamp 到 `[range.startMs, range.endMs]`**（null 邊不裁）——跨午夜記錄不再把範圍外那天算成活躍日/時長，補測試（單日範圍+跨午夜 → 活躍天數 1、時長只含範圍內）；②距離來源**隨模式**：timeline → `route`、activityType → `segments`（`segmentsDistanceKm`），TripStatsPanel 依 `mode` 傳 `distanceSource`，與地圖繪製口徑一致；sample 實測 **8236 km（timeline）vs 8124 km（activityType）**。A4（同名不同地合併）已在 `stats.ts` 檔頭註明。**修正（Reviewer S3 最終）**：`segmentsDistanceKm` 的 fallback 門檻由 `>= 2` 改 `> 0`，與渲染器（`TripMap.positions`/`polylineEndpoints`/`boundsOf`）一致——裁到 1 點的段距離為 0（不再 fallback 到未裁 `[start,end]` 而多算範圍外整條腿）；補測試
+- [x] ~~T28: 多語言 EN/简体中文（功能 12）~~ (09-15→09-15) [P1] — 自建輕量 i18n（無新依賴）：`src/lib/i18n/`（`zh.ts`/`en.ts` catalog + `index.tsx` provider/`useI18n()`/formatters + `warnings.ts`）。**預設語言** = `navigator.language`（zh* → 简中，其餘 → English）；**設置頁手動切換**；**不持久化**（刷新回瀏覽器語言，已實測）。**覆蓋**：Header/Footer/Landing/EmptyState/Trips（summary/legend/stats/toggle/empty）/TimelineList/StopList/TripMap tooltip+popup/Places/VisitHistoryPanel/Help/Settings/ImportPanel/ExportButton/DataBar/DateRangePicker/tiles 驗證/store 訊息。**格式化隨語言**：日期（`2026-09-15` vs `Sep 15, 2026`）、時長（`9小时5分` vs `9h 5m`）、千分位、距離（`公里`/`km`）、月標題、週首字母。**驗證（en-US 瀏覽器逐頁掃 CJK）**：Landing / Trips / Places / Help / Settings / 匯出彈窗 = 無 UI 殘留（僅 sample 資料地名與語言選項「简体中文」為刻意保留）；切 zh 正常；刷新回 en。單測 `i18n.test.ts`（catalog key 一致、en 無 CJK、detectLang、formatters、warning 本地化）。**修正（Reviewer S3/A3）**：①store 改存**語言無關**值（`dataLabel` 首檔名 + `dataFileCount`；sample 用 `dataSource` 推導；自訂瓦片名用中性 `CUSTOM_TILE_NAME`），DataBar / SettingsPage 顯示時才 `t()`——實測「載入示例 → 切 English → DataBar 顯示 Sample data、Settings 顯示 Custom」無中文殘留；②截斷警告單位修正：除數 `1_000_000` → `10_000`（2,000,000 → 「200 万」），en 規則同步做 万→M 換算（200万 → 2M），補測試。A5（worker 未知 warning 模板可能殘留中文）、N1（死碼暫不刪）已記 NOTES
 - [x] ~~T26: README / portfolio 修复（Writer 2026-09-15 brainstorm）~~ (09-15→09-15) [P1] — ①**圖片路徑全裂**：README 裸檔名 → `docs/screenshots/…`（11 個相對目標全部存在，腳本逐一驗證）②**重拍 10 張截圖**（production build + sample data，1440×900 / 390px）涵蓋新 UI：`landing-full/landing-hero/landing-builtwith`、`trips`（時間軸+左側時間線+雙月曆）、`trips-activity`（活動類型+圖例+銜接）、`places`（查詢結果）、`export`（匯出彈窗）、`mobile`（375–390px）、`help`、`settings` ③**重複圖**：`landing-hero` 與 `landing-builtwith` 原 md5 相同 → 重拍為不同內容（現 md5 相異）④新增 `LICENSE`（MIT，coderkk，2026）⑤**佔位符**：`<user>` → `coderkk`、badge `(#)` → LICENSE / Actions / demo 真實連結、clone/demo URL 填實 ⑥新增「What's new / 近期更新」段落 ⑦新增 `CHANGELOG.md`（T1–T25 里程碑，**未打 tag**）⑧順修 Places 半徑文案 `10–5000KM` → `1–100 KM`。驗證：`tsc`/`lint`/`build` 全綠、167 單測不變（僅動文件與截圖）。**修正（Reviewer 複審）**：S2 README 隱私聲明補「外鏈例外」（絕對句改「除下列外部請求外」，補 Google Maps 外鏈 opt-in 與瓦片說明，與 Landing/設置頁對齊）；A1 CHANGELOG 補 T10.1–T10.3 / T12 / T13.6 / T13.7 並加 T26 Docs 條目；A2 重截 `settings.png`（含「外部链接例外」條目）
 - [x] ~~T23: 渲染性能压测（发布前）~~ (09-15→09-15) [P1] — production build + 真实 123.4MB livedata，「全部」视图（2012→2026，route 30k 点）量测。基线：平移 avg 23.8ms/p95 39.6ms、缩放 avg 82.3ms/**p95 461ms/longtask max 1796ms（明显卡顿）**。处置（最便宜）：①`TripMap` 低 zoom 只画折线不画点（`DOT_MIN_ZOOM=6` + `ZoomWatcher`，`zoomend` 触发一次挂载）②`GLOBAL_PATH_POINT_CAP 30000→12000`、`RAW_POINT_CAP 20000→12000`。结果：平移 ~34fps（p95 47.6ms）、缩放每次 277–538ms（z6 首挂点层 +~250ms），秒级冻结消除 → 可接受。完整数据见 `DATA-FINDINGS.md §8`；151 单测+build+lint 全绿。**修正（Reviewer S2）**：S2-a 於 PRD 功能 3 補「zoom ≥ 6 顯示圓點／低 zoom 僅折線」條款 + v1.17，`DATA-FINDINGS §8.4` 連回該條款；S2-b 軌跡點開關在 zoom < 6 時 `disabled` + wrapper `title`（zoom 狀態經 `onZoomChange` 上提至 `TripsPage`；僅在跨 `DOT_MIN_ZOOM` 布林翻轉時上報，避免每級 zoom 重繪 `TripsView`）
 - [x] ~~T24: 移动端适配~~ (09-15→09-15) [P2] — CSS media query（`max-width:768px`）为主：双月历降单月（隐藏第二个 `.drp-cal-month`）、Trips/Places 左栏改**底部抽屜**（`position:absolute` overlay，地图保持全高，收起面板可全屏）、顶栏收拢（隐藏 legend、controls 单行、summary 省略号）、触控目标 ≥44px（`.drp-day/.drp-preset/.drp-cal-nav/.trips-mode-btn/.trips-toggle/.data-bar-btn/.stop-item/.timeline-item/.places-radius/.export-*`）、Header nav 单行横向滚动。验证（375×667，sample）：单月历、地图全高 471px、抽屜 280px、抽屜上方可见地图 191px、所有按钮 44px、无横向溢出；Places + 导出弹窗同验通过

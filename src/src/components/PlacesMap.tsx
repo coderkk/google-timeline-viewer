@@ -13,7 +13,8 @@ import L from 'leaflet'
 import type { Circle as LeafletCircle } from 'leaflet'
 import { Circle, CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import type { Point, Visit } from '../lib/types'
-import { COORDS_PRIVACY_NOTE, googleMapsUrl } from '../lib/coords'
+import { googleMapsUrl } from '../lib/coords'
+import { useI18n } from '../lib/i18n'
 import CopyCoordsButton from './CopyCoordsButton'
 import { useTimelineStore } from '../store/timelineStore'
 
@@ -157,6 +158,7 @@ export default function PlacesMap({
   invalidateKey,
 }: PlacesMapProps) {
   const tileSource = useTimelineStore((state) => state.tileSource)
+  const { t } = useI18n()
   return (
     <MapContainer className="trip-map" center={[14, 112]} zoom={5} scrollWheelZoom maxZoom={19}>
       <TileLayer url={tileSource.url} attribution={tileSource.attribution} />
@@ -198,10 +200,10 @@ export default function PlacesMap({
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
               >
-                在 Google Maps 開啟
+                {t('map.openGoogleMaps')}
               </a>
             </span>
-            <span className="trip-tip-note">{COORDS_PRIVACY_NOTE}</span>
+            <span className="trip-tip-note">{t('map.coordsPrivacyNote')}</span>
           </Tooltip>
         </CircleMarker>
       ))}

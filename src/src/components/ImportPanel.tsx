@@ -2,10 +2,9 @@
 // them anywhere on the drop zone. Multiple JSON exports are accepted; progress
 // from the parsing worker is shown as a bar, and errors offer a retry path.
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
+import { useI18n } from '../lib/i18n'
+import { localizeWarning } from '../lib/i18n/warnings'
 import { useTimelineStore } from '../store/timelineStore'
-
-const SUPPORTED_FORMATS =
-  '支持格式：Timeline.json / Records.json / YYYY_MM.json / Location History.json（可一次选择多个文件）'
 
 export default function ImportPanel() {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -13,7 +12,13 @@ export default function ImportPanel() {
   const status = useTimelineStore((state) => state.status)
   const parseProgress = useTimelineStore((state) => state.parseProgress)
   const errorMsg = useTimelineStore((state) => state.errorMsg)
+  const errorWarning = useTimelineStore((state) => state.errorWarning)
   const importFiles = useTimelineStore((state) => state.importFiles)
+  const { t, lang } = useI18n()
+
+  const errorText = errorWarning
+    ? t('import.unrecognized', { reason: localizeWarning(lang, errorWarning) })
+    : errorMsg
 
   const handleFiles = (files: FileList | null): void => {
     if (files && files.length > 0) importFiles(Array.from(files))
@@ -58,24 +63,24 @@ export default function ImportPanel() {
           <div className="progress-track">
             <div className="progress-fill" style={{ width: `${parseProgress}%` }} />
           </div>
-          <p className="progress-label">正在解析（{parseProgress}%）… 大文件可能需要一小段时间</p>
+          <p className="progress-label">{t('import.parsing', { progress: parseProgress })}</p>
         </div>
       ) : status === 'error' ? (
         <div className="error-area">
-          <p className="error-title">无法载入数据</p>
-          <p className="error-msg">{errorMsg}</p>
-          <p className="error-hint">请重新选择文件，或改用上方列出的受支持格式。若文件另有加密，请先解锁。</p>
+          <p className="error-title">{t('import.errorTitle')}</p>
+          <p className="error-msg">{errorText}</p>
+          <p className="error-hint">{t('import.errorHint')}</p>
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => inputRef.current?.click()}>
-            重新选择文件
+            {t('import.retry')}
           </button>
         </div>
       ) : (
         <>
           <button type="button" className="btn btn-primary btn-lg" onClick={() => inputRef.current?.click()}>
-            导入 Timeline 数据
+            {t('import.button')}
           </button>
-          <p className="drop-hint">或把文件拖拽到此处</p>
-          <p className="file-support">{SUPPORTED_FORMATS}</p>
+          <p className="drop-hint">{t('import.dropHint')}</p>
+          <p className="file-support">{t('import.supported')}</p>
         </>
       )}
     </div>

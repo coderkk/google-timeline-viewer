@@ -4,11 +4,11 @@
 // days / last year) are kept. Writes the shared store `dateRange`; null = open
 // side, so both views stay in sync.
 import { useState } from 'react'
-import { endOfDayMs, startOfDayMs, toInputDate, type DateRangeFilter } from '../lib/trips'
+import { endOfDayMs, startOfDayMs, type DateRangeFilter } from '../lib/trips'
+import { useI18n } from '../lib/i18n'
 import { useTimelineStore } from '../store/timelineStore'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
 
 interface ViewMonth {
   year: number
@@ -23,10 +23,6 @@ function monthOf(ms: number): ViewMonth {
 function shiftMonth(view: ViewMonth, delta: number): ViewMonth {
   const d = new Date(view.year, view.month + delta, 1)
   return { year: d.getFullYear(), month: d.getMonth() }
-}
-
-function monthTitle(view: ViewMonth): string {
-  return `${view.year} 年 ${view.month + 1} 月`
 }
 
 /** Day cells for a month, Monday-first, with leading blanks. */
@@ -50,6 +46,7 @@ export default function DateRangePicker() {
   const setDateRange = useTimelineStore((state) => state.setDateRange)
   const resetDateRange = useTimelineStore((state) => state.resetDateRange)
   const dataTimeRange = useTimelineStore((state) => state.data?.meta.timeRange)
+  const { t, formatDate, formatDay, formatMonthTitle, weekdayLabels } = useI18n()
 
   const [view, setView] = useState<ViewMonth>(() =>
     monthOf(dateRange.startMs ?? dataTimeRange?.maxMs ?? Date.now()),
@@ -69,7 +66,7 @@ export default function DateRangePicker() {
       a.startMs === b.startMs && a.endMs === b.endMs
     return [
       {
-        label: '全部',
+        label: t('drp.all'),
         active: dateRange.startMs === null && dateRange.endMs === null,
         apply: () => {
           resetDateRange()
@@ -77,7 +74,7 @@ export default function DateRangePicker() {
         },
       },
       {
-        label: '近 30 天',
+        label: t('drp.last30'),
         active: same(dateRange, last30),
         apply: () => {
           setDateRange(last30.startMs, last30.endMs)
@@ -85,7 +82,7 @@ export default function DateRangePicker() {
         },
       },
       {
-        label: '近 1 年',
+        label: t('drp.last365'),
         active: same(dateRange, last365),
         apply: () => {
           setDateRange(last365.startMs, last365.endMs)
@@ -110,9 +107,9 @@ export default function DateRangePicker() {
 
   const renderMonth = (vm: ViewMonth) => (
     <div className="drp-cal-month">
-      <div className="drp-cal-month-title">{monthTitle(vm)}</div>
+      <div className="drp-cal-month-title">{formatMonthTitle(vm.year, vm.month)}</div>
       <div className="drp-cal-weekdays">
-        {WEEKDAYS.map((w) => (
+        {weekdayLabels.map((w) => (
           <span key={w}>{w}</span>
         ))}
       </div>
@@ -131,7 +128,7 @@ export default function DateRangePicker() {
               key={dayMs}
               type="button"
               className={classes.join(' ')}
-              aria-label={toInputDate(dayMs)}
+              aria-label={formatDate(dayMs)}
               onClick={() => pick(dayMs)}
             >
               {new Date(dayMs).getDate()}
@@ -142,12 +139,12 @@ export default function DateRangePicker() {
     </div>
   )
 
-  const startLabel = dateRange.startMs === null ? '不限' : toInputDate(dateRange.startMs)
-  const endLabel = dateRange.endMs === null ? '不限' : toInputDate(dateRange.endMs)
+  const startLabel = dateRange.startMs === null ? t('drp.any') : formatDate(dateRange.startMs)
+  const endLabel = dateRange.endMs === null ? t('drp.any') : formatDay(dateRange.endMs)
 
   return (
     <div className="drp">
-      <div className="drp-title">日期范围</div>
+      <div className="drp-title">{t('drp.title')}</div>
 
       <div className="drp-presets">
         {presets.map((preset) => (
@@ -163,16 +160,16 @@ export default function DateRangePicker() {
       </div>
 
       <div className="drp-cal-head">
-        <button type="button" className="drp-cal-nav" aria-label="上一年" onClick={() => setView(shiftMonth(view, -12))}>
+        <button type="button" className="drp-cal-nav" aria-label={t('drp.prevYear')} onClick={() => setView(shiftMonth(view, -12))}>
           «
         </button>
-        <button type="button" className="drp-cal-nav" aria-label="上个月" onClick={() => setView(shiftMonth(view, -1))}>
+        <button type="button" className="drp-cal-nav" aria-label={t('drp.prevMonth')} onClick={() => setView(shiftMonth(view, -1))}>
           ‹
         </button>
-        <button type="button" className="drp-cal-nav" aria-label="下个月" onClick={() => setView(shiftMonth(view, 1))}>
+        <button type="button" className="drp-cal-nav" aria-label={t('drp.nextMonth')} onClick={() => setView(shiftMonth(view, 1))}>
           ›
         </button>
-        <button type="button" className="drp-cal-nav" aria-label="下一年" onClick={() => setView(shiftMonth(view, 12))}>
+        <button type="button" className="drp-cal-nav" aria-label={t('drp.nextYear')} onClick={() => setView(shiftMonth(view, 12))}>
           »
         </button>
       </div>
@@ -192,10 +189,10 @@ export default function DateRangePicker() {
           onClick={() => resetDateRange()}
           disabled={dateRange.startMs === null && dateRange.endMs === null}
         >
-          清除
+          {t('drp.clear')}
         </button>
       </div>
-      <div className="drp-hint">点起始日 → 点结束日；只点一天 = 从该日起（单边）</div>
+      <div className="drp-hint">{t('drp.hint')}</div>
     </div>
   )
 }

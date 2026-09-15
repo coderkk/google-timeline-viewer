@@ -2,7 +2,7 @@
 // newest-first order. Clicking an item pans the map to that stop and highlights
 // the surrounding day's routes (handled by the parent).
 import type { Visit } from '../lib/types'
-import { fmtDateTime, fmtDuration } from '../lib/trips'
+import { useI18n } from '../lib/i18n'
 
 export interface StopListProps {
   visits: readonly Visit[]
@@ -12,14 +12,15 @@ export interface StopListProps {
 }
 
 export default function StopList({ visits, limit, selectedVisitIndex, onSelect }: StopListProps) {
+  const { t, formatNumber, formatDateTime, formatDuration } = useI18n()
   const shown = visits.slice(0, limit)
   const hidden = visits.length - shown.length
 
   return (
     <div className="stop-list">
-      <div className="stop-list-head">停留点（{visits.length}）</div>
+      <div className="stop-list-head">{t('list.stopsHead', { n: formatNumber(visits.length) })}</div>
       {shown.length === 0 ? (
-        <div className="stop-list-empty">该日期范围内没有停留点，换个日期试试</div>
+        <div className="stop-list-empty">{t('list.stopsEmpty')}</div>
       ) : (
         <ul className="stop-list-items">
           {shown.map((visit, index) => {
@@ -35,8 +36,8 @@ export default function StopList({ visits, limit, selectedVisitIndex, onSelect }
                   <span className="stop-name">{title}</span>
                   {visit.address !== undefined && <span className="stop-address">{visit.address}</span>}
                   <span className="stop-meta">
-                    {fmtDateTime(visit.startMs)} → {fmtDateTime(visit.endMs)} ·{' '}
-                    {fmtDuration(visit.endMs - visit.startMs)}
+                    {formatDateTime(visit.startMs)} → {formatDateTime(visit.endMs)} ·{' '}
+                    {formatDuration(visit.endMs - visit.startMs)}
                   </span>
                 </button>
               </li>
@@ -46,7 +47,7 @@ export default function StopList({ visits, limit, selectedVisitIndex, onSelect }
       )}
       {hidden > 0 && (
         <div className="stop-list-more">
-          列表仅显示前 {shown.length} 条，还有 {hidden} 条 — 请缩小日期范围
+          {t('list.more', { shown: formatNumber(shown.length), hidden: formatNumber(hidden) })}
         </div>
       )}
     </div>

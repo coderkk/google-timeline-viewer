@@ -4,8 +4,9 @@
 import { create } from 'zustand'
 import { loadSampleTimeline } from '../lib/sample'
 import { parseFilesInWorker } from '../lib/parse/worker'
+import { detectLang, translate } from '../lib/i18n'
 import type { TileSource } from '../lib/tiles'
-import { OSM_TILE_SOURCE } from '../lib/tiles'
+import { CUSTOM_TILE_NAME, OSM_TILE_SOURCE } from '../lib/tiles'
 import type { TimelineData } from '../lib/types'
 
 export type DataSource = 'none' | 'user' | 'sample'
@@ -37,9 +38,17 @@ interface TimelineStore {
   data: TimelineData | null
   status: TimelineStatus
   dataSource: DataSource
-  /** Human-readable label of the loaded dataset (file name(s) or "模拟数据"). */
+  /**
+   * Language-neutral dataset label: the first imported file name, or null for
+   * the built-in sample. The UI resolves the display text (sample name / file
+   * count suffix) through i18n at render time.
+   */
   dataLabel: string | null
+  /** Number of imported files (1 for a single file or the sample). */
+  dataFileCount: number
   errorMsg: string | null
+  /** Raw parser warning behind an "unrecognized data" error, localized in the UI. */
+  errorWarning: string | null
   parseProgress: number
   dateRange: DateRange
   tileSource: TileSource
@@ -52,12 +61,6 @@ interface TimelineStore {
   setTileSource: (url: string, attribution?: string) => void
   resetTileSource: () => void
   setThemeMode: (mode: ThemeMode) => void
-}
-
-/** Short label for the imported file(s), shown above the date range. */
-function fileLabel(files: File[]): string {
-  if (files.length === 1) return files[0].name
-  return `${files[0].name} 等 ${files.length} 个文件`
 }
 
 function parseErrorMessage(err: unknown): string {
@@ -74,7 +77,9 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   status: 'empty',
   dataSource: 'none',
   dataLabel: null,
+  dataFileCount: 1,
   errorMsg: null,
+  errorWarning: null,
   parseProgress: 0,
   dateRange: RESET_RANGE,
   tileSource: OSM_TILE_SOURCE,
@@ -82,14 +87,18 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
 
   importFiles: (files) => {
     if (files.length === 0) return
+    const lang = detectLang()
     const large = files.find((file) => file.size > LARGE_FILE_THRESHOLD_BYTES)
     if (
       large &&
       !window.confirm(
-        `「${large.name}」超过 100MB（${(large.size / (1024 * 1024)).toFixed(1)}MB），解析可能较慢。仍要继续吗？`,
+        translate(lang, 'import.largeConfirm', {
+          name: large.name,
+          size: (large.size / (1024 * 1024)).toFixed(1),
+        }),
       )
     ) {
-      set({ status: 'empty', parseProgress: 0, errorMsg: null })
+      set({ status: 'empty', parseProgress: 0, errorMsg: null, errorWarning: null })
       return
     }
 
@@ -98,8 +107,10 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
       status: 'parsing',
       parseProgress: 0,
       errorMsg: null,
+      errorWarning: null,
       dataSource: 'user',
-      dataLabel: fileLabel(files),
+      dataLabel: files[0].name,
+      dataFileCount: files.length,
     })
     parseFilesInWorker(files, {
       onProgress: (event) => {
@@ -112,7 +123,10 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
               status: 'error',
               data: null,
               parseProgress: 100,
-              errorMsg: `未识别到可用数据：${warnings[0]}`,
+              errorMsg: null,
+              // Raw warning; the UI localizes it in the active language so a
+              // later language switch updates the message too.
+              errorWarning: warnings[0],
             })
             return
           }
@@ -121,13 +135,14 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
             status: 'ready',
             parseProgress: 100,
             errorMsg: null,
+            errorWarning: null,
             dateRange: RESET_RANGE,
           })
           goToApp()
         }
       },
     }).catch((err) => {
-      set({ status: 'error', errorMsg: parseErrorMessage(err) })
+      set({ status: 'error', errorMsg: parseErrorMessage(err), errorWarning: null })
     })
   },
 
@@ -136,8 +151,10 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
       status: 'parsing',
       parseProgress: 0,
       errorMsg: null,
+      errorWarning: null,
       dataSource: 'sample',
-      dataLabel: '模拟数据',
+      dataLabel: null,
+      dataFileCount: 1,
     })
     try {
       const data = await loadSampleTimeline()
@@ -146,12 +163,13 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
         status: 'ready',
         parseProgress: 100,
         errorMsg: null,
+        errorWarning: null,
         dateRange: RESET_RANGE,
       })
       goToApp()
       return true
     } catch (err) {
-      set({ status: 'error', errorMsg: parseErrorMessage(err) })
+      set({ status: 'error', errorMsg: parseErrorMessage(err), errorWarning: null })
       return false
     }
   },
@@ -162,7 +180,9 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
       status: 'empty',
       dataSource: 'none',
       dataLabel: null,
+      dataFileCount: 1,
       errorMsg: null,
+      errorWarning: null,
       parseProgress: 0,
       dateRange: RESET_RANGE,
     })
@@ -175,10 +195,12 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   // Tile source is intentionally in-memory only: refreshing the page resets it
   // to the OpenStreetMap default. Persisting it would require localStorage,
   // which the product deliberately avoids for every piece of mutable state.
+  // `name` is language-neutral: the settings UI derives the display label from
+  // whether the URL is the OSM default (see SettingsPage).
   setTileSource: (url, attribution) =>
     set({
       tileSource: {
-        name: '自定义',
+        name: CUSTOM_TILE_NAME,
         url: url.trim(),
         attribution: attribution ?? '',
       },

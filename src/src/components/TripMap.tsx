@@ -11,20 +11,37 @@ import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from
 import L from 'leaflet'
 import type { CircleMarker as LeafletCircleMarker } from 'leaflet'
 import type { Point, RawPoint, Segment, Visit } from '../lib/types'
-import { COORDS_PRIVACY_NOTE, googleMapsUrl, writeCoordsToClipboard } from '../lib/coords'
+import { googleMapsUrl, writeCoordsToClipboard } from '../lib/coords'
 import CopyCoordsButton from './CopyCoordsButton'
+import { useI18n, type MessageKey } from '../lib/i18n'
 import {
   activityColor,
-  bridgeGapLabel,
+  bridgeGapParts,
   budgetRoutePoints,
-  fmtDateTime,
-  fmtDuration,
   ROUTE_POINT_CAP,
-  toInputDate,
   type BridgeLine,
   type TimelineVertex,
 } from '../lib/trips'
 import { useTimelineStore } from '../store/timelineStore'
+
+type Translate = (key: MessageKey, params?: Record<string, string | number>) => string
+
+/** Localized "Link +Nd Nh" style label for a bridge gap. */
+function bridgeLabel(t: Translate, gapMs: number): string {
+  const parts = bridgeGapParts(gapMs)
+  if (parts.kind === 'link') return t('map.bridge')
+  if (parts.days > 0) {
+    return parts.hours > 0
+      ? t('map.bridgeGapDays', { days: parts.days, hours: parts.hours })
+      : t('map.bridgeGapDaysOnly', { days: parts.days })
+  }
+  if (parts.hours > 0) {
+    return parts.minutes > 0
+      ? t('map.bridgeGapHours', { hours: parts.hours, minutes: parts.minutes })
+      : t('map.bridgeGapHoursOnly', { hours: parts.hours })
+  }
+  return t('map.bridgeGapMinutes', { minutes: parts.minutes })
+}
 
 type LatLngExpression = [number, number]
 export type LatLngBoundsMatrix = [[number, number], [number, number]]
@@ -120,6 +137,11 @@ function FitController({ fitBounds, fitKey, invalidateKey, flyTarget }: Controll
     }
 
     raf = requestAnimationFrame(fit)
+    // NOTE: never call map methods (e.g. map.stop()) in this cleanup. React
+    // tears the pane down around the same time, so Leaflet's `_getMapPanePos`
+    // can read a detached pane and throw `_leaflet_pos` — which previously
+    // crashed the whole React tree (blank screen) when collapsing the sidebar.
+    // The only safe cleanup here is cancelling our own rAF.
     return () => cancelAnimationFrame(raf)
   }, [fitBounds, fitKey, invalidateKey, map])
 
@@ -167,23 +189,23 @@ function ZoomWatcher({ onZoom }: { onZoom: (zoom: number) => void }) {
 }
 
 /** Small clipboard button used inside the shared map popup (plain DOM). */
-function makeCopyButton(lat: number, lng: number): HTMLButtonElement {
+function makeCopyButton(lat: number, lng: number, t: Translate): HTMLButtonElement {
   const button = document.createElement('button')
   button.type = 'button'
   button.className = 'trip-popup-copy'
-  button.textContent = '复制坐标'
+  button.textContent = t('map.copyCoords')
   button.addEventListener('click', (event) => {
     event.stopPropagation()
     writeCoordsToClipboard(lat, lng)
       .then(() => {
-        button.textContent = '已复制'
+        button.textContent = t('map.copied')
       })
       .catch(() => {
-        button.textContent = '复制失败'
+        button.textContent = t('map.copyFailed')
       })
       .finally(() => {
         window.setTimeout(() => {
-          button.textContent = '复制坐标'
+          button.textContent = t('map.copyCoords')
         }, 1500)
       })
   })
@@ -201,6 +223,7 @@ function makeCopyButton(lat: number, lng: number): HTMLButtonElement {
 function pointPopupContent(opts: {
   lat: number
   lng: number
+  t: Translate
   title?: string
   address?: string
   meta?: string
@@ -239,21 +262,21 @@ function pointPopupContent(opts: {
 
   const actions = document.createElement('div')
   actions.className = 'trip-popup-actions'
-  actions.appendChild(makeCopyButton(opts.lat, opts.lng))
+  actions.appendChild(makeCopyButton(opts.lat, opts.lng, opts.t))
 
   const link = document.createElement('a')
   link.className = 'trip-popup-link'
   link.href = googleMapsUrl(opts.lat, opts.lng)
   link.target = '_blank'
   link.rel = 'noopener noreferrer'
-  link.textContent = '在 Google Maps 開啟'
+  link.textContent = opts.t('map.openGoogleMaps')
   link.addEventListener('click', (event) => event.stopPropagation())
   actions.appendChild(link)
   wrap.appendChild(actions)
 
   const note = document.createElement('div')
   note.className = 'trip-popup-note'
-  note.textContent = COORDS_PRIVACY_NOTE
+  note.textContent = opts.t('map.coordsPrivacyNote')
   wrap.appendChild(note)
 
   return wrap
@@ -279,6 +302,8 @@ export default function TripMap(props: TripMapProps) {
     rangeStartMs = null,
     onZoomChange,
   } = props
+
+  const { t, formatDateTime, formatDuration, formatDay } = useI18n()
 
   // Current zoom level, reported by ZoomWatcher. Starts below DOT_MIN_ZOOM so
   // the first paint never mounts tens of thousands of dot layers; the initial
@@ -412,10 +437,11 @@ export default function TripMap(props: TripMapProps) {
                       pointPopupContent({
                         lat: point.lat,
                         lng: point.lng,
+                        t,
                         meta:
                           point.timestampMs !== undefined
-                            ? fmtDateTime(point.timestampMs)
-                            : '行程段轨迹',
+                            ? formatDateTime(point.timestampMs)
+                            : t('map.segmentTrace'),
                       }),
                       [point.lat, point.lng],
                     )
@@ -465,9 +491,9 @@ export default function TripMap(props: TripMapProps) {
           renderer={canvasRenderer}
         >
           <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip">
-            <span className="trip-tip-title">{bridgeGapLabel(bridge.gapMs)}</span>
+            <span className="trip-tip-title">{bridgeLabel(t, bridge.gapMs)}</span>
             <span className="trip-tip-meta">
-              {fmtDateTime(bridge.fromMs)} {bridge.gapMs <= 0 ? '↔' : '→'} {fmtDateTime(bridge.toMs)}
+              {formatDateTime(bridge.fromMs)} {bridge.gapMs <= 0 ? '↔' : '→'} {formatDateTime(bridge.toMs)}
             </span>
           </Tooltip>
         </Polyline>
@@ -535,7 +561,7 @@ export default function TripMap(props: TripMapProps) {
               {visit.address !== undefined && <span className="trip-tip-addr">{visit.address}</span>}
               {rangeStartMs !== null && visit.startMs < rangeStartMs && (
                 <span className="trip-tip-overnight">
-                  跨夜 · 自 {toInputDate(visit.startMs).slice(5)}
+                  {t('list.overnight', { date: formatDay(visit.startMs) })}
                 </span>
               )}
               {visit.name !== undefined && (
@@ -544,7 +570,7 @@ export default function TripMap(props: TripMapProps) {
                 </span>
               )}
               <span className="trip-tip-meta">
-                {fmtDateTime(visit.startMs)} · {fmtDuration(visit.endMs - visit.startMs)}
+                {formatDateTime(visit.startMs)} · {formatDuration(visit.endMs - visit.startMs)}
               </span>
               <span className="trip-tip-actions">
                 <CopyCoordsButton lat={visit.lat} lng={visit.lng} />
@@ -555,10 +581,10 @@ export default function TripMap(props: TripMapProps) {
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  在 Google Maps 開啟
+                  {t('map.openGoogleMaps')}
                 </a>
               </span>
-              <span className="trip-tip-note">{COORDS_PRIVACY_NOTE}</span>
+              <span className="trip-tip-note">{t('map.coordsPrivacyNote')}</span>
             </Tooltip>
           </CircleMarker>
         )

@@ -3,13 +3,13 @@ import DataBar from '../components/DataBar'
 import DateRangePicker from '../components/DateRangePicker'
 import StopList from '../components/StopList'
 import TimelineList from '../components/TimelineList'
+import TripStatsPanel from '../components/TripStatsPanel'
 import TripMap, { DOT_MIN_ZOOM, type LatLngBoundsMatrix } from '../components/TripMap'
 import {
   boundsOf,
   boundsIncludeRawPoints,
   bridgeLines,
   dayKeyOf,
-  fmtRangeLabel,
   legendTypes,
   LIST_LIMIT,
   prepareTimeline,
@@ -17,7 +17,7 @@ import {
   startOfDayMs,
   type DateRangeFilter,
 } from '../lib/trips'
-import { SAMPLE_LABEL } from '../lib/sample'
+import { useI18n, type MessageKey } from '../lib/i18n'
 import type { PreparedTrips, BridgeLine, TimelinePayload, TimelineVertex } from '../lib/trips'
 import type { TimelineData, Visit, Segment, Point } from '../lib/types'
 import { useTimelineStore } from '../store/timelineStore'
@@ -44,6 +44,7 @@ function MapPane({
   segments,
   route,
   rangeStartMs,
+  dateRange,
   onZoomChange,
 }: {
   prepared: PreparedTrips | TimelinePayload
@@ -55,11 +56,13 @@ function MapPane({
   segments: readonly Segment[]
   route: readonly TimelineVertex[]
   rangeStartMs: number | null
+  dateRange: DateRangeFilter
   onZoomChange: (zoom: number) => void
 }) {
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
   // Generic camera target: a stop or a timeline point (both just need lat/lng).
   const [flyTarget, setFlyTarget] = useState<Point | null>(null)
+  const { t } = useI18n()
 
   const highlightedSegments = useMemo(() => {
     const set = new Set<number>()
@@ -90,6 +93,13 @@ function MapPane({
       <div className="trips-side">
         <DataBar />
         <DateRangePicker />
+        <TripStatsPanel
+          route={route}
+          segments={segments}
+          visits={prepared.visits}
+          mode={mode}
+          range={dateRange}
+        />
         {mode === 'timeline' ? (
           <TimelineList
             points={route}
@@ -116,7 +126,7 @@ function MapPane({
       </div>
       <div className="trips-map-wrap">
         {segments.length === 0 && prepared.visits.length === 0 && (
-          <div className="trips-empty">该日期范围内没有行程数据</div>
+          <div className="trips-empty">{t('trips.empty')}</div>
         )}
         <TripMap
           segments={segments}
@@ -150,6 +160,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   // nothing.
   const [mapZoom, setMapZoom] = useState(0)
   const pointsToggleDisabled = mapZoom < DOT_MIN_ZOOM
+  const { t, formatNumber, formatRangeLabel } = useI18n()
 
   const preparedTrips = useMemo(
     () => prepareTripsForData(data, dateRange),
@@ -192,11 +203,11 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   // Timeline summary is honest about where the route came from: rawSignals are
   // only kept ~30 days, so older ranges fall back to the semantic segment paths.
   const timelineSummary = useMemo(() => {
-    const n = preparedTimeline.route.length.toLocaleString()
-    if (preparedTimeline.routeSource === 'segments') return `${n} 轨迹点（行程段）`
-    if (preparedTimeline.routeSource === 'mixed') return `${n} 轨迹点（GPS+行程段）`
-    return `${n} 原始点`
-  }, [preparedTimeline.route.length, preparedTimeline.routeSource])
+    const n = formatNumber(preparedTimeline.route.length)
+    if (preparedTimeline.routeSource === 'segments') return t('trips.summary.routeSegments', { n })
+    if (preparedTimeline.routeSource === 'mixed') return t('trips.summary.routeMixed', { n })
+    return t('trips.summary.routeRaw', { n })
+  }, [preparedTimeline.route.length, preparedTimeline.routeSource, t, formatNumber])
 
   // The "trajectory points" toggle only has something to toggle when the
   // current view actually draws per-point dots: the timeline route (raw or
@@ -209,20 +220,29 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
   return (
     <section className="trips-shell">
       <div className="trips-topbar">
-        <h2 className="trips-title">Trips</h2>
-        {dataSource === 'sample' && <span className="badge-sample">{SAMPLE_LABEL}</span>}
+        <h2 className="trips-title">{t('trips.title')}</h2>
+        {dataSource === 'sample' && <span className="badge-sample">{t('landing.sampleLabel')}</span>}
         <span className="trips-summary">
-          {fmtRangeLabel(dateRange)} · {mode === 'timeline' ? timelineSummary : `${preparedTrips.segments.length} 段 · ${preparedTrips.totalPathPoints.toLocaleString()} 点`} · {currentPrepared.visits.length} 停留
-          {mode === 'activityType' && preparedTrips.points.length > 0 && ` · ${preparedTrips.points.length.toLocaleString()} 原始点`}
-          {mode === 'activityType' && bridges.length > 0 && ` · ${bridges.length} 处衔接`}
+          {formatRangeLabel(dateRange)} ·{' '}
+          {mode === 'timeline'
+            ? timelineSummary
+            : t('trips.summary.segments', {
+                n: formatNumber(preparedTrips.segments.length),
+                points: formatNumber(preparedTrips.totalPathPoints),
+              })}{' '}
+          · {t('trips.summary.stays', { n: formatNumber(currentPrepared.visits.length) })}
+          {mode === 'activityType' && preparedTrips.points.length > 0 &&
+            ` · ${t('trips.summary.rawPoints', { n: formatNumber(preparedTrips.points.length) })}`}
+          {mode === 'activityType' && bridges.length > 0 &&
+            ` · ${t('trips.summary.bridges', { n: formatNumber(bridges.length) })}`}
         </span>
-        {currentPrepared.downsampled && <span className="trips-note">已降采样显示</span>}
+        {currentPrepared.downsampled && <span className="trips-note">{t('trips.downsampled')}</span>}
         {legend.length > 1 && (
           <span className="trips-legend">
             {legend.map((entry) => (
               <span key={entry.type} className="chip">
                 <i style={{ background: entry.color }} />
-                {entry.label}
+                {t(activityKey(entry.type))}
               </span>
             ))}
           </span>
@@ -233,20 +253,20 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             className={`trips-mode-btn ${mode === 'timeline' ? 'active' : ''}`}
             onClick={() => setMode('timeline')}
           >
-            时间轴
+            {t('trips.mode.timeline')}
           </button>
           <button
             type="button"
             className={`trips-mode-btn ${mode === 'activityType' ? 'active' : ''}`}
             onClick={() => setMode('activityType')}
           >
-            按活动类型
+            {t('trips.mode.activity')}
           </button>
         </div>
         {showPointsToggle && (
           <span
             className="trips-toggle-wrap"
-            title={pointsToggleDisabled ? `放大到 zoom ${DOT_MIN_ZOOM} 以上才显示轨迹点` : undefined}
+            title={pointsToggleDisabled ? t('trips.toggle.zoomHint', { zoom: DOT_MIN_ZOOM }) : undefined}
           >
             <button
               type="button"
@@ -254,7 +274,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
               disabled={pointsToggleDisabled}
               onClick={() => setShowRoutePoints((visible) => !visible)}
             >
-              {showRoutePoints ? '隐藏轨迹点 ●' : '显示轨迹点 ○'}
+              {showRoutePoints ? t('trips.toggle.hide') : t('trips.toggle.show')}
             </button>
           </span>
         )}
@@ -263,7 +283,7 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
           className="trips-toggle"
           onClick={() => setSidebarOpen((open) => !open)}
         >
-          {sidebarOpen ? '收起面板 «' : '展开面板 »'}
+          {sidebarOpen ? t('trips.panel.collapse') : t('trips.panel.expand')}
         </button>
       </div>
       <div className="trips-body">
@@ -279,11 +299,12 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
             segments={preparedTrips.segments}
             route={preparedTimeline.route}
             rangeStartMs={dateRange.startMs}
+            dateRange={dateRange}
             onZoomChange={setMapZoom}
           />
         ) : (
           <div className="trips-map-wrap">
-            {noData && <div className="trips-empty">该日期范围内没有行程数据</div>}
+            {noData && <div className="trips-empty">{t('trips.empty')}</div>}
             <TripMap
               segments={preparedTrips.segments}
               markers={currentPrepared.markers}
@@ -308,6 +329,28 @@ function TripsView({ data, dataSource, dateRange }: TripsViewProps) {
     </section>
   )
 }
+
+/** Map an activity type (possibly empty/unknown) to its catalog key. */
+function activityKey(type: string): MessageKey {
+  const key = `activity.${type}` as MessageKey
+  return type && ACTIVITY_KEYS.has(key) ? key : 'activity.other'
+}
+
+const ACTIVITY_KEYS = new Set<MessageKey>([
+  'activity.IN_PASSENGER_VEHICLE',
+  'activity.IN_VEHICLE',
+  'activity.IN_BUS',
+  'activity.IN_SUBWAY',
+  'activity.IN_TRAIN',
+  'activity.IN_TRAM',
+  'activity.IN_FERRY',
+  'activity.WALKING',
+  'activity.RUNNING',
+  'activity.CYCLING',
+  'activity.MOTORCYCLING',
+  'activity.IN_FLIGHT',
+  'activity.FLYING',
+])
 
 export default function TripsPage() {
   const data = useTimelineStore((state) => state.data)

@@ -699,22 +699,41 @@ export function bridgeLines(segments: readonly Segment[]): BridgeLine[] {
 }
 
 /**
+ * Language-neutral decomposition of a bridge gap for the UI to localize.
+ * `link` = below the annotation threshold (including overlapping transfers,
+ * whose gapMs is negative and must never render as a negative duration).
+ */
+export type BridgeGapParts =
+  | { kind: 'link' }
+  | { kind: 'gap'; days: number; hours: number; minutes: number }
+
+export function bridgeGapParts(gapMs: number): BridgeGapParts {
+  if (gapMs < BRIDGE_ANNOTATE_MIN_MS) return { kind: 'link' }
+  const totalMinutes = Math.round(gapMs / 60000)
+  return {
+    kind: 'gap',
+    days: Math.floor(totalMinutes / (60 * 24)),
+    hours: Math.floor((totalMinutes % (60 * 24)) / 60),
+    minutes: totalMinutes % 60,
+  }
+}
+
+/**
  * Short Chinese tooltip for a bridge: "衔接" for gaps under the annotation
  * threshold, otherwise "衔接 +N 分钟/小时/天" so the user can judge whether
  * the dashed link is a minute-long transfer or an unrecorded multi-day gap.
  * Overlapping legs carry a NEGATIVE `gapMs` — the label must never show a
  * negative duration, so any gap below the annotation threshold (including
  * overlap transfers) renders as the plain "衔接".
+ *
+ * Kept for tests/back-compat; the UI localizes via `bridgeGapParts` + i18n.
  */
 export function bridgeGapLabel(gapMs: number): string {
-  if (gapMs < BRIDGE_ANNOTATE_MIN_MS) return '衔接'
-  const totalMinutes = Math.round(gapMs / 60000)
-  const days = Math.floor(totalMinutes / (60 * 24))
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60)
-  const minutes = totalMinutes % 60
-  if (days > 0) return hours > 0 ? `衔接 +${days} 天 ${hours} 小时` : `衔接 +${days} 天`
-  if (hours > 0) return minutes > 0 ? `衔接 +${hours} 小时 ${minutes} 分` : `衔接 +${hours} 小时`
-  return `衔接 +${minutes} 分钟`
+  const parts = bridgeGapParts(gapMs)
+  if (parts.kind === 'link') return '衔接'
+  if (parts.days > 0) return parts.hours > 0 ? `衔接 +${parts.days} 天 ${parts.hours} 小时` : `衔接 +${parts.days} 天`
+  if (parts.hours > 0) return parts.minutes > 0 ? `衔接 +${parts.hours} 小时 ${parts.minutes} 分` : `衔接 +${parts.hours} 小时`
+  return `衔接 +${parts.minutes} 分钟`
 }
 
 // -- Route point rendering ---------------------------------------------------
@@ -791,15 +810,17 @@ export function activityLabel(activityType?: string): string {
   return ACTIVITY_LABELS[activityType] ?? activityType
 }
 
-/** Distinct legend entries from the currently visible segment set. */
-export function legendTypes(segments: Segment[]): Array<{ type: string; label: string; color: string }> {
+/** Distinct legend entries from the currently visible segment set. The label is
+ *  resolved in the UI from the activity type (i18n), so this stays
+ *  language-neutral. */
+export function legendTypes(segments: Segment[]): Array<{ type: string; color: string }> {
   const seen = new Set<string>()
-  const out: Array<{ type: string; label: string; color: string }> = []
+  const out: Array<{ type: string; color: string }> = []
   for (const s of segments) {
     const type = s.activityType ?? ''
     if (seen.has(type)) continue
     seen.add(type)
-    out.push({ type, label: activityLabel(s.activityType), color: activityColor(s.activityType) })
+    out.push({ type, color: activityColor(s.activityType) })
   }
   return out
 }
