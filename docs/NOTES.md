@@ -1112,3 +1112,17 @@ T30.1–T30.5 完工。5 项用户反馈（#1–#5）对应的 PRD v1.20 变更�
 - 完成后进 Trips：label=Timeline-20250213.json，summary=`Jan 15, 2025 ~ Feb 13 · 11,386 route points · 260 stays`，屏上无 `%` 残留 ✓
 
 **与 PRD v1.22 一致性（验收⑤）**：功能 1 实作 = 单文件导入 + 解析期不确定进度条动画 + 不显示百分比 → 一致。PRD 未改。
+
+## 2026-09-16 07:05 — Dev T35 收尾（Reviewer G1/S3 修正，commit 79a7bea）
+
+Reviewer 审查 T35 后 PASS，附 1 建议级（G1）+ 1 规范级（S3），本轮顺手修掉：
+
+1. **G1 文案单数化**（单文件导入语义一致）：
+   - `en.ts` `import.dropHint`：`'or drag & drop files here'` → `'or drag & drop a file here'`
+   - `zh.ts` `import.dropHint`：`'或把文件拖拽到此处'` → `'或把单个文件拖拽到此处'`
+2. **扫描邻接残留**：同一 import 面板内 `import.retry`（en）`'Choose files again'` → `'Choose the file again'`（与 errorHint「pick the file again」单数口径对齐）；zh `'重新选择文件'` 中文无量，不动。`import.supported`（T35 已改）复核为单数 ✓。
+3. **S3 补换行**：`ImportPanel.test.tsx` 末尾补 `\n`。
+
+**扫描备注（未改，供 CEO 参考）**：`help.formatsTip`（en/zh）与 FAQ q3 提到「多文件一次性合并导入」——那是 PRD v1.22 划给**功能 14 独立页**（未立项未实现）的语义，非 import 面板复数残留，本轮不越界改 help 文案。
+
+**自测**：grep `drag & drop files|拖拽文件|把文件` in `src/src/lib/i18n/` 零命中；`npm test` **220 全绿**（16 档，与 T35 基线一致）；lint ✓ / build ✓（仅既有 chunk-size 警告）。
