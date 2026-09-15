@@ -1,0 +1,46 @@
+# ARCHIVE: Google Timeline Viewer
+
+## 2026-09-15 归档
+
+- [x] ~~T1: 项目脚手架 + 应用框架~~ (09-13→09-13) — Vite+React19+TS+Leaflet+Router+Zustand；路由/Header/Footer 骨架；build 通过
+- [x] ~~T2: 数据解析层（四格式 + Web Worker）~~ (09-13→09-13) — 18 单测通过；build/lint 通过；Reviewer 审查延后至下个节奏点
+- [x] ~~T3: 模拟示例数据~~ (09-13→09-13) — gen-sample-data.mjs 产出 54 天/5 城市直出格式数据；载入模块 + 单测通过；UI 角标就绪
+- [x] ~~T4: 导入集成 + 空状态首屏 + 全局状态~~ (09-13→09-13) — store（导入/示例/大文件确认/日期范围）+ 空状态页 + 拖拽导入面板；22 单测全绿
+- [x] ~~T5: Trips 视图（行程轨迹）~~ (09-13→09-13) — 日期范围选择器（快捷档+单边日）+ 路线按交通方式着色 + tooltip；40 单测；playwright 实测含 123.4MB 真实导出
+- [x] ~~T6: Places 视图（地图点击查访）~~ (09-13→09-13) — SpatialGrid(1°×1° bbox+haversine)+4 档半径圆+自动 zoom+点击浮层；50 单测；真实数据 5000km 查询 21ms
+- [x] ~~T7: Landing 首页 + OPC 3.0 展示~~ (09-13→09-13) — Hero+痛点→方案+3 功能卡+隐私承诺+技术栈；Built with OPC 3.0 section（无内部角色术语）；「立即体验」→ loadSample
+- [x] ~~T8: 导出教程页~~ (09-13→09-13) — Android(系统设置)/iOS(Maps App)步骤 + 4 格式说明 + FAQ 折叠(aria-expanded) + 体验示例 CTA
+- [x] ~~T9: 隐私与瓦片源设置~~ (09-13→09-13) — tileSource store(TileLayer 即时生效)+设置 UI(URL 校验/警告/生命卡/仅内存)+隐私明示文案；57 单测；Security 审查(有条件通过，0 致命/严重)
+- [x] ~~T9.3: 安全审查建议项加固~~ (09-13→09-13) — G1(raw points 2M 硬上限+warning)；S1(CSP meta)；S2(http 明文警告)；S3({s}+OSM 提示)；S5(示例数据「家（模拟）」)；63 单测+build+lint 全过
+- [x] ~~T10.1: GitHub Pages 部署 workflow~~ (09-13→09-13) — HashRouter + base './' + deploy.yml；子路由刷新可达；未建 remote
+- [x] ~~T10.2: README（中文）~~ (09-13→09-13) — 10 区块：简介/亮点/截图/快速开始/取数指南/格式表/隐私声明/架构图/Built with OPC 3.0/MIT 声明
+- [x] ~~T10.3: GitHub Pages 部署~~ (09-13→09-13) — Actions 成功；所有路由 200；7 张截图 200；Network 冒烟通过；https://coderkk.github.io/google-timeline-viewer/
+- [x] ~~T12: 产品改动（改名 + Theme + 半径档位 + marker 颜色）~~ (09-13→09-13) — Timeline Map 改名 + Theme(Light/Dark/System) + 半径 1/5/10/50/100KM + Places marker 颜色区分 + 日期筛选全局共享；63 单测+build+lint 全过
+- [x] ~~T12.6: Places marker 颜色区分修复~~ (09-13→09-13) — 范围内所有停留点都显示 marker，点击处蓝色高亮 + 周围琥珀色；部署成功
+- [x] ~~T13: Places 停留点点击历史~~ (09-13→09-13) — 点击 marker 弹出浮动面板显示该地点历史访问记录；visitHistory 分组工具 + VisitHistoryPanel 组件；71 单测 + build + lint 全过
+- [x] ~~T13.1: Trips/Places marker 细节修复~~ (09-14→09-14) — marker 日期 tooltip 加年份；Places popup 加 Google Maps 链接；解析器新增 `path` fallback key；71→71 单测
+- [x] ~~T13.2: 真实 livedata 车辆 GPS 轨迹合并~~ (09-14→09-14) — stitchSegments 终 pass 把重叠 trace 轨迹缝合进 activity 段；Reviewer 两轮（S1/S2/S3 + A1/A2/A3/A5）后通过；80 单测
+- [x] ~~T13.3: Trips 轨迹缝合改进 + 路线点显示~~ (09-14→09-14) — 缝合匹配从"端点≡trace首末点"改为"trace 中存在与 activity start/end 分别接近的点"；路径点渲染为小圆点（默认开，可切换）；记录 rawSignals 评估
+- [x] ~~T13.6: rawSignals 解析接入~~ (09-14→09-14) — format1 接入 rawSignals（position 类目解析为点）；全局点流经 prepareTrips 进 Trips 视图渲染；111 单测全绿；timelineMemory 假警告清零
+- [x] ~~T13.7: 时区分组修复~~ (09-14→09-14) — startOfDayMs/dayKeyOf 改本地(+08)时区并对齐日期筛选器；真实 2025 文件 17284 段旧 UTC 分组错日全修正；111 单测全绿
+- [x] ~~T14: Trips 时间线连续轨迹~~ (09-14→09-14) — PRD 功能 3 v1.7；prepareTrips 段按 startMs 升序 + bridgeLines 生成衔接线（纯时间口径）；124 单测全绿；livedata 最忙日 31 段排序 + 衔接验证
+- [x] ~~T14.1: 桥接端点修复~~ (09-14→09-14) — bridgeLines from/to 改用可视端点（path 首末，<2 回退 start/end），消除缝合 path≠start/end 导致的公里级视觉断口；120 单测全绿
+- [x] ~~T14.2: 跨类型衔接双闸门~~ (09-14→09-14) — bridgeLines 改「时间 or 距离双闸门」（gapMs≤0 且点距≤1000m 建桥）；阈值经两份 livedata CDF 标定；123 单测全绿
+- [x] ~~T14.3: 撤销双闸门改纯时间口径~~ (09-14→09-14) — **CEO 决策**：删掉 BRIDGE_OVERLAP_MAX_M，所有时间相邻段一律建桥（仅端点完全重合退化对免桥）；根因=用户实测「13:45 後沒有連去移動」误杀同程粗细双记录；124 单测全绿
+- [x] ~~T15: Trip 时间轴视图（纯 GPS 轨迹线）+ 模式切换~~ (09-14→09-14) — 默认改为纯时间轴（单色 #3b82f6）+ 可选「按活动类型」视图切换开关；131 单测全绿
+- [x] ~~T16: 时间轴路线回退语义段（raw 仅存 ~30 天）~~ (09-14→09-14) — buildTimelineRoute（按本地日分桶——当日 raw≥2 用 raw，否则用语义段 path）+ routeSource 标注；Reviewer PASS-WITH-CONDITIONS（A1/A2/N1/N3 已修）
+- [x] ~~T16.1: 时间轴轨迹点跟随路线（每个路径点都显示）~~ (09-14→09-14) — TimelineVertex[] 改造（raw 顶点带时间、语义段顶点不带，不伪造）；圆点遍历 timelineRoute；139 单测
+- [x] ~~T16.2: 停留点配色 + 点选 GPS 弹窗（Google Maps 链接）~~ (09-14→09-14) — 停留 marker 蓝→红/琥珀；路线顶点 click→map.openPopup（单一共享 popup 避免数万 `<Popup>`）；139 单测
+- [x] ~~T17: 路径点时间 + 轨迹去重 + 大 marker + 左侧时间线~~ (09-14→09-14) — buildTimelineRoute 重写（raw+语义段合并排序去重）；TimelineList 取代 StopList；marker 2.5→4/6→8；141 单测
+- [x] ~~T18: 双月历范围选择器~~ (09-14→09-14) — DateRangePicker 重写为双月历：点起始→结束、区间高亮、翻月/年、快捷档同步；141 单测（后被 T30.2 重写为 popover 版）
+- [x] ~~T19: 更换数据 + 显示文件名~~ (09-14→09-14) — DataBar（「当前数据」+ 文件名 + 「更换数据」按钮→clearData）；clearData 首次被接线；141 单测
+- [x] ~~T20: Google Maps 外链隐私处理~~ (09-15→09-15) — 点弹窗默认动作改「复制坐标」（零外送）；Google Maps 外链保留并加注「外部链接会把坐标与你的 IP 发送给 Google」；142 单测
+- [x] ~~T21: coveredByRaw 边界修正（路线空洞）~~ (09-15→09-15) — 覆盖判定由「按段」改为「按顶点」（±5min），长段不再被误判「已覆盖」导致路线空洞；142 单测
+- [x] ~~T22: A1 跨午夜（标注 + 路径裁剪）~~ (09-15→09-15) — overlap 语义纳入跨午夜记录；clipSegmentPath 裁剪顶点到 range；TimelineList/TripMap 加「跨夜·自 MM-DD」badge；143 单测；Reviewer S2 複審（clipSegmentPath 於 prepareTrips 统一裁切 activityType）
+- [x] ~~T23: 渲染性能压测（发布前）~~ (09-15→09-15) — production build + 真实 123.4MB livedata 量测；DOT_MIN_ZOOM=6 + GLOBAL_PATH_POINT_CAP/RAW_POINT_CAP 30000→12000；秒级冻结消除；数据见 DATA-FINDINGS §8；Reviewer S2-a/S2-b 修正
+- [x] ~~T24: 移动端适配~~ (09-15→09-15) — CSS media query（max-width:768px）：双月历降单月、Trips/Places 左栏改底部抽屜、顶栏收拢、触控目标 ≥44px；375×667 验证通过
+- [x] ~~T25: 行程导出（GeoJSON/KML）~~ (09-15→09-15) — lib/export.ts + ExportButton.tsx；导出当前筛选范围轨迹+停留；护栏：确认弹窗/隐私提示/本地下载零网络；8 单测；Reviewer A/N 修正（revokeObjectURL 延后、焦点管理、档名）
+- [x] ~~T26: README / portfolio 修复~~ (09-15→09-15) — 图片路径全裂修复 + 10 张截图重拍（production build + sample data）+ 重複圖修正 + LICENSE(MIT) + 占位符填实 + CHANGELOG.md（T1–T25 里程碑，未打 tag）+ Places 半径文案修正；Reviewer 複審（S2 隐私声明补外链例外、A1 CHANGELOG 补条目、A2 重截 settings.png）
+- [x] ~~T27: 行程统计报表（功能 11）~~ (09-15→09-15) — lib/stats.ts + TripStatsPanel.tsx；总距离/活跃天数/日均距离/日均停留/地点频次 Top 5；useMemo 纯本地；Reviewer A1/A2 + S3 修正（clamp 到 range、distanceSource 随模式、fallback 门槛 > 0）
+- [x] ~~T28: 多语言 EN/简体中文（功能 12）~~ (09-15→09-15) — 自建轻量 i18n（无新依赖）：src/lib/i18n/；预设语言 = navigator.language；设置页手动切换；不持久化；格式化随语言；Reviewer S3/A3 修正（store 存语言无关值、截断警告单位修正）
+- [x] ~~T29: 行程链（visit↔activity 关联，功能 13）~~ (09-15→09-15) — lib/tripChain.ts + TripChainList.tsx；**配对口径**：visits+segments 合并后 startMs 升序（同时刻 segment 在前），单次前/后扫描求最近邻；202 单测；Reviewer S3/A1-A4/N1/N 修正全数；纯函数 O(n log n)
