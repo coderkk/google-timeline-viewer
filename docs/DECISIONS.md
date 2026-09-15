@@ -60,3 +60,7 @@
 
 ## 2026-09-15 20:40 — T31 验收通过（fallback 门槛口径统一）
 决定: T31 验收通过：抽出 `MIN_PATH_LEN`/`hasPath`/`segmentPathOrEndpoints`/`MIN_POLYLINE_LEN`/`hasRenderablePath` 共用常量，6 处 `>0` 几何源选择与 4 处渲染层 `>=2` 闸门统一单一口径；解析层 `>=2`（缝合池）有意保留并注释差异。理由: 2026-09-15 retro A3，消除 `>=2` vs `>0` 两次回退根源（T20-25/T27）；211 单测 + build + lint 全绿；Reviewer PASS 零遗留（N1 措辞已同步）。
+
+## 2026-09-15 21:35 — B5 开「分支实验模式」+ T32 侦察验收
+决定: ①B5 采用**分支实验模式**：main=对照组、`experiment/b5-livedata-overlap`=实验组，用户本地真数据对比后拍板 merge/关闭/取代码——替代无法做的 A/B（纯本地无埋点、无后端、隐私承诺）。规则：实验期宽松 Review、merge 门控走完整流程、>1 周未定提醒。②T32 侦察验收通过（commit c5c8d67，Reviewer PASS）。
+理由: ①无行为数据可替用户决策，分支=人肉 A/B，最诚实的验证路径；②侦察发现（scripts/analyze-visit-activity-overlap.mjs，两文件全量）——visit 与 activity-keyed 段**零重叠**（干净时间分区，30,682/37,287 visits），T29 在此层面 100% 正确；**三角现象（~23% chain movements）全部来自 timelinePath-only traces**（2h GPS 窗口 ambient GPS），非 activity 段——B5 原设「visit↔activity 关联展示」问题在语义段层面**不存在**，真实盲区是 trace 段进链导致 duration/距离标签偏粗。
