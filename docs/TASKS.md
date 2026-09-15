@@ -1,9 +1,15 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T33 -->
+<!-- next: T34 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
+- [ ] **T33: 实验分支 — by activity 行程链过滤 timelinePath-only traces（B5 方案 A）**
+  - 验收: 分支 `experiment/b5-livedata-overlap` 上实现；buildTripChain 输入只收 activity-keyed 段（丢弃 timelinePath-only traces）；三角归零；livedata 全量链统计对比（main vs 分支）；by activity 单测更新 + 全绿；不碰时间轴路径
+  - 档位: L3（实验分支）— 跨解析/链逻辑，需真实数据验证
+  - 指派: Dev
+  - 来源: B5（docs/RESEARCH-B5.md §5）；用户拍板「先改 by activity」
+  - 时间: 09-15 创建
 
 ## 📋 To Do
 
