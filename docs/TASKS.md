@@ -4,22 +4,6 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T36: 合并归档独立页（功能 14）— rawSignals 累积** [P2]
-  - 背景: 用户要长期保留 rawSignals（Google 只留 ~29 天滚动窗口，定期导出存档即可突破），但**不累积多份完整 Timeline.json**（每份都带完整 semanticSegments，重复解析浪费）→ 独立页 merge 产出合并档文件 → 再导入观看
-  - 方案（PRD v1.23，用户拍板）:
-    - 入口: 新路由 `/app/merge`（独立页，不在 import 流程）；页面上两个 Select File：①主档案（已有合并档，可选——首次没有）②本次新导出 Timeline.json → [合并并下载] → 产出新合并档（下载保存，之后要导入观看时再导入）
-    - 合并算法（核心「分而治之」）:
-      - `semanticSegments` → **取新导出的那份**（永久历史，最新=最全；替换旧档语义段，不去重/不拼接）
-      - `rawSignals` → **窗口互补累积**：新导出 29 天窗口与旧档案累积池——不重叠（间隔 ≥29 天）直接拼接；重叠则按「时间 ± 容差 + 位置」折叠重复点保留新点
-      - 保留 `userLocationProfile`（取新导出）
-    - 输出格式: `Timeline.json` schema（`{semanticSegments, rawSignals, userLocationProfile}`）→ **导入后可正常观看**（时间轴模式用累积 raw、旧日期自动回退语义段——功能 3 现有逻辑）
-    - 纯本地、零网络请求（隐私一致）
-  - 验收: ①`/app/merge` 独立页可达、与 import 无耦合；②同一份文件合并两次 → rawSignals 无重复点、semanticSegments 只一份；③间隔 ≥29 天的两份导出 → raw 窗口拼接覆盖更长跨度、语义段取较新那份；④重叠窗口提前导出 → raw 折叠重复点（时间±容差+位置判据）；⑤合并档嵌套字段（array/object/顶层位置）导出后**再导入可正常观看**（时间轴 raw 累积可见、旧日期回退语义段）；⑥全程无网络请求；⑦单测覆盖合并算法（含重叠/不重叠/同文件两次/空主档案首次）＋ lint + build
-  - 档位: L3（新页面 + 新算法 + 文件输出）
-  - 指派: Dev + Reviewer
-  - 来源: 用户讨论 2026-09-16 + PRD v1.23
-  - 时间: 09-16 创建 → 09-16 Doing
-
 - [ ] **T37: raw 点渲染性能压测（发布前）** [P2]
   - 背景: T23 已处置渲染性能（GLOBAL_PATH_POINT_CAP=12000、RAW_POINT_CAP=12000、低 zoom<6 只画折线不画点、canvas 兜底 CircleMarker）→ 发布前用真实 livedata 的 **15k 点窗口**复测确认无卡顿
   - 方案:
@@ -34,6 +18,23 @@
 
 ## 📋 To Do
 
+- [ ] **T36: 合并归档独立页（功能 14）— rawSignals 累积** [P2]
+  - 背景: 用户要长期保留 rawSignals（Google 只留 ~29 天滚动窗口，定期导出存档即可突破），但**不累积多份完整 Timeline.json**（每份都带完整 semanticSegments，重复解析浪费）→ 独立页 merge 产出合并档文件 → 再导入观看
+  - 方案（PRD v1.23，用户拍板）:
+    - 入口: 新路由 `/app/merge`（独立页，不在 import 流程）；页面上两个 Select File：①主档案（已有合并档，可选——首次没有）②本次新导出 Timeline.json → [合并并下载] → 产出新合并档（下载保存，之后要导入观看时再导入）
+    - 合并算法（核心「分而治之」）:
+      - `semanticSegments` → **取新导出的那份**（永久历史，最新=最全；替换旧档语义段，不去重/不拼接）
+      - `rawSignals` → **窗口互补累积**：新导出 29 天窗口与旧档案累积池——不重叠（间隔 ≥29 天）直接拼接；重叠则按「时间 ± 容差 + 位置」折叠重复点保留新点
+      - 保留 `userLocationProfile`（取新导出）
+    - 输出格式: `Timeline.json` schema（`{semanticSegments, rawSignals, userLocationProfile}`）→ **导入后可正常观看**（时间轴模式用累积 raw、旧日期自动回退语义段——功能 3 现有逻辑）
+    - 纯本地、零网络请求（隐私一致）
+  - 档位: L3（新页面 + 新算法 + 文件输出）
+  - 指派: Dev + Reviewer
+  - 来源: 用户讨论 2026-09-16 + PRD v1.23
+  - 时间: 09-16 创建
+
+## ⏸ KIV
+
 
 
 ## ⏸ KIV
@@ -46,7 +47,7 @@
 
 - [ ] [P2] 离线瓦片 / 自托管瓦片服务器 — 彻底消除瓦片请求隐私（→ PRD 不做）(09-13)
 - [ ] [P2] 行程分享/导出（GeoJSON/KML）— （→ PRD 不做）(09-13)
-- [ ] [P2] 合并归档·rawSignals 累积（功能 14）— **重定义为「跨时间累积」**（非多设备合并）：独立页 merge 新导出 → 产出合并档（semanticSegments 取最新 + rawSignals 窗口互补累积/重叠去重）→ 再导入观看；动机：长期保留 rawSignals（Google 只 ~29 天窗口）又不堆 N 份完整 Timeline.json；PRD v1.23；来源：用户讨论 09-16（含 T-K2③ rawSignals 滚动窗口互补合并的原担忧）(09-13→09-16 更新)
+- [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [x] ~~[P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）~~ **(09-14→09-15 完成)** — 侦察（T32）证伪「visit↔activity 重叠」假设；真问题=timelinePath traces 混入 by-activity 链（23% 假移动）；实验分支（T33）验证方案 A 净改善（三角归零+零孤岛），已 merge；分析见 docs/RESEARCH-B5.md，结果见 docs/EXPERIMENT-B5.md
 - [ ] [P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算 (09-14)
@@ -73,5 +74,11 @@
   - 指派: Dev + Reviewer
   - 来源: 用户实测报告（2026-09-15）+ PRD v1.22
   - 时间: 09-15 创建 → 09-16 Done（commits `30843e3`/`79a7bea`（G1）/`69edd64`（Help 单文件化））
+
+- [x] ~~T36: 合并归档独立页（功能 14）— rawSignals 累积~~ (09-16→09-16) [P2] — 用户长期保留 rawSignals（Google 只 ~29 天窗口）但不堆 N 份完整 Timeline.json → 独立页 `/app/merge`：主档案（可选）+ 新导出 → 合并 → 下载合并档 → 再导入观看。**分而治之算法**：`semanticSegments` 取新导出（最新=最全，不合并去重）+ `rawSignals` 窗口互补累积（重叠按 ±60s + 100m 折叠保留新点、间隔 ≥29 天直接拼接）+ `userLocationProfile` 取新；输出 Timeline.json schema 可再导入（时间轴用累积 raw、旧日期回退语义段——功能 3 现有逻辑）。实现：`src/lib/merge/`（纯算法 + largeFile 护栏）+ `merge.worker.ts`（离主线，100MB+ 不卡 UI）+ `pages/MergePage.tsx`（双 select + 不确定进度 + 下载 `timeline-merged-YYYYMMDD.json`）+ `extractFormat1Slices` parse 重构共享；13 i18n key en/zh parity。livedata 冒烟：2025(108MB)+2026(123MB) → raw=106,171 无损累积、semantic=97,382 单层、合并档 101.5MB（不翻倍——大头语义段只留一份）、再导入 27,252 points span 2025-01→2026-08 闭环。**243 单测**（+23）+ lint + build 全绿。Reviewer PASS（零阻断）；一般级 3 项已修：①空语义段新导出抛错（防静默清空旧语义层）②coordless exact-identity 去重（虽 livedata 实测精确重叠为 0）③>200MB 合并前确认护栏（内存峰值约 ×6、>300MB 建议分次导出）。**决策**：新导出内部近重复（2025 23.6%/2026 40.4%=静止/慢移真实信号密度）不去重——折叠只做旧→新方向，同文件合并两次幂等（15479/15479 全折叠），不削原始 GPS。功能从 Backlog 亮相，PRD v1.23
+  - 档位: L3
+  - 指派: Dev + Reviewer
+  - 来源: 用户讨论 2026-09-16（功能 14 重定义）+ PRD v1.23
+  - 时间: 09-16 创建 → 09-16 Done（commits `951ef4b` + `dd87fec`（一般级修复））
 
 ## ❌ Cancelled
