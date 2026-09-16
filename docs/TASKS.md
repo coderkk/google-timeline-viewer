@@ -24,6 +24,12 @@
 
 ## 📭 Backlog（上 = 优先）
 
+- [ ] [P1] **隐私断言机器化（Security Engineer 全员追认抓到的真缺口）**：本项目核心承诺是「本地处理、不上传」，但全 repo 只有 SMOKE-CHECKLIST 两行文字，**无脚本实现、deploy.yml 零请求断言**——而 deploy.yml 是 push 自动部署，最高价值的安全不变量唯一只靠人肉勾选。
+  - 建 `scripts/smoke-network-tap.mjs`（Playwright 零新依赖）：`page.on('request')` 全量捕获，命中白名单外即非零退出
+  - 白名单 machine-readable 单一源：`scripts/privacy-allowlist.json`（self + tile hosts + 已登记端点 + blob 下载）
+  - 进 `deploy.yml` 作阻塞门禁（独立 privacy job，build `needs` 它）——否则自动部署链里没有可卡的时点
+  - 来源: 2026-09-16 全员追认（docs/records/meetings/2026-09-16.md）
+
 - [ ] [P1] **流程修订落地：项目级文档补齐**（2026-09-16 流程提案 P1–P9 + A16 拍板后）：
   - 复制 `templates/project/docs/release-runbook.md` → 本项目 `docs/release-runbook.md`（下次发布链拆卡前必做；发布验收引用它）
   - 复制 `templates/project/docs/COPY.md` → 本项目 `docs/COPY.md`，登记现有对外主张（README/i18n/Help/Landing/截图，含 landing-full.png 截图核对）
