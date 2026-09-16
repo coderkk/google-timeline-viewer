@@ -10,7 +10,7 @@
     - 相关: `src/src/components/TripMap.tsx` L144 已有 FitController cleanup 的 `_leaflet_pos` 防护（React 卸载 pane 时 `_getMapPanePos` 读 detached pane）——N1 是**另一条路径**（tooltip 弹出竞态），需定位真实抛出点
     - 修复方向: 定位真正抛错处（flyTo/tooltip/openPopup 竞态？mobile 更频繁因 touch 事件时序）；null guard 或 try/catch 或时机调整；**不要用 `map.stop()` 类粗暴方案**（T27 踩过坑：造成收起面板白屏）
     - 验收: ①复现路径（mobile 点击停留 → tooltip）连续 5 轮 0 pageerror；②desktop 原有功能零回归；③不引入白屏/卡顿回归；④单测相关（如有）+ 243 全绿
-    - 完成: **真根因 = Leaflet `_onZoomTransitionEnd` 250ms setTimeout 在 `map.remove()`（删除 `_mapPane`）后触发**（捕获完整栈 `_onZoomTransitionEnd→_move→_getNewPixelOrigin→_getMapPanePos→getPosition(undefined)`）；step-tag 冒烟定位抛出点在「重新导入→立即导航离开 Trips」的高频窗口（不是 tooltip 弹出本身，是同一旧 N1 族：unmount 时 zoom 动画未结束）。修复：FitController 空依赖 unmount cleanup 置 `map._animatingZoom=false`（纯字段复位、非 map 方法调用——T27 `map.stop()` 白屏教训），250ms 定时器首行 `if(!_animatingZoom)return` 变 no-op。验证：smoke-t38 全流程 **5/5 轮（desktop+mobile）0 pageerror** + 竞态 whammy（mobile 重新导入×3+立即导航、desktop 侧栏收起/展开×3）0 `_leaflet_pos`，无白屏/无卡顿
+    - 完成: **真根因 = Leaflet `_onZoomTransitionEnd` 250ms setTimeout 在 `map.remove()`（删除 `_mapPane`）后触发**（捕获完整栈 `_onZoomTransitionEnd→_move→_getNewPixelOrigin→_getMapPanePos→getPosition(undefined)`）；step-tag 冒烟定位抛出点在「重新导入→立即导航离开 Trips」的高频窗口（不是 tooltip 弹出本身，是同一旧 N1 族：unmount 时 zoom 动画未结束）。修复：unmount cleanup 置 `map._animatingZoom=false`（纯字段复位、非 map 方法调用——T27 `map.stop()` 白屏教训），250ms 定时器首行 `if(!_animatingZoom)return` 变 no-op。**Reviewer REJECT 打回**（同族竞态 Trips 已修但 Places 未覆盖：PlacesMap `RadiusCircle` L73 `fitBounds(...,{animate:true})` + 中间 zoom Δ≤4 → 点地图 → 跳 Merge，复现 6/6）→ 补充修复：抽共享 hook `useResetZoomAnimOnUnmount`（`src/src/lib/`），**Trips FitController + Places 常驻 `ResetZoomAnimController` 双视图同挂**（只挂最终 unmount、纯字段复位不调 map 方法）——不再接受「所有路径」过宽表述，如实记「Trips + Places 双视图（共享 hook）」。验证：Places 复现路径（390×844 滚轮放大中间 zoom→点地图→瞬跳 Merge）**6/6→0/6 pageerror** + smoke-t38 全流程（desktop 1440+mobile 390）0 pageerror + 竞态 whammy（mobile 重新导入×3+瞬跳、desktop 侧栏收展×3 白屏回归路径 `#root children=1`）+ 封印脚本入库 `scripts/smoke-race-check.mjs`（A Places×6 + B Trips whammy + C desktop 收展全 PASS，SMOKE-CHECKLIST B 段发布前必跑）
   - [x] Landing 第 4 卡（CEO 拍板：加）:
     - `landing.featuresTitle`「三个能力」→「四个能力」（en/zh）
     - 新增 `landing.f4Title`/`landing.f4Text`（en/zh）：合并归档——文案用 Dev T38 草稿（en: "Merge exports, keep it all" / zh: 「合并归档，只留一份」），可微调但守住：语义段取最新 + rawSignals 累积 + 一份 Timeline.json 存全部历史 + 不夸大（不写 dedup）
@@ -20,7 +20,7 @@
   - 档位: L2（bug 修复 + UI）
   - 指派: Dev + Reviewer
   - 来源: T38 Reviewer N1 + CEO 拍板（2026-09-16）
-  - 时间: 09-16 创建 → 09-16 Doing（代码完成待审查）
+  - 时间: 09-16 创建 → 09-16 Doing（代码完成待审查）→ 09-16 Reviewer REJECT（Places 同族漏覆盖）→ 09-16 修复重交
 
 ## 📋 To Do
 

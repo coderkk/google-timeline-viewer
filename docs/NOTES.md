@@ -1317,3 +1317,25 @@ TypeError: Cannot read properties of undefined (reading '_leaflet_pos')
 - 已知噪音：CSP `frame-ancestors` meta 提示 1 条（双视口各 1，发布前已知，非回归）。
 
 **评审待办**：Reviewer 复核后 T39 移 Done + CEO 验收。commit hash 见提交时记录。
+
+## 2026-09-16 11:53 — Dev T39 REJECT 修复: Places 同族 zoom 竞态（共享 hook）
+
+### ①Reviewer REJECT 结论
+Trips 侧 N1 修复（`map._animatingZoom=false` unmount 复位）正确，但同族竞态在 **Places 视图未覆盖**——PlacesMap `RadiusCircle`（约 L73）`map.fitBounds(..., { animate: true })` 的 ring-fit 动画与 Trips 修的是**同一根因链**：用户先滚轮放大到中间层级（zoom 差 ≤ `zoomAnimationThreshold(4)`）再点地图 → ring-fit 启动动画 zoom 过渡 → 过渡中（250ms `_onZoomTransitionEnd` timer 窗口）导航离开 → `Map.remove()` 删 `_mapPane` 但不取消 timer、不复位 `_animatingZoom` → timer 触发 → 无守卫 `_move()` → `getPosition(undefined)` → `_leaflet_pos` pageerror。Reviewer 修前实测 **6/6 复现**（`/tmp/opencode/reviewer-probe-places-race3.mjs`）。我先前 smoke 撞不到是因为初始 zoom-5 全景 zoom 差 >4 → `_tryAnimatedZoom` 降级无动画路径。
+
+### ②修复方式（采纳 Reviewer 更优做法：共享 hook）
+**抽共享 hook `src/src/lib/useResetZoomAnimOnUnmount.ts`**——`useEffect(cleanup → map._animatingZoom=false, [map])`，唯一 deps 是稳定 map 实例，等价空依赖：**只在最终 unmount 执行**（fitKey/invalidateKey/fly 变更不触发），纯字段复位、零 map 方法调用（T27 `map.stop()` 白屏教训不回归）。挂载两处：
+- **Trips `FitController`**：原内联 effect 替换为 hook 调用（注释保留在 hook 文件，调用点留指引）
+- **Places 新增常驻 `ResetZoomAnimController`**（`useMap()` + hook，返回 null）：**不挂 RadiusCircle**（它是 `{center && ...}` 条件渲染，且 ring-fit 由它发起；常驻控制器保证「无论哪个 controller 启动的动画，teardown 时复位必触发」，覆盖 flyTo/future 路径），挂 MapContainer 子组件树——导航离开即 unmount，map 生命周期内正常使用永不提前复位
+
+### ③验证证据
+1. **Reviewer 复现路径**（`reviewer-probe-places-race3.mjs`，mobile 390×844，滚轮放大中间 zoom → 点地图 → 瞬跳 Merge，6 轮）：**修前 reviewer 6/6 → 修后 6/6 轮 0 pageerror / 0 totalError**；每轮 `navAt=t+150~153ms < 250ms`（timer 全在窗口内）+ `animSeen=6/6`（动画真实启动），`animAtNav=false` 轮次即 pane 已 detach 的竞态窗口——**6 轮全部真正踩中竞态**
+2. **Trips 回归**：`verify-n1-fixed.mjs`——mobile 停留点击→tooltip（`visitClickTooltip=true`）+ 重新导入×3+瞬跳 Merge **0 `_leaflet_pos`**；唯一 totalError=1 = 已知 CSP `frame-ancestors` meta 噪音（已单独实测确认，非回归）
+3. **desktop 零回归**：侧栏收展×3 `#root children=1` 恒成立（T27 白屏路径）+ 0 `_leaflet_pos`
+4. **封印脚本入库**：`scripts/smoke-race-check.mjs`（A: Places 竞态×6 + B: Trips whammy×3 + C: desktop 收展×3，退出码门控），实测 **A 6/6 navAt=184~216ms（均 <250ms 窗口）0 race + B tooltip=true 0 race + C rootOk=true 0 race，全 PASS**；SMOKE-CHECKLIST B 段加「发布前必跑」指引行
+5. **243 单测 / lint / build 全绿**（改动：PlacesMap +16 行、TripMap -24/+1 行、新增 hook +1 文件、scripts/smoke-race-check.mjs +1）
+
+### ④为什么不会复发
+- 双视图统一走共享 hook，「第三处再漏」在结构上被消除；hook 文档内写明 T27→T38/T39 两中招史
+- 封印脚本 + checklist 指引 → 下次发布 1 条命令重跑
+- 竞态为浏览器时序问题不加 node 单测（与 T39 首次一致），Playwright 轮数为验证主体

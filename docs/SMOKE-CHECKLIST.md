@@ -24,6 +24,7 @@
 - [ ] 模式 / 語言 / 資料切換後回到原場景正常（re-render 不崩、無 remount 打斷）
 - [ ] 鍵盤: Esc 可關、focus 不丟失（或標註為已知一般級限制）
 - [ ] aria: 觸發按鈕 `expanded` / `haspopup` 等屬性正確
+- [ ] **N1 競態封印（發布前必跑）**: `node scripts/smoke-race-check.mjs` — Places 點地圖即跳離 ×6 + Trips 重新導入瞬跳 ×3 + 側欄收展 ×3，必須 0 `_leaflet_pos` pageerror（T27→T38/T39 兩次中招，選人如改 unmount 時序請重跑）
 
 ## C 性能 / 渲染
 

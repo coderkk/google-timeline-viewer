@@ -14,6 +14,7 @@ import type { Point, RawPoint, Segment, Visit } from '../lib/types'
 import { googleMapsUrl, writeCoordsToClipboard } from '../lib/coords'
 import CopyCoordsButton from './CopyCoordsButton'
 import { useI18n, type MessageKey } from '../lib/i18n'
+import { useResetZoomAnimOnUnmount } from '../lib/useResetZoomAnimOnUnmount'
 import {
   activityColor,
   bridgeGapParts,
@@ -147,30 +148,12 @@ function FitController({ fitBounds, fitKey, invalidateKey, flyTarget }: Controll
     return () => cancelAnimationFrame(raf)
   }, [fitBounds, fitKey, invalidateKey, map])
 
-  // T39/N1 — the mobile `_leaflet_pos` race, reached on EVERY unmount-during-
-  // zoom-transition (a stop/fit animation still running when the Trips view is
-  // torn down, e.g. navigating to Merge right after a re-import re-fit).
-  // Firing sequence (captured stack):
-  //   _onZoomTransitionEnd → _move → _getNewPixelOrigin → _getMapPanePos
-  //   → getPosition(undefined) → "Cannot read properties of undefined
-  //   (reading '_leaflet_pos')"
-  // Leaflet's `_animateZoom` schedules `setTimeout(_onZoomTransitionEnd, 250)`
-  // and sets `_animatingZoom = true`. `Map.remove()` deletes `_mapPane` but
-  // neither cancels that timer nor resets `_animatingZoom`, so the timer fires
-  // AFTER the pane is gone; `_onZoomTransitionEnd` guards `this._mapPane`
-  // only for `removeClass`, not for the following `_move`. The fix: flip the
-  // `_animatingZoom` flag before unmount, making the timer's first line
-  // (`if (!this._animatingZoom) { return; }`) a no-op. This runs ONLY on the
-  // final unmount (empty deps — never on fitKey/invalidateKey changes, so live
-  // transitions between fits are untouched), and it is a plain field reset,
-  // NOT a Leaflet method call (the T27 `map.stop()` regression showed the
-  // latter reads the detaching pane and crashes).
-  useEffect(() => {
-    const mapRef = map as unknown as { _animatingZoom: boolean }
-    return () => {
-      mapRef._animatingZoom = false
-    }
-  }, [map])
+  // T39/N1 — reset Leaflet's `_animatingZoom` on the final unmount so a
+  // pending zoom transition (e.g. a re-import re-fit) cannot fire its 250ms
+  // timer after `Map.remove()` deleted `_mapPane`. Full root-cause chain in the
+  // shared hook; both map views (Trips + Places) mount the same belt so the
+  // race cannot resurface in a third view.
+  useResetZoomAnimOnUnmount(map)
 
   useEffect(() => {
     if (!flyTarget) return

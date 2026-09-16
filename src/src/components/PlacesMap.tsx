@@ -15,6 +15,7 @@ import { Circle, CircleMarker, MapContainer, Marker, TileLayer, Tooltip, useMap 
 import type { Point, Visit } from '../lib/types'
 import { googleMapsUrl } from '../lib/coords'
 import { useI18n } from '../lib/i18n'
+import { useResetZoomAnimOnUnmount } from '../lib/useResetZoomAnimOnUnmount'
 import CopyCoordsButton from './CopyCoordsButton'
 import { useTimelineStore } from '../store/timelineStore'
 
@@ -123,6 +124,20 @@ interface InvalidateControllerProps {
   invalidateKey: string
 }
 
+// T39/N1 (Reviewer REJECT fix) — the Places sibling of the Trips race: the
+// ring-fit animation (`map.fitBounds(..., { animate: true })` in RadiusCircle)
+// can be mid-transition when the view is torn down (e.g. clicking the map then
+// instantly navigating to Merge). Leaflet's 250ms `_onZoomTransitionEnd` timer
+// fires after `Map.remove()` deleted `_mapPane` and crashes on `_leaflet_pos`.
+// Always mounted (not tied to RadiusCircle, which is conditional on `center`)
+// so the reset fires on ANY unmount-during-transition, whichever controller
+// started the animation. Full root-cause chain + discipline in the shared hook.
+function ResetZoomAnimController() {
+  const map = useMap()
+  useResetZoomAnimOnUnmount(map)
+  return null
+}
+
 // Re-layouts the map when the sidebar collapses/expands so tiles render at the
 // correct size.
 function InvalidateController({ invalidateKey }: InvalidateControllerProps) {
@@ -162,6 +177,7 @@ export default function PlacesMap({
   return (
     <MapContainer className="trip-map" center={[14, 112]} zoom={5} scrollWheelZoom maxZoom={19}>
       <TileLayer url={tileSource.url} attribution={tileSource.attribution} />
+      <ResetZoomAnimController />
       <ClickController onPick={onPick} />
       <InvalidateController invalidateKey={invalidateKey} />
       {center && <RadiusCircle center={center} radiusKm={radiusKm} />}
