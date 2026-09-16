@@ -1281,3 +1281,39 @@ Reviewer 审查 T36 后 PASS，附 3 个一般级问题，CEO 拍板全部修复
 **⑥单测/lint/build**：**243 tests 全绿**（18 文件，i18n parity 与无 CJK 守卫通过）、`npm run lint` 0 问题、`npm run build`（tsc + vite）绿——chunk >500kB 为既有体积告警，非新增。
 
 **评审待办**：Reviewer 复核后，TASKS T38 卡移 Done + 验收；Landing 第 4 卡加不加由 CEO 拍板（建议：加，理由与文案草稿见汇报）。
+
+## 2026-09-16 11:25 — Dev T39: 发布前终批（N1 mobile 竞态修复 + Landing 合并归档第 4 卡）
+
+### ①N1 mobile `_leaflet_pos` 竞态 — 真根因定位 + 修复
+
+**捕获的完整抛出栈**（step-tag 冒烟 + 全栈捕获，`pageerror`，mobile 390×844）：
+```
+TypeError: Cannot read properties of undefined (reading '_leaflet_pos')
+  at Rt (getPosition: el.style[POSITION])
+  at t._getMapPanePos            // getPosition(this._mapPane)
+  at t._getNewPixelOrigin
+  at t._move
+  at t._onZoomTransitionEnd      // Leaflet 1.9.4
+```
+
+**根因（与 TASKS 初始假设不同——不是 tooltip 弹出本身）**：Leaflet `_animateZoom` 在启动 zoom 过渡时 `setTimeout(_onZoomTransitionEnd, 250)` 并把 `_animatingZoom=true`；`_onZoomTransitionEnd` 只对 `removeClass` 做了 `if(this._mapPane)` 守卫，**接下来无守卫地调用 `_move(...)`**，而 `_move` → `_getNewPixelOrigin` → `_getMapPanePos` 读 `this._mapPane`。`Map.remove()`（react-leaflet `MapContainer` cleanup）会 `delete this._mapPane`，**但既不取消该 250ms 定时器、也不复位 `_animatingZoom`** → 定时器在 map 销毁后触发 → 读 undefined 抛错。step-tag 冒烟把抛出点定位在**「重新导入 → 立即导航离开 Trips（如进 Merge 页）」**的高频窗口（fitBounds 的 zoom 过渡恰在 unmount 时进行中）——同一旧 N1 族（T27 记录的 `_onZoomTransitionEnd` teardown 竞态），mobile 因布局/时序更慢复现率更高（Reviewer 3/4）。
+**为何与旧 T27 处置不同**：T27 曾在 FitController cleanup 调 `map.stop()` → `setZoom/getCenter` 读 detached pane 致命白屏。本轮**不调用任何 map 方法**：仅在一个**空依赖** effect 的 cleanup（只在最终 unmount 跑，不影响 fitKey/invalidateKey 变更时的在途过渡）把私有字段置 `map._animatingZoom=false`——纯 JS 字段复位、零 DOM 访问。250ms 定时器随后触发时，`_onZoomTransitionEnd` 首行 `if(!this._animatingZoom) return` 直接 no-op。为什么不会复发：所有 teardown-during-zoom-transition 路径（导航离开/侧栏收起/换数据 unmount）都被该守卫覆盖；Leaflet 内其余异步（`_flyToFrame`/`_panAnim`/`_resizeRequest`）`remove()` 的 `_stop()` 本就取消。
+
+**验证**：
+- smoke-t38 全流程（19 步 × desktop 1440×900 + mobile 390×844）修复前后对照：修前 mobile `pageerrors=1`（3/4 复现）→ 修后 **5/5 轮 0 pageerror**；
+- 竞态 whammy：mobile 重新导入×3 + 立即跳 Merge（不等待 settle，专打 250ms 窗口）0 `_leaflet_pos`；desktop 侧栏收起/展开×3（T27 白屏回归路径）`#root children=1` 恒成立 + 0 `_leaflet_pos`；
+- desktop 原功能零回归（点列表 → tooltip、点地图 → popup、侧栏开合），无新白屏/卡顿。
+
+### ②Landing 第 4 卡「合并归档」（CEO 拍板）
+
+- i18n en/zh 双同步：`landing.featuresTitle`「Three/三个 能力」→「**Four/四个 能力**」；新增 `landing.f4Title`/`f4Text`——en `Merge exports, keep it all`/`Phone exports only carry ~29 days of raw GPS…`；zh `合并归档，只留一份`/`手机导出只带最近约 29 天原始 GPS…`（沿用 Dev T38 草稿，**无 dedup 字眼**，语义=语义段取最新 + rawSignals 累积）。i18n parity guard 通过（en/zh key 完全一致、en 无 CJK）。
+- `Landing.tsx` 第 4 张 `.feature-card`（fc-tag `Merge`），纯展示不跳转，与现三卡一致。
+- CSS `.feature-cards`：`repeat(3,1fr)` → `repeat(4,1fr)`；`@media ≤860px` 1 列 → **2 列**（平板）；新增 `@media ≤480px` → 1 列（手机 390 四卡太窄，单列可读）。双视口实测：1440×900 + 390×844 均 4 卡、`scrollWidth-clientWidth=0`（无水平溢出）、0 pageerror。
+- PRD 功能 7 同步：功能亮点列表 + 「合并归档」并列合并入；补验收「四卡展示」；修订历史 + **v1.24**（来源 T39）。
+
+### ③验证与收尾
+- **243 单测全绿**（18 文件）+ `npm run lint` 0 问题 + `npm run build`（tsc+vite）绿（>500kB 为既有告警）。N1 未加单测：竞态为浏览器时序问题，node 环境（SSR renderToString）无法覆盖 Leaflet 运行时，采用 Playwright 轮数验证（L2 冒烟项 C/B）。
+- 全栈捕获脚本 `/tmp/opencode/repro-n1c.mjs`（step-tag + e.stack）、竞态 whammy `/tmp/opencode/verify-n1-fixed.mjs`、Landing 校验 `/tmp/opencode/verify-landing2.mjs`（临时、未入库）。
+- 已知噪音：CSP `frame-ancestors` meta 提示 1 条（双视口各 1，发布前已知，非回归）。
+
+**评审待办**：Reviewer 复核后 T39 移 Done + CEO 验收。commit hash 见提交时记录。

@@ -147,6 +147,31 @@ function FitController({ fitBounds, fitKey, invalidateKey, flyTarget }: Controll
     return () => cancelAnimationFrame(raf)
   }, [fitBounds, fitKey, invalidateKey, map])
 
+  // T39/N1 — the mobile `_leaflet_pos` race, reached on EVERY unmount-during-
+  // zoom-transition (a stop/fit animation still running when the Trips view is
+  // torn down, e.g. navigating to Merge right after a re-import re-fit).
+  // Firing sequence (captured stack):
+  //   _onZoomTransitionEnd → _move → _getNewPixelOrigin → _getMapPanePos
+  //   → getPosition(undefined) → "Cannot read properties of undefined
+  //   (reading '_leaflet_pos')"
+  // Leaflet's `_animateZoom` schedules `setTimeout(_onZoomTransitionEnd, 250)`
+  // and sets `_animatingZoom = true`. `Map.remove()` deletes `_mapPane` but
+  // neither cancels that timer nor resets `_animatingZoom`, so the timer fires
+  // AFTER the pane is gone; `_onZoomTransitionEnd` guards `this._mapPane`
+  // only for `removeClass`, not for the following `_move`. The fix: flip the
+  // `_animatingZoom` flag before unmount, making the timer's first line
+  // (`if (!this._animatingZoom) { return; }`) a no-op. This runs ONLY on the
+  // final unmount (empty deps — never on fitKey/invalidateKey changes, so live
+  // transitions between fits are untouched), and it is a plain field reset,
+  // NOT a Leaflet method call (the T27 `map.stop()` regression showed the
+  // latter reads the detaching pane and crashes).
+  useEffect(() => {
+    const mapRef = map as unknown as { _animatingZoom: boolean }
+    return () => {
+      mapRef._animatingZoom = false
+    }
+  }, [map])
+
   useEffect(() => {
     if (!flyTarget) return
     const prev = lastTarget.current

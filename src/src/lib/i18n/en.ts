@@ -281,7 +281,7 @@ export const en = {
   'landing.whyTitle': 'After the web version shut down, your history went dark',
   'landing.whyText':
     'Google no longer supports the Timeline web app, so years of trips are locked in your phone; the export is a bare JSON meant for machines, not people. This tool turns that data back into a trip map that tells a story — routes, stays and a timeline, recovered at a glance.',
-  'landing.featuresTitle': 'Three capabilities covering your whole history',
+  'landing.featuresTitle': 'Four capabilities covering your whole history',
   'landing.f1Title': 'Trip replay',
   'landing.f1Text':
     'Draw routes and stays by date range, with transport modes distinguished at a glance — see where you went, where you stopped and how long you stayed.',
@@ -291,6 +291,9 @@ export const en = {
   'landing.f3Title': 'Data never leaves your device',
   'landing.f3Text':
     'Parsing and querying happen entirely in browser memory and vanish on refresh. No backend, no account, no analytics SDK — your coordinates belong to you alone.',
+  'landing.f4Title': 'Merge exports, keep it all',
+  'landing.f4Text':
+    'Phone exports only carry ~29 days of raw GPS. Generate a merged Timeline.json on the Merge page — newest segments plus accumulated signals, in one file.',
   'landing.techTitle': 'A local-first, purely front-end tool',
   'landing.techText': 'Wondering how to export your location history?',
   'landing.techLink': 'See the Android / iOS export guide →',

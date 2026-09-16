@@ -1,8 +1,26 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T39 -->
+<!-- next: T40 -->
 
 ## 🔨 Doing（WIP ≤ 2）
+
+- [ ] **T39: 发布前终批——N1 mobile 竞态修复 + Landing 第 4 卡（合并归档）** [P1]
+  - [x] N1 修复（Reviewer T38 复跑 4 轮发现 mobile 3/4 复现）:
+    - 现象: mobile（390×844）点击 Trips 停留点列表 → 弹出 tooltip 时 `pageerror: TypeError: Cannot read properties of undefined (reading '_leaflet_pos')`；desktop 0/4；可恢复无白屏但出现在新访客首次交互路径
+    - 相关: `src/src/components/TripMap.tsx` L144 已有 FitController cleanup 的 `_leaflet_pos` 防护（React 卸载 pane 时 `_getMapPanePos` 读 detached pane）——N1 是**另一条路径**（tooltip 弹出竞态），需定位真实抛出点
+    - 修复方向: 定位真正抛错处（flyTo/tooltip/openPopup 竞态？mobile 更频繁因 touch 事件时序）；null guard 或 try/catch 或时机调整；**不要用 `map.stop()` 类粗暴方案**（T27 踩过坑：造成收起面板白屏）
+    - 验收: ①复现路径（mobile 点击停留 → tooltip）连续 5 轮 0 pageerror；②desktop 原有功能零回归；③不引入白屏/卡顿回归；④单测相关（如有）+ 243 全绿
+    - 完成: **真根因 = Leaflet `_onZoomTransitionEnd` 250ms setTimeout 在 `map.remove()`（删除 `_mapPane`）后触发**（捕获完整栈 `_onZoomTransitionEnd→_move→_getNewPixelOrigin→_getMapPanePos→getPosition(undefined)`）；step-tag 冒烟定位抛出点在「重新导入→立即导航离开 Trips」的高频窗口（不是 tooltip 弹出本身，是同一旧 N1 族：unmount 时 zoom 动画未结束）。修复：FitController 空依赖 unmount cleanup 置 `map._animatingZoom=false`（纯字段复位、非 map 方法调用——T27 `map.stop()` 白屏教训），250ms 定时器首行 `if(!_animatingZoom)return` 变 no-op。验证：smoke-t38 全流程 **5/5 轮（desktop+mobile）0 pageerror** + 竞态 whammy（mobile 重新导入×3+立即导航、desktop 侧栏收起/展开×3）0 `_leaflet_pos`，无白屏/无卡顿
+  - [x] Landing 第 4 卡（CEO 拍板：加）:
+    - `landing.featuresTitle`「三个能力」→「四个能力」（en/zh）
+    - 新增 `landing.f4Title`/`landing.f4Text`（en/zh）：合并归档——文案用 Dev T38 草稿（en: "Merge exports, keep it all" / zh: 「合并归档，只留一份」），可微调但守住：语义段取最新 + rawSignals 累积 + 一份 Timeline.json 存全部历史 + 不夸大（不写 dedup）
+    - CSS `.feature-cards` 三列 → 四列（或 2×2 响应式，Desktop 4 列 / 窄屏 2 列，参考现有栅格）
+    - 验收: ①Landing 显示 4 卡、标题「四个能力」；②en/zh 双语、i18n parity guard 过；③Desktop 1440 + mobile 390 渲染正常（无溢出/换行破损）；④点卡无跳转要求（纯展示，与现三卡一致）
+    - 完成: 4 卡（fc-tag 第四张 `Merge`）+ `landing.f4Title/Text` en/zh（沿用 Dev T38 草稿原文，无 dedup 字眼）+ featuresTitle en/zh「四个能力」；CSS `repeat(4,1fr)` + ≤860px 2 列 + ≤480px 1 列（手机 390 可读性）；PRD 功能 7 同步 + v1.24；双视口实测 4 卡/0 overflowX/0 pageerror，1440×900 与 390×844 截图通过
+  - 档位: L2（bug 修复 + UI）
+  - 指派: Dev + Reviewer
+  - 来源: T38 Reviewer N1 + CEO 拍板（2026-09-16）
+  - 时间: 09-16 创建 → 09-16 Doing（代码完成待审查）
 
 ## 📋 To Do
 

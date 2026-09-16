@@ -1227,7 +1227,7 @@ body {
 
 .feature-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   text-align: left;
   margin-top: 24px;
@@ -1744,8 +1744,9 @@ code {
     font-size: 32px;
   }
 
+  /* T39: 4 feature cards → 2 columns on tablets (f4 Merge card added). */
   .feature-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .step-cards {
@@ -2323,4 +2324,13 @@ code {
 .chain-move.selected {
   border-left-color: var(--color-accent);
   color: var(--color-accent);
+}
+
+/* T39: phone-width feature cards drop to a single column — four cards at
+   ~150px each would wrap every line; one stacked column reads naturally
+   (tablet band 481–860px keeps 2 columns from the 860px rule above). */
+@media (max-width: 480px) {
+  .feature-cards {
+    grid-template-columns: 1fr;
+  }
 }

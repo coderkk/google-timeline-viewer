@@ -1,4 +1,4 @@
-// Portfolio landing page: hero with dual CTA, the "why" story, three feature
+// Portfolio landing page: hero with dual CTA, the "why" story, four feature
 // highlights, tech stack + tutorial entry + privacy promise, and the
 // "Built with OPC 3.0" section telling how the product was shaped by an
 // AI-driven product flow.
@@ -69,6 +69,11 @@ export default function Landing() {
             <p className="fc-tag">Privacy</p>
             <h3>{t('landing.f3Title')}</h3>
             <p>{t('landing.f3Text')}</p>
+          </div>
+          <div className="feature-card">
+            <p className="fc-tag">Merge</p>
+            <h3>{t('landing.f4Title')}</h3>
+            <p>{t('landing.f4Text')}</p>
           </div>
         </div>
       </div>
