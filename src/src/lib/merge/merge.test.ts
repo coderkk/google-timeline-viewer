@@ -1,10 +1,11 @@
 // Merge algorithm unit tests (T36 / PRD 功能 14). Covers the four required
 // merge profiles — first merge (no main archive), same file twice, disjoint
 // ≥29-day windows, overlapping windows — plus the fold tolerance boundaries
-// (time ±60s, position ~100m), coordless signal passthrough, both format-1
+// (time ±60s, position ~100m), coordless exact-identity dedup, both format-1
 // shapes (direct-array / top-level object), output-schema re-importability,
-// and error cases. The livedata describe block re-merges the two real exports
-// and re-imports the merged file as a full end-to-end smoke.
+// and error cases (including the empty-semantic-layer data-safety guard). The
+// livedata describe block re-merges the two real exports and re-imports the
+// merged file as a full end-to-end smoke.
 /// <reference types="node" />
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -17,6 +18,7 @@ import {
 } from './index'
 import { parseTimelineFile } from '../parse'
 import { extractFormat1Slices } from '../parse/formatTimelineArray'
+import { translate } from '../i18n'
 import { FIXTURE_DEVICE_EXPORT_2026 } from '../parse/__fixtures__/fixtures'
 
 // -- helpers ---------------------------------------------------------------
@@ -101,6 +103,30 @@ describe('merge: same file merged twice is idempotent', () => {
     expect(root.semanticSegments).toHaveLength(1)
     expect(outcome.stats.points).toBe(2)
   })
+
+  it('yields no duplicate coordless entries either (exact-identity fold)', () => {
+    const wifi = { wifiScan: { deliveryTime: '2025-01-10T06:00:00.000Z' } }
+    const activity = { activityRecord: { probableActivities: ['STILL'] } }
+    const exportText = objectFile(
+      [
+        wifi,
+        activity,
+        fix('2025-01-10T05:00:00.000Z', 1, 2, { source: 'A' }),
+      ],
+      [seg('WALKING')],
+    )
+    const outcome = mergeTimelineExports(
+      { name: 'same.json', text: exportText },
+      { name: 'same.json', text: exportText },
+    )
+    const root = JSON.parse(outcome.json) as { rawSignals: unknown[] }
+    // wifi + activity + one fix survive exactly once each — no coordless dup.
+    expect(root.rawSignals).toHaveLength(3)
+    const strings = root.rawSignals.map((e) => JSON.stringify(e))
+    expect(new Set(strings).size).toBe(3)
+    expect(strings.filter((s) => s.includes('wifiScan'))).toHaveLength(1)
+    expect(strings.filter((s) => s.includes('activityRecord'))).toHaveLength(1)
+  })
 })
 
 // -- disjoint windows ------------------------------------------------------
@@ -142,8 +168,14 @@ describe('merge: disjoint ≥29-day windows concatenate', () => {
 
 describe('merge: overlapping windows fold duplicates, keeping the NEW fix', () => {
   it('folds a near-duplicate (same place, 30s apart) keeping the new export point', () => {
-    const oldText = objectFile([fix('2025-01-10T05:00:00.000Z', 1, 2, { source: 'OLD' })])
-    const newText = objectFile([fix('2025-01-10T05:00:30.000Z', 1, 2, { source: 'NEW' })])
+    const oldText = objectFile(
+      [fix('2025-01-10T05:00:00.000Z', 1, 2, { source: 'OLD' })],
+      [seg('old-seg')],
+    )
+    const newText = objectFile(
+      [fix('2025-01-10T05:00:30.000Z', 1, 2, { source: 'NEW' })],
+      [seg('new-seg')],
+    )
     const outcome = mergeTimelineExports(
       { name: 'old.json', text: oldText },
       { name: 'new.json', text: newText },
@@ -156,11 +188,14 @@ describe('merge: overlapping windows fold duplicates, keeping the NEW fix', () =
   })
 
   it('does NOT fold fixes farther apart than the time tolerance', () => {
-    const oldText = objectFile([fix('2025-01-10T05:00:00.000Z', 1, 2)])
-    const newText = objectFile([
-      fix('2025-01-10T05:00:00.000Z', 1, 2 + 0.03), // ~2.6km south — same time, far position
-      fix(new Date(Date.parse('2025-01-10T05:00:00.000Z') + MERGE_TIME_TOLERANCE_MS + 60_000).toISOString(), 1, 2), // just past the time window
-    ])
+    const oldText = objectFile([fix('2025-01-10T05:00:00.000Z', 1, 2)], [seg('a')])
+    const newText = objectFile(
+      [
+        fix('2025-01-10T05:00:00.000Z', 1, 2 + 0.03), // ~2.6km south — same time, far position
+        fix(new Date(Date.parse('2025-01-10T05:00:00.000Z') + MERGE_TIME_TOLERANCE_MS + 60_000).toISOString(), 1, 2), // just past the time window
+      ],
+      [seg('b')],
+    )
     const outcome = mergeTimelineExports(
       { name: 'old.json', text: oldText },
       { name: 'new.json', text: newText },
@@ -173,33 +208,42 @@ describe('merge: overlapping windows fold duplicates, keeping the NEW fix', () =
     const m = MERGE_POSITION_TOLERANCE_M
     // 50m apart at the same instant → fold.
     const close = mergeTimelineExports(
-      { name: 'old.json', text: objectFile([fix('2025-01-10T05:00:00.000Z', 1, 2)]) },
-      { name: 'new.json', text: objectFile([fix('2025-01-10T05:00:00.000Z', 1 + 50 / degreeLat, 2)]) },
+      { name: 'old.json', text: objectFile([fix('2025-01-10T05:00:00.000Z', 1, 2)], [seg('a')]) },
+      { name: 'new.json', text: objectFile([fix('2025-01-10T05:00:00.000Z', 1 + 50 / degreeLat, 2)], [seg('b')]) },
     )
     expect(mergedFixes(close.json)).toHaveLength(1)
     // 200m apart at the same instant → keep both.
     const far = mergeTimelineExports(
-      { name: 'old.json', text: objectFile([fix('2025-01-10T05:00:00.000Z', 1, 2)]) },
-      { name: 'new.json', text: objectFile([fix('2025-01-10T05:00:00.000Z', 1 + 200 / degreeLat, 2)]) },
+      { name: 'old.json', text: objectFile([fix('2025-01-10T05:00:00.000Z', 1, 2)], [seg('c')]) },
+      { name: 'new.json', text: objectFile([fix('2025-01-10T05:00:00.000Z', 1 + 200 / degreeLat, 2)], [seg('d')]) },
     )
     expect(mergedFixes(far.json)).toHaveLength(2)
     expect(m).toBeGreaterThan(0)
   })
 
-  it('passes coordless signal categories through from BOTH files untouched', () => {
+  it('dedups byte-identical coordless entries but keeps distinct ones', () => {
     const wifi = { wifiScan: { deliveryTime: '2025-01-10T06:00:00.000Z' } }
+    const wifiNew = { wifiScan: { deliveryTime: '2025-02-10T06:00:00.000Z' } }
     const activity = { activityRecord: { probableActivities: [] } }
-    const oldText = objectFile([wifi, fix('2025-01-10T05:00:00.000Z', 1, 2)])
-    const newText = objectFile([activity, fix('2025-01-10T05:00:30.000Z', 1, 2)])
+    const oldText = objectFile([wifi, fix('2025-01-10T05:00:00.000Z', 1, 2)], [seg('old-seg')])
+    const newText = objectFile(
+      [wifi, wifiNew, activity, fix('2025-01-10T05:00:30.000Z', 1, 2)],
+      [seg('new-seg')],
+    )
     const outcome = mergeTimelineExports(
       { name: 'old.json', text: oldText },
       { name: 'new.json', text: newText },
     )
     const root = JSON.parse(outcome.json) as { rawSignals: unknown[] }
-    // The duplicate fix folded to one (old dropped); both coordless mixes
-    // survive untouched → wifi + activity + the new fix = 3 entries.
-    expect(root.rawSignals).toHaveLength(3)
+    // `wifi` appears in BOTH files byte-identical → folds to one copy; the new
+    // `wifiNew` and `activity` are genuine increments → both survive; the
+    // duplicate fix folded to one (old dropped) → wifi + wifiNew + activity +
+    // the new fix = 4 entries.
+    expect(root.rawSignals).toHaveLength(4)
     expect(mergedFixes(outcome.json)).toHaveLength(1)
+    const strings = root.rawSignals.map((e) => JSON.stringify(e))
+    expect(new Set(strings).size).toBe(4)
+    expect(strings.filter((s) => s.includes('wifiScan'))).toHaveLength(2)
   })
 })
 
@@ -271,11 +315,55 @@ describe('merge: input validation', () => {
   })
 
   it('rejects a non-format-1 main archive too', () => {
-    const valid = objectFile([fix('2025-02-20T05:00:00.000Z', 1, 2)])
+    const valid = objectFile([fix('2025-02-20T05:00:00.000Z', 1, 2)], [seg('new-seg')])
     const records = JSON.stringify({ locations: [] })
     expect(() =>
       mergeTimelineExports({ name: 'Records.json', text: records }, { name: 'new.json', text: valid }),
     ).toThrowError('merge.error.needTimeline')
+  })
+})
+
+// -- empty semantic layer (T36 fix #1, data safety) ------------------------
+
+describe('merge: rejects an empty semantic layer (never silently wipes old data)', () => {
+  it('throws merge.error.needSemanticSegments for a raw-only new export, with an i18n message in both catalogs', () => {
+    const mainArchive = objectFile([fix('2025-01-10T05:00:00.000Z', 1, 2)], [seg('KEEP-ME')])
+    // rawSignals non-empty but semanticSegments empty — the exact shape that
+    // used to pass and would have wiped the archived semantics.
+    const rawOnly = objectFile([fix('2025-02-20T05:00:00.000Z', 3, 4)])
+    try {
+      mergeTimelineExports(
+        { name: 'old.json', text: mainArchive },
+        { name: 'raw-only.json', text: rawOnly },
+      )
+      expect.unreachable('merge should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(MergeError)
+      expect((err as MergeError).key).toBe('merge.error.needSemanticSegments')
+      expect((err as MergeError).params.name).toBe('raw-only.json')
+      // i18n assertion (验收①: 含错误信息 i18n 断言) — both catalogs render the
+      // error and carry the offending file's name.
+      const enMsg = translate('en', 'merge.error.needSemanticSegments', (err as MergeError).params)
+      const zhMsg = translate('zh', 'merge.error.needSemanticSegments', (err as MergeError).params)
+      expect(enMsg).toContain('raw-only.json')
+      expect(enMsg).not.toContain('undefined')
+      expect(zhMsg).toContain('raw-only.json')
+      expect(zhMsg).toContain('semanticSegments')
+    }
+  })
+
+  it('rejects a raw-only main archive too (same guard on both sides)', () => {
+    const rawOnly = objectFile([fix('2025-01-10T05:00:00.000Z', 1, 2)])
+    const valid = objectFile([fix('2025-02-20T05:00:00.000Z', 3, 4)], [seg('NEW')])
+    expect(() =>
+      mergeTimelineExports({ name: 'raw-only.json', text: rawOnly }, { name: 'new.json', text: valid }),
+    ).toThrowError('merge.error.needSemanticSegments')
+  })
+
+  it('still yields import.emptyData for a fully empty export (guard order preserved)', () => {
+    expect(() =>
+      mergeTimelineExports(null, { name: 'empty.json', text: '{"semanticSegments":[],"rawSignals":[]}' }),
+    ).toThrowError('import.emptyData')
   })
 })
 

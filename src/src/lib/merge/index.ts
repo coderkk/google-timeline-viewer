@@ -8,7 +8,11 @@
 //   - rawSignals        → window-complementary accumulation. Google only keeps
 //     a ~29-day rolling window of raw fixes, so the pool grows across exports:
 //     non-overlapping windows concatenate; overlapping points fold by
-//     "time ± tolerance + position" keeping the NEW export's fix.
+//     "time ± tolerance + position" keeping the NEW export's fix. Coordless
+//     entries (wifiScan / activityRecord — no coordinates) dedup by *exact
+//     identity*: a byte-identical copy already in the pool folds, so re-merging
+//     the same export never proliferates them, while genuine increments
+//     survive.
 //   - userLocationProfile → the NEW export's.
 //
 // The output is a format-1 Timeline.json ({ semanticSegments, rawSignals,
@@ -154,8 +158,11 @@ function hasNearMatch(point: RawPointSignal, candidates: readonly RawPointSignal
  *  2. an OLD fix folds away when any NEW fix falls within the fold tolerance
  *     ("保留新导出的点") — this is what makes same-file-twice and overlapping
  *     ~29-day rolling windows idempotent;
- *  3. every coordless mix entry (wifiScan / activityRecord / …) passes through
- *     from both files untouched.
+ *  3. coordless mix entries (wifiScan / activityRecord / …) have no foldable
+ *     coordinate, so they dedup by *exact identity* only: a NEW coordless entry
+ *     byte-identical to one already in the accumulated pool folds (the pool's
+ *     own copy wins), keeping re-merges idempotent while genuine increments
+ *     pass through.
  * Output keeps old-then-new document order; the import pipeline sorts by time
  * itself, so serialized order is semantically irrelevant.
  */
@@ -167,11 +174,24 @@ function foldRawSignals(oldEntries: readonly unknown[], newEntries: readonly unk
     if (hasNearMatch(signal, keptNewSignals)) dropOld[signal.index] = true
   }
 
+  // Coordless exact-identity pass (T36 fix #2): serialize each coordless entry
+  // in the accumulated pool into a Set (O(n)), then fold NEW entries whose
+  // serialization is *exactly* in the set. JSON.stringify is the strictest
+  // "completely identical" comparison — a same-shape entry with any different
+  // field value is a real increment and survives.
+  const oldCoordlessKeys = new Set<string>()
+  for (const entry of oldEntries) {
+    if (!pointSignal(entry)) oldCoordlessKeys.add(JSON.stringify(entry))
+  }
+
   const merged: unknown[] = []
   for (let i = 0; i < oldEntries.length; i++) {
     if (!dropOld[i]) merged.push(oldEntries[i])
   }
-  for (const entry of newEntries) merged.push(entry)
+  for (const entry of newEntries) {
+    if (!pointSignal(entry) && oldCoordlessKeys.has(JSON.stringify(entry))) continue
+    merged.push(entry)
+  }
   return merged
 }
 
@@ -193,6 +213,13 @@ function requireFormat1(name: string, slices: ReturnType<typeof extractFormat1Sl
   }
   if (slices.semanticSegments.length === 0 && slices.rawSignals.length === 0) {
     throw new MergeError('import.emptyData', { name })
+  }
+  // Data-safety guard (T36 fix #1): raw signals without a semantic layer must
+  // not be merged. semanticSegments of the merged file are taken verbatim from
+  // the newer export, so accepting this would silently REPLACE the archive's
+  // accumulated semantic layer with an empty one.
+  if (slices.semanticSegments.length === 0) {
+    throw new MergeError('merge.error.needSemanticSegments', { name })
   }
 }
 

@@ -9,7 +9,8 @@
 // so assertions use the English copy.
 import { describe, expect, it, vi } from 'vitest'
 import { renderToString } from 'react-dom/server'
-import { I18nProvider } from '../lib/i18n'
+import { I18nProvider, translate } from '../lib/i18n'
+import { isLargeMerge, mergeInputBytes } from '../lib/merge/largeFile'
 import MergePage from './MergePage'
 
 // The real facade statically imports './merge.worker?worker'; mocking the
@@ -55,5 +56,33 @@ describe('MergePage', () => {
     const inputs = html.match(/type="file"/g)
     expect(inputs).toHaveLength(2)
     expect(html).toContain('accept=".json,application/json,application/octet-stream"')
+  })
+})
+
+// -- large-file guard (T36 fix #3) ------------------------------------------
+
+describe('MergePage large-file guard', () => {
+  it('flags combined inputs over 200MB (either side or the sum)', () => {
+    // 2025 livedata 108MB + 2026 livedata 123MB = 231MB → triggers.
+    const main108 = { size: 113_456_038 }
+    const fresh123 = { size: 129_395_377 }
+    expect(mergeInputBytes(main108, fresh123)).toBeGreaterThan(200 * 1024 * 1024)
+    expect(isLargeMerge(main108, fresh123)).toBe(true)
+    // A single over-200MB export (no main archive) also triggers.
+    expect(isLargeMerge(null, { size: 250 * 1024 * 1024 })).toBe(true)
+    // Small inputs never trigger.
+    expect(isLargeMerge(null, { size: 1024 })).toBe(false)
+    expect(isLargeMerge(null, null)).toBe(false)
+  })
+
+  it('localizes the confirm copy with the combined MB (en + zh)', () => {
+    const enMsg = translate('en', 'merge.largeConfirm', { size: '231.6' })
+    const zhMsg = translate('zh', 'merge.largeConfirm', { size: '231.6' })
+    expect(enMsg).toContain('231.6')
+    expect(enMsg).toMatch(/200MB/)
+    expect(enMsg).toMatch(/300MB/)
+    expect(zhMsg).toContain('231.6')
+    expect(zhMsg).toMatch(/200MB/)
+    expect(zhMsg).toMatch(/300MB/)
   })
 })

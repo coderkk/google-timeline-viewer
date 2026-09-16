@@ -8,6 +8,7 @@ import { useI18n, type MessageKey } from '../lib/i18n'
 import { mergeInWorker } from '../lib/merge/worker'
 import { MergeError } from '../lib/merge'
 import type { MergeStats } from '../lib/merge'
+import { isLargeMerge, mergeInputBytes } from '../lib/merge/largeFile'
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n)
@@ -50,6 +51,19 @@ export default function MergePage() {
 
   const onMerge = async (): Promise<void> => {
     if (!newFile) return
+    // Large-file guard (T36 fix #3): combined inputs over 200MB hold both files
+    // plus the growing output in memory (~6× peak) — confirm before spending
+    // minutes on it. Reference: timelineStore's `import.largeConfirm` guard.
+    if (
+      isLargeMerge(mainFile, newFile) &&
+      !window.confirm(
+        t('merge.largeConfirm', {
+          size: (mergeInputBytes(mainFile, newFile) / (1024 * 1024)).toFixed(1),
+        }),
+      )
+    ) {
+      return
+    }
     setBusy(true)
     setDone(null)
     setError(null)

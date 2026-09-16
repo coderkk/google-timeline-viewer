@@ -258,7 +258,11 @@ export const en = {
     'All merging happens entirely in your browser: nothing is uploaded and no network request is made. The merged file is generated locally and downloaded to your device.',
   'merge.error.needTimeline':
     '"{name}" is not a Timeline.json (format 1) export — merge only accepts the direct-array shape or a top-level object with semanticSegments + rawSignals.',
+  'merge.error.needSemanticSegments':
+    '"{name}" has no semanticSegments — merging would replace the archive\'s accumulated semantic layer with an empty one. Use a full Timeline.json export (with semantic segments) instead.',
   'merge.error.unexpected': 'Unexpected error while merging ({reason}). Please retry.',
+  'merge.largeConfirm':
+    'Combined input is over 200MB ({size}MB) — merging holds both files in memory (peak ≈6× the input) and may be slow; for files over 300MB, export in smaller date ranges. Continue anyway?',
 
   'tiles.error.unparseable': 'URL cannot be parsed; start with http:// or https://',
   'tiles.error.scheme': 'Tile address must use http:// or https://',

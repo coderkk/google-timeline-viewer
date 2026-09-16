@@ -1170,3 +1170,28 @@ CEO 已立项（TASKS Doing），本轮从零实现 `/app/merge` 独立页（与
 **自测**：新增 `merge.test.ts`（17 件：首次合并/同文件两次/不重叠/重叠折叠/±60s 与 100m 边界/coordless 穿透/双形态/错误/真实 livedata 冒烟）+ `MergePage.test.tsx`（renderToString，mock worker facade 避开 `?worker` transform）；`npm test` **237 全绿**（18 档，基线 220→+17）；lint ✓；build ✓（merge.worker chunk 5.2kB，仅既有 chunk-size 警告）。
 
 **已知问题**：无阻塞项。`/app/merge` 手工浏览器验证留给 Reviewer 环境复测（解析/合并已由 livedata 自动测试覆盖）。T37（raw 点渲染压测）在合并档可产出 27k 点窗口后更有意义——可作为 T37 的真实数据源。
+
+## 2026-09-16 08:56 — Dev T36 一般级修复（Reviewer PASS 附 3 项，CEO 拍板全修）
+
+Reviewer 审查 T36 后 PASS，附 3 个一般级问题，CEO 拍板全部修复（本轮 1 commit）。
+
+**#1 空语义段防护（数据安全，必修）**：
+- `requireFormat1` 在「全空 → `import.emptyData`」之后新增 `slices.semanticSegments.length === 0` → 抛 `MergeError('merge.error.needSemanticSegments')`。
+- 动机：`semanticSegments` 合并档恒取新导出 verbatim，放行「rawSignals 非空但语义段为空」会把旧档案累积语义层**静默替换为空**。guard 顺序保留：invalidTopObject/missingSegments → 全空(emptyData) → 仅空语义段(新 key)，既有 emptyData 语义不变。
+- 新增 2 个 i18n key（en/zh 同步，中文含「semanticSegments」术语便于定位）。
+
+**#2 coordless exact-identity 去重**：
+- `foldRawSignals` 新增 coordless 扫描：旧池 coordless 条目 `JSON.stringify` 入 Set（O(n)）——新的 coordless 条目与旧池 **byte-identical** 则折叠（池内既有副本胜出），真实增量（同形状不同值）保留；有坐标点维持 ±60s + 100m + 保留新点现逻辑不动。
+- 方向选择「折新留旧」：与任务描述「只折叠与旧池完全相同的条目」一致，且新导出内部重复恰与旧池同抄时也收敛（更强幂等）。
+- livedata 交叉验证：2025/2026 两份真实导出 coordless 精确重叠 **0 条** → 原有冒烟统计（rawSignals=106171）不受影响，端到端断言原样保持。
+- ⚠️ 既有 6 个 merge 用例的 fixture 用 raw-only `objectFile([])` 构造「合法文件」——新护栏下本就应被拒，已补 `[seg(...)]` 使 fixture 合法（测试意图不变）。
+
+**#3 合并页大文件护栏**：
+- 新增 `src/lib/merge/largeFile.ts` 纯函数（`MERGE_LARGE_THRESHOLD_BYTES=200MB`、`mergeInputBytes`、`isLargeMerge`）。
+- `MergePage.onMerge`：输入合计 >200MB 先 `window.confirm(t('merge.largeConfirm', {size}))`（说明内存峰值约 6 倍、>300MB 建议分次导出），确认才进 worker；cancel 通道不做（评审建议级，PRD/README 记上限一句即可）。
+- PRD 功能 14 追加「数据护栏 + 上限」一句；README 格式节追加合并页上限说明。
+
+**自测**：`npm test` **243 全绿**（237 基线 → +6：空语义段抛错含 en/zh i18n 断言、raw-only 主档案同护栏、coordless 同文件两次幂等、coordless 精确去重+真实增量、200MB 阈值、largeConfirm 双语文案）；lint ✓；build ✓（仅既有 chunk-size 警告）。
+
+**冒烟（#3，真实浏览器）**：headless Chrome CDP 驱动生产构建 `/app/merge`，选 livedata 双文件（108+123=**231.6MB > 200MB**：`Timeline-20250213.json` 主档案 + `Timeline-20260820.json` 新导出）→ 点「Merge & download」→ `window.confirm` 弹出（消息含 200MB/300MB/231.6MB、内存峰值约 6 倍），decline 后合并中止（无 busy 进度、无下载、无 result）。✅
+**已知问题**：无阻塞项。合并页中文/英文确认弹窗文案已单测覆盖；真实交互确认弹窗留给 Reviewer 复测。

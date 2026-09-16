@@ -257,7 +257,9 @@ export const zh = {
   'merge.success': '合并完成（已开始下载）：{segments} 个语义段 · {raw} 条原始信号（含 {points} 个 GPS 定位点），历史覆盖至 {date}。',
   'merge.privacy': '合并全程在你浏览器本地完成：不上传、不产生任何网络请求。合并档在本机生成，并下载到你的设备。',
   'merge.error.needTimeline': '「{name}」不是 Timeline.json（格式①）导出——合并仅接受 direct-array 形态或含 semanticSegments + rawSignals 的顶层对象。',
+  'merge.error.needSemanticSegments': '「{name}」没有 semanticSegments——合并会用空语义层清空历史累积段。请改用带语义段的完整 Timeline.json 导出。',
   'merge.error.unexpected': '合并时发生意外错误（{reason}），请重试。',
+  'merge.largeConfirm': '输入合计超过 200MB（{size}MB）——合并需把两份文件都载入内存（内存峰值约 6 倍），可能较慢；超过 300MB 建议按更小日期范围分次导出。仍要继续吗？',
 
   // -- Tile validation -------------------------------------------------------
   'tiles.error.unparseable': 'URL 无法解析，请以 http:// 或 https:// 开头',
