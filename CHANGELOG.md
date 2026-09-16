@@ -1,7 +1,25 @@
 # Changelog
 
-本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 风格，里程碑按任务编号（T1–T26）记录。
-版本号与 git tag 由维护者在发布时决定（当前尚未打 tag）。
+本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 风格，里程碑按任务编号记录。
+版本号与 git tag 由维护者在发布时决定。
+
+## [v1.0.0] — 2026-09-16
+
+**首个公开版本**，部署于 GitHub Pages（`https://coderkk.github.io/google-timeline-viewer/`），tag `v1.0.0`。
+
+### Added
+- **合并归档页（`/app/merge`，PRD 功能 14）**：主档案 + 新导出 → 合并 → 下载一份 Timeline.json 再导入观看；语义段取最新、rawSignals 窗口互补累积（±60s+100m 折叠）、>200MB 确认护栏、Web Worker 离主线（T36）
+- **Landing 第 4 功能卡「合并归档 / Merge exports, keep it all」**，Trip 高亮四卡：Trips / Places / Privacy / Merge（T39）
+
+### Changed
+- **导入改单文件语义**：每次导入一份 Timeline.json（不再支持多文件一次性合并导入）；解析期进度条改为不确定动画（诚实原则——不假造百分比），「合并」统一引导至合并归档页（T35）
+- **i18n 与 README 同步现实**：移除「规划中/planned」过时表述，合并功能标注为已实现（T38）
+- **范围选择器（PRD v1.20）**：紧凑按钮 + 双月历 popover 重写（T30）
+
+### Fixed
+- **Leaflet zoom 竞态（mobile `_leaflet_pos` TypeError）**：`map.remove()` 后 250ms 动画 timer 触发读已删 pane；Trips + Places 双视图 unmount 复位 `_animatingZoom`（共享 hook），发布前封印脚本 `scripts/smoke-race-check.mjs`（T39）
+- **渲染性能（T23 生效复测）**：低 zoom 不画点 + 双 cap 12000；真实 15k 点窗口缩放 p95 183ms / 平移 43fps（T37，见 `docs/DATA-FINDINGS.md §10`）
+- 覆盖率判定改按顶点、活动行程链过滤假移动、fallback 门槛口径统一等（T21/T33/T31，见 [Unreleased] 历史）
 
 ## [Unreleased] — 2026-09-15
 

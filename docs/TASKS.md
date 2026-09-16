@@ -1,12 +1,12 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T40 -->
+<!-- next: T41 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
 ## 📋 To Do
 
-- [ ] **T40: 发布——GitHub Pages 部署 + 验证 + 发布记录（待 CEO 定义细节）** [P0]（下一张卡占位）
+- [ ] [P2] 合并页面下载文件名侧加载大小展示 + 归档记录（候选，用户评估后开卡）
 
 ## ⏸ KIV
 
@@ -73,5 +73,11 @@
   - 指派: Dev + Reviewer
   - 来源: T38 Reviewer N1 + CEO 拍板（2026-09-16）
   - 时间: 09-16 创建 → 09-16 Done（commits `7df39ae` → `c134bd0`（REJECT 补 Places）→ `185b6ed`（封印脚本 S1/G1））
+
+- [x] ~~T40: 发布——GitHub Pages 部署 + 线上验证 + 打 tag + 发布记录~~ (09-16→09-16) [P0] — push main 自动触发 `deploy.yml`（lint → 243 单测 → build → upload → deploy-pages）**success**（run 35056682330，HEAD `1c9ca2e`）。线上验证（双视口 playwright 冒烟 14/14 PASS）：Landing 4 卡（Trips/Places/Privacy/Merge）+ 双视口 0 overflowX + hash 路由可达 + 0 pageerror（仅已知 CSP `frame-ancestors` meta 噪音，已有 DECISIONS 记录）；bundle 特征确认 = T39 终版（`Merge exports, keep it all` / `_animatingZoom` 复位）。CHANGELOG 补 **v1.0.0** 发布段（Added: 合并归档页 / Landing 4 卡 · Changed: 单文件导入 + 不确定进度 / i18n 同步 · Fixed: zoom 竞态根治 + 性能复测）；tag `v1.0.0`；DECISIONS 记录。发布地址 `https://coderkk.github.io/google-timeline-viewer/`
+  - 档位: L1（部署 + 验证 + 记录）
+  - 指派: CEO + Dev
+  - 来源: 用户拍板「发布」（2026-09-16）
+  - 时间: 09-16 创建 → 09-16 Done
 
 ## ❌ Cancelled
