@@ -8,6 +8,7 @@ export const zh = {
   'nav.home': '首页',
   'nav.trips': 'Trips',
   'nav.places': 'Places',
+  'nav.merge': '合并归档',
   'nav.help': '教程',
   'nav.settings': '设置',
   'footer.createdBy': 'Created by OPC 3.0',
@@ -241,6 +242,22 @@ export const zh = {
     '外部链接例外：点选地点时默认「复制坐标」——纯本机操作，不联网；若你主动点「在 Google Maps 開啟」，该坐标与你的 IP 会发送给 Google。',
   'settings.customTileName': '自定义',
   'settings.language': '语言',
+
+  // -- Merge archive page (T36 / PRD 功能 14) ---------------------------------
+  'merge.title': '合并时间轴归档',
+  'merge.lead':
+    '在 Google 约 29 天滚动导出窗口之外长期保留原始 GPS 信号，又不必累积多份完整的 Timeline.json。合并档保留最新一次的语义段，并把每个归档的 rawSignals 累积起来；之后把它当作普通导出导入即可观看。',
+  'merge.mainArchive': '主档案（可选）',
+  'merge.mainHint': '之前合并生成的文件，若有就选上；首次合并可留空。',
+  'merge.newExport': '本次新导出',
+  'merge.newHint': '手机上最新导出的 Timeline.json（通常是最近约 29 天）。',
+  'merge.mergeButton': '合并并下载',
+  'merge.buttonHint': '先选择本次新导出的文件即可开始合并。',
+  'merge.parsing': '正在合并… 大文件可能需要一小段时间',
+  'merge.success': '合并完成（已开始下载）：{segments} 个语义段 · {raw} 条原始信号（含 {points} 个 GPS 定位点），历史覆盖至 {date}。',
+  'merge.privacy': '合并全程在你浏览器本地完成：不上传、不产生任何网络请求。合并档在本机生成，并下载到你的设备。',
+  'merge.error.needTimeline': '「{name}」不是 Timeline.json（格式①）导出——合并仅接受 direct-array 形态或含 semanticSegments + rawSignals 的顶层对象。',
+  'merge.error.unexpected': '合并时发生意外错误（{reason}），请重试。',
 
   // -- Tile validation -------------------------------------------------------
   'tiles.error.unparseable': 'URL 无法解析，请以 http:// 或 https:// 开头',

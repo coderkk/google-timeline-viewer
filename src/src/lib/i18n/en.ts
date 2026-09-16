@@ -9,6 +9,7 @@ export const en = {
   'nav.home': 'Home',
   'nav.trips': 'Trips',
   'nav.places': 'Places',
+  'nav.merge': 'Merge',
   'nav.help': 'Guide',
   'nav.settings': 'Settings',
   'footer.createdBy': 'Created by OPC 3.0',
@@ -239,6 +240,25 @@ export const en = {
     'External-link exception: picking a place defaults to "Copy coordinates" (local, offline); only if you tap "Open in Google Maps" are the coordinates and your IP sent to Google.',
   'settings.customTileName': 'Custom',
   'settings.language': 'Language',
+
+  // -- Merge archive page (T36 / PRD 功能 14) --------------------------------
+  'merge.title': 'Merge timeline archives',
+  'merge.lead':
+    'Keep your raw GPS signals beyond Google’s ~29-day rolling export window without stacking full copies of Timeline.json. The merged file keeps the newest semantic segments and accumulates raw signals from every archive; import it later like any Timeline export.',
+  'merge.mainArchive': 'Main archive (optional)',
+  'merge.mainHint': 'A file produced by an earlier merge, if you have one — skip this on the first merge.',
+  'merge.newExport': 'New export',
+  'merge.newHint': 'The latest Timeline.json from your phone (usually the last ~29 days).',
+  'merge.mergeButton': 'Merge & download',
+  'merge.buttonHint': 'Pick the new export file to enable merging.',
+  'merge.parsing': 'Merging… large files may take a moment',
+  'merge.success':
+    'Done! The merged file (now downloading) holds {segments} semantic segments and {raw} raw signals — {points} GPS fixes — covering history up to {date}.',
+  'merge.privacy':
+    'All merging happens entirely in your browser: nothing is uploaded and no network request is made. The merged file is generated locally and downloaded to your device.',
+  'merge.error.needTimeline':
+    '"{name}" is not a Timeline.json (format 1) export — merge only accepts the direct-array shape or a top-level object with semanticSegments + rawSignals.',
+  'merge.error.unexpected': 'Unexpected error while merging ({reason}). Please retry.',
 
   'tiles.error.unparseable': 'URL cannot be parsed; start with http:// or https://',
   'tiles.error.scheme': 'Tile address must use http:// or https://',

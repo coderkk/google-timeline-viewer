@@ -5,6 +5,7 @@ import RouterBridge from './components/RouterBridge'
 import Landing from './pages/Landing'
 import TripsPage from './pages/TripsPage'
 import PlacesPage from './pages/PlacesPage'
+import MergePage from './pages/MergePage'
 import HelpPage from './pages/HelpPage'
 import SettingsPage from './pages/SettingsPage'
 import { useI18n } from './lib/i18n'
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/app" element={<TripsPage />} />
           <Route path="/app/places" element={<PlacesPage />} />
+          <Route path="/app/merge" element={<MergePage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Landing />} />

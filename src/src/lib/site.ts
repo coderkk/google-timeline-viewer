@@ -12,6 +12,7 @@ export const NAV_LINKS = [
   { labelKey: 'nav.home', to: '/' },
   { labelKey: 'nav.trips', to: '/app' },
   { labelKey: 'nav.places', to: '/app/places' },
+  { labelKey: 'nav.merge', to: '/app/merge' },
   { labelKey: 'nav.help', to: '/help' },
   { labelKey: 'nav.settings', to: '/settings' },
 ] as const

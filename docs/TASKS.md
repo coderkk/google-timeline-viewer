@@ -1,8 +1,36 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T36 -->
+<!-- next: T38 -->
 
 ## 🔨 Doing（WIP ≤ 2）
+
+- [ ] **T36: 合并归档独立页（功能 14）— rawSignals 累积** [P2]
+  - 背景: 用户要长期保留 rawSignals（Google 只留 ~29 天滚动窗口，定期导出存档即可突破），但**不累积多份完整 Timeline.json**（每份都带完整 semanticSegments，重复解析浪费）→ 独立页 merge 产出合并档文件 → 再导入观看
+  - 方案（PRD v1.23，用户拍板）:
+    - 入口: 新路由 `/app/merge`（独立页，不在 import 流程）；页面上两个 Select File：①主档案（已有合并档，可选——首次没有）②本次新导出 Timeline.json → [合并并下载] → 产出新合并档（下载保存，之后要导入观看时再导入）
+    - 合并算法（核心「分而治之」）:
+      - `semanticSegments` → **取新导出的那份**（永久历史，最新=最全；替换旧档语义段，不去重/不拼接）
+      - `rawSignals` → **窗口互补累积**：新导出 29 天窗口与旧档案累积池——不重叠（间隔 ≥29 天）直接拼接；重叠则按「时间 ± 容差 + 位置」折叠重复点保留新点
+      - 保留 `userLocationProfile`（取新导出）
+    - 输出格式: `Timeline.json` schema（`{semanticSegments, rawSignals, userLocationProfile}`）→ **导入后可正常观看**（时间轴模式用累积 raw、旧日期自动回退语义段——功能 3 现有逻辑）
+    - 纯本地、零网络请求（隐私一致）
+  - 验收: ①`/app/merge` 独立页可达、与 import 无耦合；②同一份文件合并两次 → rawSignals 无重复点、semanticSegments 只一份；③间隔 ≥29 天的两份导出 → raw 窗口拼接覆盖更长跨度、语义段取较新那份；④重叠窗口提前导出 → raw 折叠重复点（时间±容差+位置判据）；⑤合并档嵌套字段（array/object/顶层位置）导出后**再导入可正常观看**（时间轴 raw 累积可见、旧日期回退语义段）；⑥全程无网络请求；⑦单测覆盖合并算法（含重叠/不重叠/同文件两次/空主档案首次）＋ lint + build
+  - 档位: L3（新页面 + 新算法 + 文件输出）
+  - 指派: Dev + Reviewer
+  - 来源: 用户讨论 2026-09-16 + PRD v1.23
+  - 时间: 09-16 创建 → 09-16 Doing
+
+- [ ] **T37: raw 点渲染性能压测（发布前）** [P2]
+  - 背景: T23 已处置渲染性能（GLOBAL_PATH_POINT_CAP=12000、RAW_POINT_CAP=12000、低 zoom<6 只画折线不画点、canvas 兜底 CircleMarker）→ 发布前用真实 livedata 的 **15k 点窗口**复测确认无卡顿
+  - 方案:
+    1. 用真实 15k 点窗口（如选一个 raw 密集日/区间）在 production build 下测：缩放/平移帧率、longtask、首绘延迟——**对照 DATA-FINDINGS §8 基线**（缩放 p95 461ms、longtask max 1796ms 已修）
+    2. 结论分派: ①若 OK → 记录发布前基线、Close；②若有卡顿 → 定降 cap / 分层预算（zoom 依赖预算），回 T23 决策链
+    3. 结果记录 DATA-FINDINGS（追加节）+ NOTES
+  - 验收: ①压测报告含 15k 窗口的缩放/平移实测数字（对比 §8 基线）；②明确结论（OK / 需降 cap——若有，给出建议值与分层方案）；③scripts/ 或 documentation 记录可复现步骤
+  - 档位: L2（压测 + 报告，estimate 不改产品 unless 卡顿）
+  - 指派: Dev
+  - 来源: Backlog A1 遗留（T23 发布前复测项）
+  - 时间: 09-16 创建
 
 ## 📋 To Do
 

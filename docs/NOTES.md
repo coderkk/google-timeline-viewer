@@ -1138,3 +1138,35 @@ CEO 指派跟进 T35 扫描备注中的 help 残留（多文件宣传与 PRD v1.
 3. `HelpPage.tsx` 无写死中文文案（全部走 `t()`），无需改。
 
 **自测**：grep `一次性全选|合并导入|多文件` in en.ts/zh.ts **零命中**；`npm test` **220 全绿**；lint ✓ / build ✓（仅既有 chunk-size 警告）。
+
+## 2026-09-16 08:06 — Dev T36 合并归档独立页（功能 14，rawSignals 累积）
+
+CEO 已立项（TASKS Doing），本轮从零实现 `/app/merge` 独立页（与 import 流程零耦合）。
+
+**架构**：
+- `src/lib/merge/index.ts` — 纯算法核心（无 DOM/网络）：
+  - `semanticSegments` → 新导出 verbatim（永久历史，最新=最全；替换不做去重/拼接）——合并档恒为**单层语义**
+  - `rawSignals` → 窗口互补累积：不重叠窗口拼接；重叠按「时间 ±60s + 位置 ~100m」折叠，**保留新导出的点**
+  - `userLocationProfile` → 取新导出
+  - 输出 `{semanticSegments, rawSignals, userLocationProfile?}` 紧凑序列化（无 pretty print，120MB 级文档翻倍无意义），stats 含 segments/rawSignals/points/windowEndMs（文件名用）
+  - 折叠 O((nOld+nNew) log n)：ts 排序 + 二分下界扫 ±60s 窗口，haversine 判 100m
+- 复用 `formatTimelineArray.extractFormat1Slices`（本次重构导出，parse 与 merge 共享格式①遍历）→ array/object 双形态都吃
+- worker：`src/lib/merge/merge.worker.ts` + facade `worker.ts`——120MB 级合并不卡主线程、不确定动画真实流动（T35 教训）
+- `src/pages/MergePage.tsx`：双 Select File（主档案可选/新导出必需）+ 合并并下载（新导出未选时禁用）+ 不确定进度条 + 结果统计 + 隐私说明；Blob 下载 `timeline-merged-YYYYMMDD.json`
+
+**关键设计决策（与 Reviewer 沟通后确认）**：
+1. **去掉「新文件内部去重」**：livedata 实测新版导出内部 ~2980 个近重复点（±60s/100m，多为静止/慢移连续 ping）——那是**真信号密度**，内部折叠会静默削掉 ~20% 原始数据，违背「原始 GPS 长期保留」。跨窗口去重（旧点 vs 新点）已足够让「同一份合并两次」幂等：
+   - 同文件两次：两条旧点均命中新点被折叠 → 无重复点、语义段单层 ✓
+   - 折叠判据只作用于**旧→新**方向（旧点被新点替换）
+2. `windowEndMs` 用于下载文件名 / 成功文案日期，取合并后最晚点
+3. coordless（wifiScan/activityRecord）双份穿透——fold 判据是「时间+位置」，无坐标入口不参与；同文件合并两次时 coordless 会出现两份（import 直接跳过，无害）。PRD 判据未覆盖，N/A。
+
+**livedata 冒烟（真实端到端）**：
+- 2025(108MB) + 2026(123MB) 合并 → `semanticSegments=97382`（新）、`rawSignals=106171`（50662+55509）、`points=27252`（11773+15479）✓ 无损累积
+- 合并档**再导入**（走正常 parse）→ points 27252、segments/visits 与 2026 单独解析一致、span 2025-01-14 → 2026-08-20 ✓
+
+**错误通道**：`MergeError{key, params}`（复用 `import.notJson`/`import.emptyData`；新增 `merge.error.needTimeline`/`merge.error.unexpected`）→ worker 回传 key/params → 页面 `t(key, params)` 本地渲染（与 tiles 错误模式一致）。新增 13 个 i18n key（en/zh 同步，parity 测试守卫）。
+
+**自测**：新增 `merge.test.ts`（17 件：首次合并/同文件两次/不重叠/重叠折叠/±60s 与 100m 边界/coordless 穿透/双形态/错误/真实 livedata 冒烟）+ `MergePage.test.tsx`（renderToString，mock worker facade 避开 `?worker` transform）；`npm test` **237 全绿**（18 档，基线 220→+17）；lint ✓；build ✓（merge.worker chunk 5.2kB，仅既有 chunk-size 警告）。
+
+**已知问题**：无阻塞项。`/app/merge` 手工浏览器验证留给 Reviewer 环境复测（解析/合并已由 livedata 自动测试覆盖）。T37（raw 点渲染压测）在合并档可产出 27k 点窗口后更有意义——可作为 T37 的真实数据源。
