@@ -1228,3 +1228,26 @@ Reviewer 审查 T36 后 PASS，附 3 个一般级问题，CEO 拍板全部修复
 默认等 visible 永不满足，改用 `locator.waitFor({state:'attached'})`；③headless 下叠加「输入静默窗
 300ms + 帧静默 300ms」双条件 settle，录制在 settle 时冻结（防 readPerf 往返延迟污染帧数据）；
 ④手势测量在每次输入事件后打 `lastInputAt` 时间戳，静默窗从真实输入结束起算。
+
+## 2026-09-16 10:21 — Dev T37 Reviewer 记录修正（4 项修复）
+
+**背景**：T37 已过审，但 Reviewer 发现 §10 表述与入库数据矛盾 / 脚本聚合缺陷（G1-G3）+ Backlog 落子（S3）。本轮纯文档 + 脚本修复，**src/ 零改动**，未跑 npm test。
+
+**G1【诚实原则】DATA-FINDINGS §10 平移 longtask 如实化**：
+- 事实（`scripts/out/perf-report.json`）：panLow[0]=122ms、[4]=56ms、[7]=165ms；panHigh[0]=647ms、[6]=72ms——**16 拖中 5 拖有 longtask（11 拖干净）**，原 §10.1 写「longtask **0**」矛盾。
+- 改 `docs/DATA-FINDINGS.md`：§10.1 平移两行（L314-315）按拖细化（low 3 拖 122/56/165ms 零星 tile/GC；high 首拖 647ms z12 点层 + tile 冷启动一次性 + [6] 72ms）；注段追加 16 拖口径（11/16 干净）；§10.3 结论行（L361）同步「5 拖零星 longtask max 647ms 仅首拖」。
+- 注：CEO 建议文案「15/16 拖无长任务」与入库数据不符（实际 11/16），未照抄，用真实数字。
+- 遗留提醒：TASKS.md Done 区 T37 条目与 NOTES 10:05 旧日志仍含「longtask 0」历史表述（改写历史不合追加式约定），以本节为准，如需修订请 CEO 拍板。
+
+**G2【聚合 bug】`scripts/perf-browser.mjs` summary/聚合 longtask 恒 0**：
+- 根因：`readPerf` 只返回 `longtaskCount`/`longtaskMax`，无 `longtasks` 数组；5 处 `push(...m.longtasks ?? [])` 恒推空 → summary `zoomLongtaskMax` 恒 0（实际缩放 max 219ms、滚轮 303ms）。
+- 修：聚合改为 `Math.max` over `m.longtaskMax`（zoom 2 处、panLow/panHigh 拆独立聚合器各 1 处、s2 pano 1 处）；console 行补 `ltMax`；summary 新增 `panLowLongtaskMax`/`panHighLongtaskMax`；`zoomLongtaskMax` 反映真实 max。
+- `node --check scripts/perf-browser.mjs` ✅ 语法通过；`src/` 未触碰。
+
+**G3【可复现缺口】Session 2 全景平移未入库**：
+- `panoPans` 局部数组从未赋给 `s2` → perf-report.json 无 `s2.panoPans`，§10.2「全景平移 8 拖」行只能靠 console（且其 lt 数来自同一 G2 空数组 bug，不可信）。
+- 修：`s2.panoPans = panoPans.map(strip rawFrames)` 入库（下轮运行持久化）；DATA-FINDINGS §10.2 该行标「未核验 \*」+ 补注（脚本缺陷、console 统计、下轮补齐），结论行去掉「平移全程无 longtask」断言。
+
+**S3【Backlog 落子】**：`docs/TASKS.md` Backlog 顶部新增 `[P2] 范围切换性能——Last year/All 预设全量重建 2.3s 单 longtask（4,593 stays + 12k 点重挂载）；…（T37 附带发现）(09-16)`。
+
+**验收自测**：①§10 平移行已含 647ms 如实表述、无「longtask 0」矛盾（grep 复查：余「longtask 0」仅 L309 导入行——report 三指标全 0 有据——与 L350 自述不可信的注解）；②聚合已改 `Math.max` over longtaskMax；③Backlog 条目已加；④src/ 零改动；⑤未跑 npm test（无产品变更）。

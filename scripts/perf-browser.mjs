@@ -418,8 +418,14 @@ async function main() {
     smoke,
   }
 
-  const zoomAgg = { frames: [], longtasks: [] }
-  const panAgg = { frames: [], longtasks: [] }
+  // T37 reviewer fix (G2): readPerf returns longtaskCount/longtaskMax but NO
+  // `longtasks` array — `push(...m.longtasks ?? [])` always pushed empty, so
+  // every aggregate line and report.summary.longtask stayed 0 despite real
+  // longtasks (zoom max 219ms, wheel burst 303ms). Aggregate with Math.max
+  // over the per-measure longtaskMax instead.
+  const zoomAgg = { frames: [], longtaskMax: 0 }
+  const panLowAgg = { frames: [], longtaskMax: 0 }
+  const panHighAgg = { frames: [], longtaskMax: 0 }
 
   // ── Session 1 — real 2026 livedata, default 30-day window (the 15k raw window)
   const N_PANS = smoke ? 1 : 8
@@ -450,7 +456,7 @@ async function main() {
     m.toZoom = ++zoom
     zoomSteps.push(m)
     zoomAgg.frames.push(...m.rawFrames)
-    zoomAgg.longtasks.push(...m.longtasks ?? [])
+    zoomAgg.longtaskMax = Math.max(zoomAgg.longtaskMax, m.longtaskMax)
     console.log(`    ${lab.padEnd(14)} ${String(m.durMs).padStart(6)}ms  p95=${m.frames.p95}ms  >50ms=${m.frames.over50}  lt=${m.longtaskCount}(max ${fmtMs(m.longtaskMax)}ms)`)
   }
   const downLabels = ['z12→11', 'z11→10', 'z10→9', 'z9→8', 'z8→7', 'z7→6', 'z6→5 •unmount']
@@ -461,7 +467,7 @@ async function main() {
     m.toZoom = --zoom
     zoomSteps.push(m)
     zoomAgg.frames.push(...m.rawFrames)
-    zoomAgg.longtasks.push(...m.longtasks ?? [])
+    zoomAgg.longtaskMax = Math.max(zoomAgg.longtaskMax, m.longtaskMax)
     console.log(`    ${lab.padEnd(14)} ${String(m.durMs).padStart(6)}ms  p95=${m.frames.p95}ms  >50ms=${m.frames.over50}  lt=${m.longtaskCount}(max ${fmtMs(m.longtaskMax)}ms)`)
   }
 
@@ -480,8 +486,8 @@ async function main() {
   for (let i = 0; i < N_PANS; i++) {
     const m = await measuredPan(page, `pan:low:${i}`)
     panLow.push(m)
-    panAgg.frames.push(...m.rawFrames)
-    panAgg.longtasks.push(...m.longtasks ?? [])
+    panLowAgg.frames.push(...m.rawFrames)
+    panLowAgg.longtaskMax = Math.max(panLowAgg.longtaskMax, m.longtaskMax)
   }
   const panLowStats = fmtStats(panLow.flatMap((s) => s.rawFrames))
 
@@ -493,8 +499,8 @@ async function main() {
   for (let i = 0; i < N_PANS; i++) {
     const m = await measuredPan(page, `pan:high:${i}`)
     panHigh.push(m)
-    panAgg.frames.push(...m.rawFrames)
-    panAgg.longtasks.push(...m.longtasks ?? [])
+    panHighAgg.frames.push(...m.rawFrames)
+    panHighAgg.longtaskMax = Math.max(panHighAgg.longtaskMax, m.longtaskMax)
   }
 
   s1.zoomSteps = zoomSteps.map(({ rawFrames, ...m }) => m)
@@ -502,9 +508,9 @@ async function main() {
   s1.panLow = panLow.map(({ rawFrames, ...m }) => m)
   s1.panHigh = panHigh.map(({ rawFrames, ...m }) => m)
   report.sessions['2026-file'] = s1
-  console.log(`  [pan:low]  pooled p95=${panLowStats.p95}ms p99=${panLowStats.p99}ms >50ms=${panLowStats.over50} (${panLowStats.n} frames)`)
+  console.log(`  [pan:low]  pooled p95=${panLowStats.p95}ms p99=${panLowStats.p99}ms >50ms=${panLowStats.over50} (${panLowStats.n} frames)  ltMax=${fmtMs(panLowAgg.longtaskMax)}ms`)
   const panHighStats = fmtStats(panHigh.flatMap((s) => s.rawFrames))
-  console.log(`  [pan:high] pooled p95=${panHighStats.p95}ms p99=${panHighStats.p99}ms >50ms=${panHighStats.over50} (${panHighStats.n} frames)`)
+  console.log(`  [pan:high] pooled p95=${panHighStats.p95}ms p99=${panHighStats.p99}ms >50ms=${panHighStats.over50} (${panHighStats.n} frames)  ltMax=${fmtMs(panHighAgg.longtaskMax)}ms`)
 
   if (!smoke) {
     // range switch first-paint (切换日期): single dense day + last year preset
@@ -527,7 +533,7 @@ async function main() {
   s1.rangeLastYear = switchYear
   console.log(`    last-year ${switchYear.durMs}ms  p95=${switchYear.frames.p95}ms  lt=${switchYear.longtaskCount}(max ${fmtMs(switchYear.longtaskMax)}ms)  → ${switchYear.view.summary}`)
 
-  console.log(`\n  [zoom aggregate (measured steps)]  pooled p95=${zoomAgg.frames.length ? fmtStats(zoomAgg.frames).p95 : '-'}ms  p99=${fmtStats(zoomAgg.frames).p99}ms  >50ms=${fmtStats(zoomAgg.frames).over50}  longtaskMax=${fmtMs(Math.max(0, ...zoomAgg.longtasks.map((l) => l.dur)))}ms`)
+  console.log(`\n  [zoom aggregate (measured steps)]  pooled p95=${zoomAgg.frames.length ? fmtStats(zoomAgg.frames).p95 : '-'}ms  p99=${fmtStats(zoomAgg.frames).p99}ms  >50ms=${fmtStats(zoomAgg.frames).over50}  longtaskMax=${fmtMs(zoomAgg.longtaskMax)}ms`)
 
   if (!smoke) {
     // ── Session 2 — merged archive (T36 超长窗口 input)
@@ -550,15 +556,19 @@ async function main() {
     console.log(`    range:all ${rAll.durMs}ms  p95=${rAll.frames.p95}ms  lt=${rAll.longtaskCount}(max ${fmtMs(rAll.longtaskMax)}ms)`)
     console.log(`    view: ${viewAll.summary} (${viewAll.downsampled})`)
     const panoPans = []
-    const panoAgg = { frames: [], longtasks: [] }
+    const panoAgg = { frames: [], longtaskMax: 0 }
     for (let i = 0; i < 8; i++) {
       const m = await measuredPan(page2, `pan:pano:${i}`, 0.16, 0.1, 10)
       panoPans.push(m)
       panoAgg.frames.push(...m.rawFrames)
-      panoAgg.longtasks.push(...m.longtasks ?? [])
+      panoAgg.longtaskMax = Math.max(panoAgg.longtaskMax, m.longtaskMax)
     }
     const panoStats = fmtStats(panoAgg.frames)
-    console.log(`    pano-pan pooled p95=${panoStats.p95}ms p99=${panoStats.p99}ms >50ms=${panoStats.over50} (${panoStats.n} frames)  lt=${panoAgg.longtasks.length}`)
+    console.log(`    pano-pan pooled p95=${panoStats.p95}ms p99=${panoStats.p99}ms >50ms=${panoStats.over50} (${panoStats.n} frames)  ltMax=${fmtMs(panoAgg.longtaskMax)}ms`)
+    // T37 reviewer fix (G3): persist the pano pans into s2 — previously the
+    // local `panoPans` array was never assigned, so §10.2 "全景平移" row had no
+    // on-disk source (console stats only).
+    s2.panoPans = panoPans.map(({ rawFrames, ...m }) => m)
 
     console.log('  [zoom] 全部 crossing 5→6 (12k dot mount over 13.7y) …')
     await zoomOutToZero(page2)
@@ -621,9 +631,11 @@ async function main() {
   // finalize
   report.summary = {
     zoomPooled: fmtStats(zoomAgg.frames),
-    zoomLongtaskMax: fmtMs(Math.max(0, ...zoomAgg.longtasks.map((l) => l.dur))),
+    zoomLongtaskMax: fmtMs(zoomAgg.longtaskMax),
     panLowPooled: panLowStats,
+    panLowLongtaskMax: fmtMs(panLowAgg.longtaskMax),
     panHighPooled: panHighStats,
+    panHighLongtaskMax: fmtMs(panHighAgg.longtaskMax),
   }
 
   mkdirSync(dirname(outPath), { recursive: true })

@@ -311,13 +311,17 @@ trace 2017-12-16 02:00:00 → 04:00:00 (5.96923, 116.06471)
 | z5→6 首次挂载 12k 点 | durMs 1418 / p95 167ms / longtask 3× max 196ms | post-fix z6 挂载 ≈538ms（口径不同，见注） |
 | z6→5 卸载 | durMs 1070 / longtask 2× max 94ms | — |
 | 滚轮连打 6 格（z6） | durMs 4022 / longtask 15× max **303ms**（连续缩放路径的峰值） | — |
-| 平移 low（z4，点层关闭，8 拖） | pooled avg 23.4ms ≈ **43fps**，p95 50ms，longtask **0**（396 帧） | post-fix ~34fps |
-| 平移 high（z12，点层挂载，8 拖） | pooled avg 24.7ms ≈ **41fps**，p95 50ms，longtask **0**（385 帧） | post-fix ~34fps |
+| 平移 low（z4，点层关闭，8 拖） | pooled avg 23.4ms ≈ **43fps**，帧 p95 50ms；8 拖中 3 拖有 longtask（max 122 / 56 / 165ms，零星 tile/GC 量级） | post-fix ~34fps |
+| 平移 high（z12，点层挂载，8 拖） | pooled avg 24.7ms ≈ **41fps**，帧 p95 50ms；8 拖中 2 拖有 longtask（首拖 **647ms**——z12 点层 + tile 冷启动一次性，后续仅 [6] 72ms 零星） | post-fix ~34fps |
 | 切单日 2026-08-03（784 raw） | durMs 2789 / longtask max 502ms（一次性切换成本） | — |
 | 切「Last year」预设（4,593 stays / 12,000 点） | durMs 4425 / **longtask max 2291ms** ⚠️ | — |
 
 注：§8.3 的「z6 挂载 538ms」是 `setZoom` transition 单测口径；本测 durMs 含固定 600ms 静默窗，
 净过渡 ≈820ms。挂载尖峰无秒级 longtask（max 196ms），p95 与 §8 同量级 → **无回归信号**。
+
+平移 longtask 如实口径（对齐 `scripts/out/perf-report.json` 入库数据）：16 拖中 **11 拖无 longtask、5 拖有**——
+low 3 拖 max 122/56/165ms（零星 tile/GC 量级）、high 首拖 **647ms**（z12 点层 + tile 冷启动一次性）+ [6] 72ms。
+647ms 仅出现在 z12 **首拖**，不发生在持续推进路径；两档帧 p95 恒 50ms 不受影响。
 
 **「Last year」2291ms 长任务**是本测最大单阻塞：范围切换是全量重建（13.7 年 → 4,593 stays 行程链 + 12k
 点层重挂载）。属一次性操作（非连续手势），界面冻结 ≈2.3s。记录为已知局限（Backlog 候选：
@@ -333,21 +337,28 @@ Session 1（12,000 绘制）；切「全部」时 **37,287 stays + 12,000 点**�
 |---|---|---|---|
 | 切「全部」（Any~Any，37,287 stays） | 3377 | 667ms | **1343ms** ⚠️ |
 | 「全部」5→6 跨层挂载 | 2215 | 217ms | **474ms** |
-| 「全部」全景平移 8 拖 | — | pooled 50.1ms（393 帧） | 0 |
+| 「全部」全景平移 8 拖 | — | pooled 50.1ms（393 帧） | 未核验 \* |
 | 切「Last year」 | 2309 | 283ms | 839ms |
 | 「Last year」5→6 | 1782 | 200ms | 272ms |
 | 切旧密日 2025-02-02（935 raw） | 2695 | 283ms | 652ms |
 | 旧密日平移 | 1282 | 133ms | 139ms |
 | 切新密日 2026-08-03（784 raw） | 2974 | 300ms | 712ms |
 
-结论：平移全程无 longtask；最大单阻塞在「切范围」路径（All 1.3s / Last year 0.8s）。与 Session 1 一致：
-**卡顿集中在一次性范围切换全量重建，不发生在连续交互（缩放/平移）**。
+\* 全景平移数据**因脚本缺陷未持久化，来自 console 统计，下轮运行后补齐**：`perf-browser.mjs` 的
+`panoPans` 局部数组从未写入 `s2`（perf-report.json 无该键），且 longtask 聚合用了
+`push(...m.longtasks ?? [])`（readPerf 只返回 count/max、无数组 → 恒空恒 0）。因此本行
+pooled 50.1ms（帧间隔统计）可信，longtask 0 **不可信**。脚本已修正（`s2.panoPans` 入库 +
+`Math.max` over longtaskMax），下轮运行后补齐真实值。
+
+结论：最大单阻塞仍在「切范围」路径（All 1.3s / Last year 0.8s）；全景平移**帧**路径表现良好
+（pooled 50.1ms），其 longtask 未核验（见上注）。与 Session 1 一致：**卡顿集中在一次性范围切换
+全量重建，不发生在连续交互（缩放/平移帧路径）**。
 
 ### 10.3 结论（T37 验收）
 
 - **核心验收通过**：15k 原始点窗口（12k 绘制）下缩放/平移无秒级冻结、无 §8 级回归——
   - 缩放帧 p95 pooled 183ms（单步 100–283ms）< pre-fix 461ms；
-  - 平移 41–43fps ≥ post-fix ~34fps，longtask 0；
+  - 平移 41–43fps ≥ post-fix ~34fps，帧 p95 恒 50ms；16 拖中 11 拖无 longtask，5 拖有零星 longtask（max **647ms** 仅 z12 首拖点层 + tile 冷启动一次性，无持续推进卡顿）；
   - 连续交互路径最大单 longtask 303ms（滚轮连打），远低于 pre-fix 1796ms。
 - **明确结论：不用降 cap、无需分层预算**；产品代码零修改。
 - **附带发现（非阻塞）**：范围切换（Last year / All）存在一次性 1.3–2.3s 主线程冻结，
