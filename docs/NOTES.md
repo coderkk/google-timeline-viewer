@@ -1360,3 +1360,7 @@ Trips 侧 N1 修复（`map._animatingZoom=false` unmount 复位）正确，但�
 - B/C 段补 catch（runError 计本 section FAIL，不崩全脚本）+ 全局 finally 进程组清理。
 - 产品代码**零改动**（git diff 仅 `scripts/smoke-race-check.mjs` + 本 NOTES）；`npm run lint` 0 问题、`npm run build` 绿（>500kB 既有告警）、**243 单测全绿**（脚本不在测试范围）。
 - 临时对照脚本 `/tmp/opencode/` 均已清理，未入库。
+
+## 2026-09-16 13:15 — v1.0.0 发布 + 发布 Retro（CEO + Dev + Reviewer）
+- **T40 发布闭环**：GitHub Pages 部署（push 自动触发 deploy.yml，run 35056682330 success）+ 线上双视口冒烟 14/14 PASS（4 卡渲染、0 overflowX、hash 路由可达、0 pageerror 仅已知 CSP meta 噪音）+ bundle 特征核对确认 T39 终版（`Merge exports, keep it all` / `_animatingZoom` 复位）+ tag `v1.0.0` + CHANGELOG v1.0.0 段。发布地址 `https://coderkk.github.io/google-timeline-viewer/`。
+- **发布 Retro**（docs/records/retros/2026-09-16.md）：全员反馈，产出 A10–A15 行动项（验证脚本入库 / 根治声明附同族清单 / 已知噪音量化+时效 / L1 冒烟豁免例外 / 同族枚举前置 / 数据交付三方对账），已落 Backlog。Dev+Reviewer 重点共识：**验证资产不入库=假信号的根源**；N1 家族三中招（T27→T38→T39）靠共享 hook + 封印脚本结构性消除。
