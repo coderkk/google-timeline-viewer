@@ -1339,3 +1339,24 @@ Trips 侧 N1 修复（`map._animatingZoom=false` unmount 复位）正确，但�
 - 双视图统一走共享 hook，「第三处再漏」在结构上被消除；hook 文档内写明 T27→T38/T39 两中招史
 - 封印脚本 + checklist 指引 → 下次发布 1 条命令重跑
 - 竞态为浏览器时序问题不加 node 单测（与 T39 首次一致），Playwright 轮数为验证主体
+
+## 2026-09-16 12:32 — Dev T39: 修复 smoke-race-check 门禁 S1 server 泄漏 + G1 runError 计败
+
+### ①S1【严重】vite preview 子进程残留 → 假信号
+- 现状：`spawn('npx', ['vite','preview','--port','4194','--strictPort',...])` + 末尾 `server.kill()`；`kill()` 只杀 npx 包装进程，**vite preview 子进程残留**。固定端口 → 下次运行 spawn 失败但旧 server 还在 → `fetch(BASE)` 打到任意残留 server → 假 FAIL / 假 PASS（Reviewer 两种都亲历过）。发布门禁自身出假信号不可接受。
+- 修复（组合方案，**②随机端口 + stdout 解析**为主，①进程组 kill 兜底）：
+  1. `--port 0`：vite 8.3.0 实测支持 0=OS 分配空闲端口（probe 验证），彻底消除固定端口冲突与残留 server 误连；
+  2. **解析 `vite preview` stdout 的 `Local: http://...` 行构造 BASE**（`--host 127.0.0.1` 下即 `http://127.0.0.1:<port>/`），不再硬编码；
+  3. `spawn(..., { detached: true })` → npx 成为新进程组组长，清理用 `process.kill(-pid, SIGTERM)` → 轮询等待进程组消失 → `-pid SIGKILL` 兜底杀残余。清理在**全局 finally** 执行，正常退出（exitCode 0/1）与异常崩溃（throw，exitCode 2）**都不留 server 进程**。
+- 判别性验证（在修复版 build 上连跑 2 次 + 注入故障 1 次）：
+  - 正常运行 ×2：**退出码 0**、A 6/6 轮 `navAt=182~217ms 全 <250ms` 0 race + B tooltip=true 0 race + C rootOk=true 0 race，全部 PASS；每次跑完 `pgrep -f 'vite preview'` **零残留**；
+  - 注入故障路径（A 段首行 throw）：A 计 badRounds=6/6 → **FAIL → 退出码 1**（非 2），B/C 继续跑完不被屏蔽；脚本退出后**仍然零 vite 残留**（finally 清理对失败路径同样生效）。
+
+### ②G1【一般】A 段 catch 吞 runError
+- 现状：轮跑挂（selector 超时等）按 `leafletRace=0` 计入且 section 仍 PASS → 空转段也算通过。
+- 修复：catch 分支 `aBadRounds++`，且每轮新增 **`navAt<250ms` 进判定**（`WIDE(>=250)` 未真正踩中竞态窗口的轮也计 badRound，不再纯打印）；section ok = `aRaces===0 && aBadRounds===0`。detail 行带 `badRounds=n/6`。验证：注入 throw 后 A `badRounds=6/6` FAIL、exit 1。
+
+### ③其他验证 / 未动项
+- B/C 段补 catch（runError 计本 section FAIL，不崩全脚本）+ 全局 finally 进程组清理。
+- 产品代码**零改动**（git diff 仅 `scripts/smoke-race-check.mjs` + 本 NOTES）；`npm run lint` 0 问题、`npm run build` 绿（>500kB 既有告警）、**243 单测全绿**（脚本不在测试范围）。
+- 临时对照脚本 `/tmp/opencode/` 均已清理，未入库。
