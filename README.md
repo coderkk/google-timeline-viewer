@@ -114,7 +114,7 @@ Google Maps 头像 → 设置 → 个人内容 / 位置和隐私 → 导出时�
 
 ## 支持的格式与文件结构
 
-本工具自动识别以下四种导出格式，多文件可一次性合并导入：
+本工具自动识别以下四种导出格式，每次导入一份：
 
 | 文件名 | 来源 | 结构特征 |
 |--------|------|----------|
@@ -123,7 +123,7 @@ Google Maps 头像 → 设置 → 个人内容 / 位置和隐私 → 导出时�
 | `YYYY_MM.json` | Takeout Semantic Location History（按月） | `timelineObjects[]`（`placeVisit` / `activitySegment`） |
 | `Location History.json` | Takeout（旧版） | `locations[]`（仅原始坐标） |
 
-如有多份文件（按月导出、不同时段），可全选后一次性导入，工具会自动合并。
+如有跨时段多份导出需要合并，请在「合并归档」页生成合并文件后再导入。（见下）
 
 跨时间段合并归档（功能 14）：在「合并归档」页选择主档案（可选）＋ 本次新导出 Timeline.json，即可生成合并后的 Timeline.json；输入合计 **>200MB** 时合并前需确认（内存峰值约 6 倍），**>300MB** 建议按更小日期范围分次导出。
 
@@ -163,7 +163,7 @@ React 19 · TypeScript · Vite 8 · Leaflet + react-leaflet · Zustand · react-
 │     │ Zustand Store   │◄────│ Parse Worker        │   │
 │     │ (in-memory)     │     │ (Web Worker)        │   │
 │     └───────┬─────────┘     │ - 四格式自动识别    │   │
-│             │               │ - 多文件合并         │   │
+│             │               │ - 单文件解析         │   │
 │             │               └─────────────────────┘   │
 │             ▼                                         │
 │     ┌────────────────┐     ┌─────────────────────┐   │
@@ -174,6 +174,7 @@ React 19 · TypeScript · Vite 8 · Leaflet + react-leaflet · Zustand · react-
 ```
 
 - **解析层（Web Worker）**：JSON 解析与格式识别在 Worker 线程中执行，不阻塞 UI；文件超 100MB 时提前提示。
+- **合并归档（独立 Worker）**：「合并归档」页在独立 Worker 中运行：可选主档案＋本次新导出 Timeline.json，生成合并后的 Timeline.json，全程本地完成、无网络请求；合并文件生成后再走正常导入流程。
 - **空间索引（SpatialGrid）**：1°×1° 均匀网格 + haversine 大圆距离精确过滤，支持 1–100 KM 范围查询，37000+ 停留点查询响应在毫秒级。
 - **状态管理（Zustand）**：导入数据、示例数据加载、日期范围、瓦片源等全局状态均为纯内存存储，刷新即清空。
 

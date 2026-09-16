@@ -1,8 +1,23 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T38 -->
+<!-- next: T39 -->
 
 ## 🔨 Doing（WIP ≤ 2）
+
+- [ ] **T38: 发布前收尾——README/Landing/i18n 过时表述 + 双视口末轮冒烟** [P1]
+  - 背景: 发布前核对发现 T35（单文件化）+ T36（合并归档已实现）后，README 与 i18n 仍有大量过时/矛盾表述
+  - 需修:
+    1. **README L117/L126**：「多文件可一次性合并导入 / 全选后一次性导入自动合并」→ 单文件语义（一次导入一份；合并请用「合并归档」页）
+    2. **README L166 架构图**：Parse Worker「- 多文件合并」→ 改「- 单文件解析」「- 合并归档页（独立 Worker）」或如实反映；架构图旁注释 L176 同步
+    3. **i18n**：`help.formatsTip`（en L188/zh）、`help.faq.a2`（en L209/zh）、`help.faq.a3`（en L212/zh）说合并功能 **"is planned"/「规划中」** → 改为已实现（「合并归档」页）；注意这是 T36 前的旧表述，需双语同步（i18n 测试有 en/zh key parity guard）
+    4. 全仓 grep 审计：`多文件|合并导入|一次性导入|全选后|planned|规划中` 任一残留（README/Landing/i18n/HelpPage）都清理
+    5. **Landing 功能卡**：是否要新增加「合并归档」亮点卡？en/zh 双语——与现有三卡（Trips/Places/隐私）平衡，可加可不加，你出方案给我确认（或保持三卡但确认无过时表述）
+    6. **双视口末轮冒烟**：发布前 SMOKE-CHECKLIST 全量（desktop 1440×900 + mobile 390×844），覆盖导入/更换/合并页/三视图/设置/帮助，0 pageerror
+  - 验收: ①README 无「多文件合并导入」宣传；②i18n 无「规划中」表述（合并已实现）；③`grep -rn "多文件|合并导入|一次性导入|planned|规划中" README.md src/src/` 仅剩合理使用（如 merge 页解释「不是多文件导入」时）；④双视口冒烟 0 pageerror、全功能可用；⑤单测全绿（i18n 测试可能的断言更新）
+  - 档位: L1（文档 + 文案 + 冒烟）
+  - 指派: Dev + Reviewer
+  - 来源: CEO 发布前核对（2026-09-16）
+- 时间: 09-16 创建 → 09-16 Doing
 
 ## 📋 To Do
 

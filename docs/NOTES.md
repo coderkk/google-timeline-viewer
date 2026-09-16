@@ -1251,3 +1251,33 @@ Reviewer 审查 T36 后 PASS，附 3 个一般级问题，CEO 拍板全部修复
 **S3【Backlog 落子】**：`docs/TASKS.md` Backlog 顶部新增 `[P2] 范围切换性能——Last year/All 预设全量重建 2.3s 单 longtask（4,593 stays + 12k 点重挂载）；…（T37 附带发现）(09-16)`。
 
 **验收自测**：①§10 平移行已含 647ms 如实表述、无「longtask 0」矛盾（grep 复查：余「longtask 0」仅 L309 导入行——report 三指标全 0 有据——与 L350 自述不可信的注解）；②聚合已改 `Math.max` over longtaskMax；③Backlog 条目已加；④src/ 零改动；⑤未跑 npm test（无产品变更）。
+
+## 2026-09-16 10:55 — Dev T38: 发布前收尾（README/i18n 单文件化 + 合并已实现 + 双视口冒烟）
+
+**背景**：T35（单文件化）+ T36（合并归档已实现）后，README 与 i18n 仍有「多文件合并导入」「合并规划中」等过时宣传，发布阻断。本轮改文案 + 双视口冒烟，**src/ 仅 i18n 文案**，无逻辑改动。
+
+**①README（3 处必改 + 1 处补强）**：
+- L117 `多文件可一次性合并导入` → `每次导入一份`
+- L126 `如有多份文件…全选后一次性导入自动合并` → `如有跨时段多份导出需要合并，请在「合并归档」页生成合并文件后再导入。（见下）`（衔接 L128 合并档说明）
+- L166 架构图 `- 多文件合并` → `- 单文件解析`（同字符数、对齐不变；`- 四格式自动识别` 保留）
+- 架构图下补一条 **合并归档（独立 Worker）** 说明铭文：合并档先在本机生成、再走正常导入流程
+
+**②i18n（3 key × en/zh，parity 双同步）**：
+- `help.formatsTip`（en/zh）：删「planned→可生成合并文件」未来时 → 「想合并跨设备/跨月多份 → 打开 Merge/合并归档 页生成合并文件，再像普通文件一样导入」
+- `help.faq.a2`（换机问答）：`the planned cross-device merge & dedup feature` → `open the "Merge" page to generate a merged file and import it`（zh 对应）
+- `help.faq.a3`（超大文件问答）：同上，`planned merge & dedup` → 已实现指路「合并归档」页
+- 措辞依 merge 实现语义（semantic 取新 + raw 累积，不夸大 dedup）：「open the Merge page to generate a merged file and import it」
+
+**③全仓审计**：`grep -rn "多文件|合并导入|一次性导入|全选后|planned|规划中" README.md src/src/` → **clean（exit 1 无命中）**。遗留合理用词核查：`merge.lead` 解释「不堆多份完整文件」（非宣传多文件导入）、`import.supported` 已单文件语义、HelpPage 无写死中文（全 i18n）。
+
+**④Landing 功能卡**：按指令不动结构。现有 3 卡复核 **无过时表述**（f1 Trips/f2 Places/f3 隐私——「刷新即弃」与现况一致）；`landing.featuresTitle` 仍写「三个能力」，若 CEO 决定加「合并归档」第 4 卡需同步改标题——方案见下（待 CEO 拍板，二期做）。
+
+**⑤双视口末轮冒烟（production build + vite preview + headless Chromium）**：
+- 脚本 `/tmp/opencode/smoke-t38.mjs`（临时、未入库；Playwright 复用 scripts/node_modules）
+- 视口：desktop 1440×900 + mobile 390×844，各 19 项断言全过
+- 流程全通：Landing 空态 → 载入 sample → Trips（默认近 30 天 `Aug 14→Sep 12` + 时间轴模式 + 列表点停留 → 标记 tooltip 弹窗）→ Places（地图点击出停留卡 + 半径 5 档可切）→ 更换数据（回到空态后再导入）→ 合并归档页（双文件选择 UI + **真实跑通一次小档合并**，`.merge-ok` 成功、prod 构建下 merge worker chunk 被真实执行）→ 设置 → 帮助（4 节 + FAQ 手风琴展开）→ 中英切换（nav 合并归档 ↔ Merge）
+- **0 pageerror**（双视口）；consoles 仅 1 条已知噪音：`CSP 'frame-ancestors' is ignored when delivered via a <meta> element`（index.html meta CSP，发布前已知，非回归）
+
+**⑥单测/lint/build**：**243 tests 全绿**（18 文件，i18n parity 与无 CJK 守卫通过）、`npm run lint` 0 问题、`npm run build`（tsc + vite）绿——chunk >500kB 为既有体积告警，非新增。
+
+**评审待办**：Reviewer 复核后，TASKS T38 卡移 Done + 验收；Landing 第 4 卡加不加由 CEO 拍板（建议：加，理由与文案草稿见汇报）。
