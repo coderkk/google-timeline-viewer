@@ -24,13 +24,15 @@
 
 ## 📭 Backlog（上 = 优先）
 
-- [ ] [P1] **A10–A15 Retro 行动项**（2026-09-16 v1.0.0 发布 Retro 全员认可，待拆卡执行）：
-  - **A10 验证脚本入库制度化**：新验证/复现脚本默认落 `scripts/smoke-*.mjs` 并 commit，临时 probe 用 `scripts/scratch/`（轮次结束转正或删除+NOTES 记处置）；SMOKE-CHECKLIST 每项指到 `scripts/` 可复现入口；T38 双视口冒烟收编 `scripts/smoke-release.mjs`
-  - **A11 根治型修复声明强制附同族清单**：NOTES 出现「根治/不会再犯」措辞 → 三件套（同族调用点清单 / 每成员判别性验证记录含窗口判据 / 结构性消除手段），缺任一 Reviewer 即 REJECT
-  - **A12 「已知噪音」记录量化+时效**：所有「非阻塞/偶发」记录必须带复现率（分母≥4）+ 触发条件 + 复核时限
-  - **A13 L1 冒烟豁免加例外**：发布链任务（T38/T39/T40 形态）不论档位执行冒烟全集；SMOKE-CHECKLIST 标准项任何档位都跑（豁免只针对本次改动引发的回归冒烟）；N1 移动首访交互路径补入标准矩阵
-  - **A14 同族枚举前置**：时序/竞态/异步泄漏 bug 动手前 NOTES 写同族排查清单
-  - **A15 数据型交付物三方对账**：性能/侦察报告 = 脚本输出 ↔ 报告引用 ↔ 入库数据三方核对后才可发布结论
+- [ ] [P1] **流程修订落地：项目级文档补齐**（2026-09-16 流程提案 P1–P9 + A16 拍板后）：
+  - 复制 `templates/project/docs/release-runbook.md` → 本项目 `docs/release-runbook.md`（下次发布链拆卡前必做；发布验收引用它）
+  - 复制 `templates/project/docs/COPY.md` → 本项目 `docs/COPY.md`，登记现有对外主张（README/i18n/Help/Landing/截图，含 landing-full.png 截图核对）
+  - 顺手修 Designer 抓到的活 bug：`data.filesSuffix`「+{count} more files」残留 i18n 键 + DataBar `dataFileCount > 1` 死分支（T38 grep 词表盲区）
+  - 来源: 2026-09-16 流程修订（Reviewer G7）
+
+- [ ] [P1] **A10–A15 Retro 行动项**（2026-09-16 v1.0.0 发布 Retro；**已制度化为 WORKFLOW 规则 8/12/13/14/15/16**，此卡只余项目级落地）：
+  - **A10 验证脚本入库**（→ WORKFLOW 规则 16）：本项目待做 = T38 双视口冒烟收编为 `scripts/smoke-release.mjs`；确认 SMOKE-CHECKLIST 每项已指到 `scripts/` 可复现入口
+  - **A11/A12/A13/A14/A15** 已进 WORKFLOW（规则 14/6+12/5/14/15）与 SMOKE-CHECKLIST，无需重复落地；仅需下次拆卡时验证规则生效
   - 来源: 2026-09-16 v1.0.0 发布 Retro（docs/records/retros/2026-09-16.md）
 
 - [ ] [P2] 范围切换性能——Last year/All 预设全量重建 2.3s 单 longtask（4,593 stays + 12k 点重挂载）；一次性范围切换不阻塞发布，候选分块/异步重建（T37 附带发现）(09-16)
