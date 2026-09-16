@@ -80,3 +80,7 @@
 ## 2026-09-16 10:30 — T37 验收通过：发布前 15k 点窗口性能复测（零产品改动）
 决定: T37 验收通过，可推送部署。结论——**无需降 cap、无需分层预算，产品代码零修改**。真实 livedata 15k 点窗口（2026 默认 30 天 = 15,072 raw → 12,000 绘制）production build 复测：缩放帧 p95 **183ms**（vs §8 pre-fix 461ms）、longtask max **219ms**（vs 1796ms）、平移 43/41fps（vs post-fix 34fps）；附带场景合并档 62 天/37,287 stays 全景同结论。附带发现「切范围预设 Last year 2.3s / All 1.3s 一次性长任务」——非阻塞，入 Backlog 候选（分块/异步重建）。
 理由: T23 处置（低 zoom 点关闭 + cap 12000）在真实负载下持续有效；§8 基线对照同口径（重载对照 §10.2 合并档 37k stays 独立支撑，183<461 非仅负载变轻）。**诚实原则实践**：Reviewer 抓出入库数据与报告表述矛盾（16 拖中实为 11 拖无 longtask、z12 首拖 tile 冷启动 647ms）→ 已修 DATA-FINDINGS §10 如实记录 + perf-browser.mjs 聚合 `Math.max` 修复 + 全景数据持久化；历史日志（TASKS/NOTES 旧条目）不改写，§10 为唯一权威口径。报告 DATA-FINDINGS §10 + scripts/ 三件套可复现 + perf-report.json 逐帧数据入库。
+
+## 2026-09-16 11:30 — T38 验收通过：发布前收尾（README/i18n 单文件化 + 合并已实现表述）
+决定: T38 验收通过，可推送。发布门面过时表述已清：README 3 处（L117/L126/L166 单文件化 + 合并归档引导 + 架构图改「单文件解析」并加「合并归档（独立 Worker）」铭文）+ i18n 3 key×双语（「规划中」→ 已实现，删 dedup 字眼守住不夸大）+ 全仓 grep 零命中。双视口 19 项×2 冒烟 0 pageerror（mobile `_leaflet_pos` 竞态 N1 例外，见下）+ 真实跑通 merge worker。243 单测 + lint + build 全绿。
+理由: 发布前的诚实原则——T35/T36 落地后，对外文档必须反映现实（单文件导入、合并页已上线，「合并去重 dedup」字眼会夸大 T36 语义）。**N1 记录**：Reviewer 复跑 4 轮发现 mobile（390×844）点击停留 → tooltip 弹出路径 `_leaflet_pos` undefined pageerror **复现 3/4**（desktop 0/4）——历史 DECISIONS 记为「偶发已知噪音不修」，复现率与旧判断不符且出现在新访客首次交互路径；本轮断言全部仍通过（可恢复、无白屏）。**待 CEO 发布前决策**：重新评估 N1（修 or 明确发布容忍度）。
