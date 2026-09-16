@@ -4,18 +4,6 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T37: raw 点渲染性能压测（发布前）** [P2]
-  - 背景: T23 已处置渲染性能（GLOBAL_PATH_POINT_CAP=12000、RAW_POINT_CAP=12000、低 zoom<6 只画折线不画点、canvas 兜底 CircleMarker）→ 发布前用真实 livedata 的 **15k 点窗口**复测确认无卡顿
-  - 方案:
-    1. 用真实 15k 点窗口（如选一个 raw 密集日/区间）在 production build 下测：缩放/平移帧率、longtask、首绘延迟——**对照 DATA-FINDINGS §8 基线**（缩放 p95 461ms、longtask max 1796ms 已修）
-    2. 结论分派: ①若 OK → 记录发布前基线、Close；②若有卡顿 → 定降 cap / 分层预算（zoom 依赖预算），回 T23 决策链
-    3. 结果记录 DATA-FINDINGS（追加节）+ NOTES
-  - 验收: ①压测报告含 15k 窗口的缩放/平移实测数字（对比 §8 基线）；②明确结论（OK / 需降 cap——若有，给出建议值与分层方案）；③scripts/ 或 documentation 记录可复现步骤
-  - 档位: L2（压测 + 报告，estimate 不改产品 unless 卡顿）
-  - 指派: Dev
-  - 来源: Backlog A1 遗留（T23 发布前复测项）
-  - 时间: 09-16 创建
-
 ## 📋 To Do
 
 - [ ] **T36: 合并归档独立页（功能 14）— rawSignals 累积** [P2]
@@ -50,9 +38,11 @@
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [x] ~~[P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）~~ **(09-14→09-15 完成)** — 侦察（T32）证伪「visit↔activity 重叠」假设；真问题=timelinePath traces 混入 by-activity 链（23% 假移动）；实验分支（T33）验证方案 A 净改善（三角归零+零孤岛），已 merge；分析见 docs/RESEARCH-B5.md，结果见 docs/EXPERIMENT-B5.md
-- [ ] [P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿（canvas 兜底已生效）；发布前用真实 15k 窗口压测后定降 cap 或分层预算 (09-14)
+- [x] ~~[P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿~~ **(09-14→09-16 完成)** — T37 真实 15k 窗口压测放行：无卡顿无需降 cap；报告 DATA-FINDINGS §10
 
 ## ✅ Done
+
+- [x] ~~T37: raw 点渲染性能压测（发布前）~~ (09-16→09-16) [P2] — 真实 livedata 15k 点窗口（2026 文件默认 30 天 = 15,072 raw → 12,000 绘制）production build 复测（headless Chromium + Playwright 真实手势）：缩放帧 p95 pooled **183ms**（单步 100–283ms）/ longtask max **219ms**（无秒级冻结），平移 **43/41fps** 且 longtask 0，均优于 §8 pre-fix（p95 461ms / 1796ms）→ **验收通过，产品代码零修改，无需降 cap**。附加场景（合并 62 天档 37,287 stays）同上结论；附带发现：切范围预设（Last year / All）有一次性 1.3–2.3s 长任务冻结，非阻塞，入 Backlog 候选。报告 **DATA-FINDINGS §10** + `scripts/out/perf-report.json`；可复现 `scripts/perf-raw-window.mjs` / `perf-make-merged.mjs` / `perf-browser.mjs` 三件套。
 
 - [x] ~~T30: UI/UX 精修批（PRD v1.20）~~ (09-15→09-15) [P1] — [#1–#5 用户反馈] **T30.1** Header NavLink 一律 `end`（`/app` 不再前缀匹配 `/app/places`）；**T30.2** `DateRangePicker` 重写为「紧凑按钮 + popover 双月历」（`.drp-trigger/.drp-popover/.drp-backdrop`；Esc/backdrop/双点完成/preset/换数据关闭、`drp.clear` 不关、`aria-expanded`/`aria-haspopup`、<768px 整行宽+70vh）；**T30.3** `lastNDaysRange(maxMs,n)`（`end - n*DAY + 1 … endOfDayMs`）入 `lib/trips.ts`、store `importFiles`/`loadSample` 默认近 30 天、快捷档复用保 active 一致；**T30.4** Places 默认半径 100 → **5**；**T30.5** 收尾（206 单测 / build / lint 全绿、双视口冒烟 0 pageerror、NOTES/PRD/TASKS 收尾），未 push。**修复联动 bug**：TripsPage `MapPane` 移除 `key={fitKey}`（TripMap 内部 FitController 已自行 re-fit），改 zustand `subscribe` 在 range/data 变化时清空 selected 三态——popover 双点选不再被 remount 打断、换窗丢弃越界选中行为不变。
 

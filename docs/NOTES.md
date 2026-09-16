@@ -1195,3 +1195,36 @@ Reviewer 审查 T36 后 PASS，附 3 个一般级问题，CEO 拍板全部修复
 
 **冒烟（#3，真实浏览器）**：headless Chrome CDP 驱动生产构建 `/app/merge`，选 livedata 双文件（108+123=**231.6MB > 200MB**：`Timeline-20250213.json` 主档案 + `Timeline-20260820.json` 新导出）→ 点「Merge & download」→ `window.confirm` 弹出（消息含 200MB/300MB/231.6MB、内存峰值约 6 倍），decline 后合并中止（无 busy 进度、无下载、无 result）。✅
 **已知问题**：无阻塞项。合并页中文/英文确认弹窗文案已单测覆盖；真实交互确认弹窗留给 Reviewer 复测。
+
+## 2026-09-16 10:05 — Dev T37 发布前性能复测（15k 点窗口）完成
+
+**结论先写**：**核心验收通过，产品代码零修改**。15k raw 点窗口（默认 30 天，cap 后 12,000 绘制）缩放/平移
+无卡顿无秒级冻结，指标优于 §8 pre-fix 基线；附带发现范围切换有一次 1.3–2.3s 冻结（非阻塞，已记录）。
+报告全文：**DATA-FINDINGS §10**；完整逐帧数据：`scripts/out/perf-report.json`。
+
+**主场景（真实 2026 文件默认窗口 = 15,072 raw → 12,000 绘制）**：
+- 导入首绘：wall 7.2s（summary@6.4s / map@4.1s），解析在 worker 主线程 0 longtask，heap 82MB。
+- 缩放 14 步 z5↔12：帧 p95 pooled **183ms**（单步 100–283ms）；每步 longtask max **219ms**（无秒级冻结）——
+  对照 §8 pre-fix p95 461ms / longtask max 1796ms。
+- z5→6 首挂 12k：durMs 1418ms / lt max 196ms；z6→5 卸载：durMs 1070ms / lt max 94ms。
+- 滚轮连打 6 格（z6）：连续路径峰值 longtask **303ms**（15 次，durMs 4022ms）。
+- 平移 low（z4）/ high（z12）各 8 拖：avg 23.4 / 24.7ms ≈ **43 / 41fps**，longtask **0**——
+  对照 §8 post-fix ~34fps。
+
+**附加场景（合并 62 天档：27,252 raw / 37,287 stays 全量）**：平移 p95 50ms 无 longtask；
+「全部」5→6 挂载 lt max 474ms；切范围为最大阻塞（All 1343ms / Last year 839ms）。
+
+**关键发现（非阻塞，Backlog 候选）**：《切「Last year」预设》触发 **2291ms** 单 longtask（15k 窗口全量重建
+4,593 stays + 12k 点重挂载）。一次性操作冻结 ≈2.3s，连续交互不受影响 → 已知局限。
+
+**可复现**（scripts 三件套）：
+- `node scripts/perf-raw-window.mjs` — 数据窗口/密日分析（15,072 / 15,479 / 27,252 统计来源）
+- `node scripts/perf-make-merged.mjs` — 生成 `scripts/out/timeline-merged-perf.json`（96.8MB）
+- `node scripts/perf-browser.mjs` — 主压测（Playwright，自动起 vite preview :4174；`--smoke` 子集）
+- 报告落盘 `scripts/out/perf-report.json`
+
+**踩坑记录（脚本自身，非产品）**：①`resolve('..')` 是相对 cwd 解析 → 全部路径锚定脚本目录
+（`fileURLToPath(import.meta.url)`），任意 cwd 可跑；②文件输入带 `hidden` 属性 → `waitForSelector`
+默认等 visible 永不满足，改用 `locator.waitFor({state:'attached'})`；③headless 下叠加「输入静默窗
+300ms + 帧静默 300ms」双条件 settle，录制在 settle 时冻结（防 readPerf 往返延迟污染帧数据）；
+④手势测量在每次输入事件后打 `lastInputAt` 时间戳，静默窗从真实输入结束起算。

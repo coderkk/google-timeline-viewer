@@ -284,3 +284,72 @@ trace 2017-12-16 02:00:00 → 04:00:00 (5.96923, 116.06471)
 - 时间戳字段名为 `startTime` / `endTime`（非 §2.2 概述中的 `startTimestamp` / `endTimestamp`）。
 - `timelineMemory` 段仅 22 条（两文件相同），按设计忽略。
 - 两文件存在 1,082 对 exact duplicate visit records（同 start/end 范围、不同 placeId 候选），占 visits 的 ~3.5%。
+
+---
+
+## 10. 发布前复测：15k 原始点窗口渲染压测（T37，2026-09-16）
+
+> 目的：T23 处置（cap 12000 + 低 zoom 只画折线）后，用**真实 livedata 的 15k 点窗口**在 production build 复测，
+> 对照 §8 基线确认发布前状态。产品代码**未修改**。
+>
+> 方法（与 §8 同口径）：headless Chromium 1280×800 + `vite preview`（production build）+ 真实导入 + 真实手势
+> （鼠标拖拽平移 / 缩放控件点击 / 滚轮），`rAF` 帧间隔 + `PerformanceObserver('longtask')`。
+> 固定测量开销：每次手势含「输入后 300ms 静默 + 300ms 静默」判定窗（静止帧噪声已排除，`durMs` 为手势→静止总时长）。
+> 可复现：`scripts/perf-browser.mjs`（Playwright）+ `scripts/perf-raw-window.mjs`（窗口分析）+ `scripts/perf-make-merged.mjs`（合并档生成），
+> 完整报告 `scripts/out/perf-report.json`（含每步 rawFrames）。瓦片网络 / headless 帧调度仍带噪声，见 §8 注。
+
+### 10.1 主场景（Session 1）：2026 真实文件默认 30 天窗口
+
+文件 `Timeline-20260820.json`（123.4MB，55,509 rawSignals）导入后默认时间范围
+**2026-07-22 → 08-20 = 15,072 个坐标有效 raw 点**（`perf-raw-window.mjs` 统计）→ 按 `RAW_POINT_CAP=12000`
+降采样，summary 显示 `12,000 route points · 458 stays`（附「Downsampled」）。**这就是 T37 的 15k 点窗口**。
+
+| 指标 | 实测 | 对照 §8 |
+|---|---|---|
+| 导入首绘 waterfall | wall 7.2s（nav@0.2s / map@4.1s / summary@6.4s）；解析在 worker，主线程 longtask 0 | — |
+| 缩放 14 步（z5→12→5，每次点击）+ 挂载/卸载 | durMs 1070–1531（净 ≈470–930ms）；帧 p95 100–283ms（pooled **183ms**）；每步 longtask 2–7 次，max **219ms** | pre-fix p95 **461ms** / longtask max **1796ms** |
+| z5→6 首次挂载 12k 点 | durMs 1418 / p95 167ms / longtask 3× max 196ms | post-fix z6 挂载 ≈538ms（口径不同，见注） |
+| z6→5 卸载 | durMs 1070 / longtask 2× max 94ms | — |
+| 滚轮连打 6 格（z6） | durMs 4022 / longtask 15× max **303ms**（连续缩放路径的峰值） | — |
+| 平移 low（z4，点层关闭，8 拖） | pooled avg 23.4ms ≈ **43fps**，p95 50ms，longtask **0**（396 帧） | post-fix ~34fps |
+| 平移 high（z12，点层挂载，8 拖） | pooled avg 24.7ms ≈ **41fps**，p95 50ms，longtask **0**（385 帧） | post-fix ~34fps |
+| 切单日 2026-08-03（784 raw） | durMs 2789 / longtask max 502ms（一次性切换成本） | — |
+| 切「Last year」预设（4,593 stays / 12,000 点） | durMs 4425 / **longtask max 2291ms** ⚠️ | — |
+
+注：§8.3 的「z6 挂载 538ms」是 `setZoom` transition 单测口径；本测 durMs 含固定 600ms 静默窗，
+净过渡 ≈820ms。挂载尖峰无秒级 longtask（max 196ms），p95 与 §8 同量级 → **无回归信号**。
+
+**「Last year」2291ms 长任务**是本测最大单阻塞：范围切换是全量重建（13.7 年 → 4,593 stays 行程链 + 12k
+点层重挂载）。属一次性操作（非连续手势），界面冻结 ≈2.3s。记录为已知局限（Backlog 候选：
+分块/异步重建），**不阻塞发布**。
+
+### 10.2 附加场景（Session 2）：合并归档超长窗口
+
+`scripts/perf-make-merged.mjs` 合成的 62 天合并档（`scripts/out/timeline-merged-perf.json`，96.8MB compact
+JSON；semanticSegments 97,382 + rawSignals 106,171 = 27,252 坐标有效 raw 点 / 62 天）。默认 30 天窗口同
+Session 1（12,000 绘制）；切「全部」时 **37,287 stays + 12,000 点**（总和超真实单文件 → 实测上限场景）。
+
+| 场景 | durMs | 帧 p95 | longtask max |
+|---|---|---|---|
+| 切「全部」（Any~Any，37,287 stays） | 3377 | 667ms | **1343ms** ⚠️ |
+| 「全部」5→6 跨层挂载 | 2215 | 217ms | **474ms** |
+| 「全部」全景平移 8 拖 | — | pooled 50.1ms（393 帧） | 0 |
+| 切「Last year」 | 2309 | 283ms | 839ms |
+| 「Last year」5→6 | 1782 | 200ms | 272ms |
+| 切旧密日 2025-02-02（935 raw） | 2695 | 283ms | 652ms |
+| 旧密日平移 | 1282 | 133ms | 139ms |
+| 切新密日 2026-08-03（784 raw） | 2974 | 300ms | 712ms |
+
+结论：平移全程无 longtask；最大单阻塞在「切范围」路径（All 1.3s / Last year 0.8s）。与 Session 1 一致：
+**卡顿集中在一次性范围切换全量重建，不发生在连续交互（缩放/平移）**。
+
+### 10.3 结论（T37 验收）
+
+- **核心验收通过**：15k 原始点窗口（12k 绘制）下缩放/平移无秒级冻结、无 §8 级回归——
+  - 缩放帧 p95 pooled 183ms（单步 100–283ms）< pre-fix 461ms；
+  - 平移 41–43fps ≥ post-fix ~34fps，longtask 0；
+  - 连续交互路径最大单 longtask 303ms（滚轮连打），远低于 pre-fix 1796ms。
+- **明确结论：不用降 cap、无需分层预算**；产品代码零修改。
+- **附带发现（非阻塞）**：范围切换（Last year / All）存在一次性 1.3–2.3s 主线程冻结，
+  源自全量行程链重建 + 12k 点重挂载。已入 Backlog 候选（后置优化），发布前记录在案。
+- **可复现**：上文 scripts 三件套 + `scripts/out/perf-report.json`（完整逐帧数据）。

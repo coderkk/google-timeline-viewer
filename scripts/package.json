@@ -1,0 +1,9 @@
+{
+  "name": "google-timeline-viewer-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Standalone perf/analysis tooling for the google-timeline-viewer project (not product code).",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
