@@ -4,42 +4,15 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T39: 发布前终批——N1 mobile 竞态修复 + Landing 第 4 卡（合并归档）** [P1]
-  - [x] N1 修复（Reviewer T38 复跑 4 轮发现 mobile 3/4 复现）:
-    - 现象: mobile（390×844）点击 Trips 停留点列表 → 弹出 tooltip 时 `pageerror: TypeError: Cannot read properties of undefined (reading '_leaflet_pos')`；desktop 0/4；可恢复无白屏但出现在新访客首次交互路径
-    - 相关: `src/src/components/TripMap.tsx` L144 已有 FitController cleanup 的 `_leaflet_pos` 防护（React 卸载 pane 时 `_getMapPanePos` 读 detached pane）——N1 是**另一条路径**（tooltip 弹出竞态），需定位真实抛出点
-    - 修复方向: 定位真正抛错处（flyTo/tooltip/openPopup 竞态？mobile 更频繁因 touch 事件时序）；null guard 或 try/catch 或时机调整；**不要用 `map.stop()` 类粗暴方案**（T27 踩过坑：造成收起面板白屏）
-    - 验收: ①复现路径（mobile 点击停留 → tooltip）连续 5 轮 0 pageerror；②desktop 原有功能零回归；③不引入白屏/卡顿回归；④单测相关（如有）+ 243 全绿
-    - 完成: **真根因 = Leaflet `_onZoomTransitionEnd` 250ms setTimeout 在 `map.remove()`（删除 `_mapPane`）后触发**（捕获完整栈 `_onZoomTransitionEnd→_move→_getNewPixelOrigin→_getMapPanePos→getPosition(undefined)`）；step-tag 冒烟定位抛出点在「重新导入→立即导航离开 Trips」的高频窗口（不是 tooltip 弹出本身，是同一旧 N1 族：unmount 时 zoom 动画未结束）。修复：unmount cleanup 置 `map._animatingZoom=false`（纯字段复位、非 map 方法调用——T27 `map.stop()` 白屏教训），250ms 定时器首行 `if(!_animatingZoom)return` 变 no-op。**Reviewer REJECT 打回**（同族竞态 Trips 已修但 Places 未覆盖：PlacesMap `RadiusCircle` L73 `fitBounds(...,{animate:true})` + 中间 zoom Δ≤4 → 点地图 → 跳 Merge，复现 6/6）→ 补充修复：抽共享 hook `useResetZoomAnimOnUnmount`（`src/src/lib/`），**Trips FitController + Places 常驻 `ResetZoomAnimController` 双视图同挂**（只挂最终 unmount、纯字段复位不调 map 方法）——不再接受「所有路径」过宽表述，如实记「Trips + Places 双视图（共享 hook）」。验证：Places 复现路径（390×844 滚轮放大中间 zoom→点地图→瞬跳 Merge）**6/6→0/6 pageerror** + smoke-t38 全流程（desktop 1440+mobile 390）0 pageerror + 竞态 whammy（mobile 重新导入×3+瞬跳、desktop 侧栏收展×3 白屏回归路径 `#root children=1`）+ 封印脚本入库 `scripts/smoke-race-check.mjs`（A Places×6 + B Trips whammy + C desktop 收展全 PASS，SMOKE-CHECKLIST B 段发布前必跑）
-  - [x] Landing 第 4 卡（CEO 拍板：加）:
-    - `landing.featuresTitle`「三个能力」→「四个能力」（en/zh）
-    - 新增 `landing.f4Title`/`landing.f4Text`（en/zh）：合并归档——文案用 Dev T38 草稿（en: "Merge exports, keep it all" / zh: 「合并归档，只留一份」），可微调但守住：语义段取最新 + rawSignals 累积 + 一份 Timeline.json 存全部历史 + 不夸大（不写 dedup）
-    - CSS `.feature-cards` 三列 → 四列（或 2×2 响应式，Desktop 4 列 / 窄屏 2 列，参考现有栅格）
-    - 验收: ①Landing 显示 4 卡、标题「四个能力」；②en/zh 双语、i18n parity guard 过；③Desktop 1440 + mobile 390 渲染正常（无溢出/换行破损）；④点卡无跳转要求（纯展示，与现三卡一致）
-    - 完成: 4 卡（fc-tag 第四张 `Merge`）+ `landing.f4Title/Text` en/zh（沿用 Dev T38 草稿原文，无 dedup 字眼）+ featuresTitle en/zh「四个能力」；CSS `repeat(4,1fr)` + ≤860px 2 列 + ≤480px 1 列（手机 390 可读性）；PRD 功能 7 同步 + v1.24；双视口实测 4 卡/0 overflowX/0 pageerror，1440×900 与 390×844 截图通过
-  - 档位: L2（bug 修复 + UI）
-  - 指派: Dev + Reviewer
-  - 来源: T38 Reviewer N1 + CEO 拍板（2026-09-16）
-  - 时间: 09-16 创建 → 09-16 Doing（代码完成待审查）→ 09-16 Reviewer REJECT（Places 同族漏覆盖）→ 09-16 修复重交
-
 ## 📋 To Do
 
-- [ ] **T36: 合并归档独立页（功能 14）— rawSignals 累积** [P2]
-  - 背景: 用户要长期保留 rawSignals（Google 只留 ~29 天滚动窗口，定期导出存档即可突破），但**不累积多份完整 Timeline.json**（每份都带完整 semanticSegments，重复解析浪费）→ 独立页 merge 产出合并档文件 → 再导入观看
-  - 方案（PRD v1.23，用户拍板）:
-    - 入口: 新路由 `/app/merge`（独立页，不在 import 流程）；页面上两个 Select File：①主档案（已有合并档，可选——首次没有）②本次新导出 Timeline.json → [合并并下载] → 产出新合并档（下载保存，之后要导入观看时再导入）
-    - 合并算法（核心「分而治之」）:
-      - `semanticSegments` → **取新导出的那份**（永久历史，最新=最全；替换旧档语义段，不去重/不拼接）
-      - `rawSignals` → **窗口互补累积**：新导出 29 天窗口与旧档案累积池——不重叠（间隔 ≥29 天）直接拼接；重叠则按「时间 ± 容差 + 位置」折叠重复点保留新点
-      - 保留 `userLocationProfile`（取新导出）
-    - 输出格式: `Timeline.json` schema（`{semanticSegments, rawSignals, userLocationProfile}`）→ **导入后可正常观看**（时间轴模式用累积 raw、旧日期自动回退语义段——功能 3 现有逻辑）
-    - 纯本地、零网络请求（隐私一致）
-  - 档位: L3（新页面 + 新算法 + 文件输出）
-  - 指派: Dev + Reviewer
-  - 来源: 用户讨论 2026-09-16 + PRD v1.23
-  - 时间: 09-16 创建
+- [ ] **T40: 发布——GitHub Pages 部署 + 验证 + 发布记录（待 CEO 定义细节）** [P0]（下一张卡占位）
 
 ## ⏸ KIV
+
+- [ ] **T-K1: 移动端适配**
+  - 等待: v1 发布后评估公开分享带来的移动访问占比
+  - 时间: 09-13 创建
 
 
 
@@ -54,7 +27,6 @@
 - [ ] [P2] 范围切换性能——Last year/All 预设全量重建 2.3s 单 longtask（4,593 stays + 12k 点重挂载）；一次性范围切换不阻塞发布，候选分块/异步重建（T37 附带发现）(09-16)
 - [ ] [P2] 离线瓦片 / 自托管瓦片服务器 — 彻底消除瓦片请求隐私（→ PRD 不做）(09-13)
 - [ ] [P2] 行程分享/导出（GeoJSON/KML）— （→ PRD 不做）(09-13)
-- [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [ ] [P2] 性能基准脚本（scripts/ 独立 node 脚本，替代误入 src 的 bench）— T11.2 关注 (09-13)
 - [x] ~~[P2] livedata 完整支持（新版 Timeline.json 语义段重叠合并）— activity 段继承 timelinePath 轨迹后，进一步评估 visit 段与 activity 段的关联展示（→ PRD 功能 3 延伸）~~ **(09-14→09-15 完成)** — 侦察（T32）证伪「visit↔activity 重叠」假设；真问题=timelinePath traces 混入 by-activity 链（23% 假移动）；实验分支（T33）验证方案 A 净改善（三角归零+零孤岛），已 merge；分析见 docs/RESEARCH-B5.md，结果见 docs/EXPERIMENT-B5.md
 - [x] ~~[P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿~~ **(09-14→09-16 完成)** — T37 真实 15k 窗口压测放行：无卡顿无需降 cap；报告 DATA-FINDINGS §10
@@ -95,5 +67,11 @@
   - 指派: Dev + Reviewer
   - 来源: CEO 发布前核对（2026-09-16）
   - 时间: 09-16 创建 → 09-16 Done（commit `ba6090c`）
+
+- [x] ~~T39: 发布前终批——N1 mobile 竞态修复 + Landing 第 4 卡（合并归档）~~ (09-16→09-16) [P1] — **N1（发布阻断）**：真根因 = Leaflet `_onZoomTransitionEnd` 250ms setTimeout 在 `map.remove()`（删 `_mapPane`）后触发（栈 `_onZoomTransitionEnd→_move→_getNewPixelOrigin→_getMapPanePos→getPosition(undefined)`），抛出窗口「重新导入→立即导航离开」（unmount 时 zoom 动画未结束）。修复 = unmount cleanup 置 `map._animatingZoom=false`（纯字段复位，非 map 方法——守 T27 `map.stop()` 白屏教训），timer 首行守卫变 no-op。**Reviewer REJECT 打回**（同族竞态 Places 漏覆盖：`RadiusCircle` L73 `fitBounds(animate)` + 中间 zoom Δ≤4 → 点地图 → 跳 Merge 复现 6/6）→ 抽共享 hook `useResetZoomAnimOnUnmount`（`src/src/lib/`），Trips FitController + Places 常驻 `ResetZoomAnimController` 双视图同挂；Places 6/6→0/6 pageerror + smoke/whammy 全 0 + 封印脚本 `scripts/smoke-race-check.mjs` 入库（SMOKE-CHECKLIST B 段发布前必跑）。**Reviewer 复验**：脚本 S1 server 泄漏→门禁假信号（kill 只杀 npx 子进程残留）+ G1 runError 吞败 → 修复（`--port 0` OS 分配 + stdout `Local:` 解析 + `detached` 进程组 kill(-pid) 全路径 + runError 计败 + navAt<250ms 判据）→ Reviewer 终验 **PASS**（故障注入 exit 1 零残留、正常 exit 0、A 6/6 真实踩窗、产品零改动、243 单测 + lint + build 全绿）。**Landing 4 卡**：`f4Title/Text` en/zh（en "Merge exports, keep it all" / zh 合并归档，只留一份——无 dedup 不夸大）+ featuresTitle「四个能力」+ CSS 4/2/1 列响应式 + PRD 功能 7 同步 v1.24 + 双视口 4 卡 0 overflowX/0 pageerror。**验收通过**；建议项记录待后续（WIDE 阈值负载脆→页内 performance.now 测净时序 / SIGKILL 后复核）。
+  - 档位: L2（bug 修复 + UI）
+  - 指派: Dev + Reviewer
+  - 来源: T38 Reviewer N1 + CEO 拍板（2026-09-16）
+  - 时间: 09-16 创建 → 09-16 Done（commits `7df39ae` → `c134bd0`（REJECT 补 Places）→ `185b6ed`（封印脚本 S1/G1））
 
 ## ❌ Cancelled

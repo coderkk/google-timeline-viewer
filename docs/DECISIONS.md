@@ -84,3 +84,8 @@
 ## 2026-09-16 11:30 — T38 验收通过：发布前收尾（README/i18n 单文件化 + 合并已实现表述）
 决定: T38 验收通过，可推送。发布门面过时表述已清：README 3 处（L117/L126/L166 单文件化 + 合并归档引导 + 架构图改「单文件解析」并加「合并归档（独立 Worker）」铭文）+ i18n 3 key×双语（「规划中」→ 已实现，删 dedup 字眼守住不夸大）+ 全仓 grep 零命中。双视口 19 项×2 冒烟 0 pageerror（mobile `_leaflet_pos` 竞态 N1 例外，见下）+ 真实跑通 merge worker。243 单测 + lint + build 全绿。
 理由: 发布前的诚实原则——T35/T36 落地后，对外文档必须反映现实（单文件导入、合并页已上线，「合并去重 dedup」字眼会夸大 T36 语义）。**N1 记录**：Reviewer 复跑 4 轮发现 mobile（390×844）点击停留 → tooltip 弹出路径 `_leaflet_pos` undefined pageerror **复现 3/4**（desktop 0/4）——历史 DECISIONS 记为「偶发已知噪音不修」，复现率与旧判断不符且出现在新访客首次交互路径；本轮断言全部仍通过（可恢复、无白屏）。**待 CEO 发布前决策**：重新评估 N1（修 or 明确发布容忍度）。
+
+## 2026-09-16 12:30 — T39 验收通过：N1 mobile 竞态根治（Trips+Places 双视图）+ Landing 第 4 卡
+决定: ①**N1 修复**（CEO 拍板：修——75% 复现率 + 首访路径，不可带病发布）：真根因不是 tooltip，是 Leaflet `_onZoomTransitionEnd` 250ms timer 在 `map.remove()` 后触发（`_move` 读已删 `_mapPane`）；Fix = unmount 时 `map._animatingZoom=false` 纯字段复位（非 map 方法调用）。②**Landing 加第 4 卡「合并归档」**（CEO 拍板：加——合并是高困惑点且为门面能力，不亮出来访客不知道）。
+理由: ① Review 链价值实证：Reviewer REJECT 抓到**同族竞态 Places 漏覆盖**（`RadiusCircle` fitBounds animate + Δ≤4+250ms 内导航 = 6/6 复现，初始全景 zoom 差>4 降级非动画故全量 smoke 撞不到）——Trips 修对但只修了半个家族，共享 hook `useResetZoomAnimOnUnmount` 双视图同挂根治；封印脚本 `scripts/smoke-race-check.mjs` 入库（下次发布一条命令重跑）。② Reviewer 二轮又抓脚本 S1（server 泄漏→门禁假信号：kill 只杀 npx、vite preview 残留占用固定端口，曾假 FAIL 6/6 / 假 PASS 0/6）→ `--port 0`+stdout 解析+进程组 kill 修复并判别性验证（故障注入 exit 1 零残留）。③ 团队教训固化：N1 家族两中招（T27/T38-T39）——凡 map-backed 视图必须挂卸载复位 hook，hook 文件头已写纪律。④ Landing 文案守住不夸大（无 dedup 字眼），PRD v1.24 同步功能 7。
+**验收状态**: T39 全链路闭环（N1 + Landing 4 卡 + 封印脚本），Reviewer 三审 PASS；单测 243 + lint + build 全绿；commit `7df39ae`→`c134bd0`→`185b6ed` 已推送。**发布就绪——唯一剩余：GitHub Pages 部署 + 发布验证（T40）**。建议项留档：WIDE 阈值负载脆（可后续 page 内 performance.now 净时序）、SIGKILL 后复核、whammy 已入库。
