@@ -84,8 +84,14 @@
 
 ## 隱私/數據斷言（Security Engineer 2026-09-16；機器斷言，非人工勾選）
 
-- [ ] **運行時 network-tap**：`page.on('request')` 全量捕獲，斷言捕獲集合 ⊆ 白名單（self + tile hosts + 已登記端點 + blob 下載）
+> **可複現入口（T42 落地，2026-09-17）**：
+> - 執行：`node scripts/smoke-network-tap.mjs --base <preview-url>`（本機 `vite preview`；CI 由 `python3 -m http.server 4173 -d dist` 供給）
+> - 單一白名單源：`scripts/privacy-allowlist.json`（self + OSM tile host + blob:/data:/about:/file: 非網絡 scheme）
+> - **已進 `deploy.yml` 作阻塞門禁**：build → privacy → deploy（`deploy.needs: [build, privacy]`）；退出碼 **0 = 乾淨 / 1 = 違例 / 2 = 量具壞（校準失敗，絕不假綠）**
+
+- [ ] **運行時 network-tap**：`page.on('request')` 全量捕獲，斷言捕獲集合 ⊆ 白名單（self + tile hosts + 已登記端點 + blob 下載）——**已機器化**：雙視口 S1–S8 全流程捕獲 + 逐請求裁決（ALLOW-SELF / ALLOW-TILE / VIOLATION-*）
 - [ ] **單元斷言**：隱私處理邏輯（metadata 剝離、導出清洗）有純函數單測
+- [ ] **校準（量具自檢）**：探針 A（fetch 注入）+ 探針 B（自定義瓦片 UI 注入）均須被判 VIOLATION-HOST；未判中 → exit 2，不綠
 - [ ] 措辭注意：**不寫「0 網絡請求」**（happy path 存在 tile 請求會成噪音）——寫「集合 ⊆ 白名單」
 
 ## 提交說明附註格式
@@ -99,5 +105,5 @@
   - 開闔 3 次狀態不殘留 ✓
   - Esc 關閉 ✓（焦點陷阱: 一般級已知限制，見 NOTES）
   - C 類: pooled p95 = 31ms（n=5）≤ 基準 28ms×1.3，負載指紋低 ✓
-  - network-tap: 捕獲集 {self, tile.cdn, blob} ⊆ 白名單 ✓
+  - network-tap: `node scripts/smoke-network-tap.mjs --base <url>` exit 0（捕獲集 ⊆ 白名單 ✓；校準雙探針 flagged ✓）
 ```

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "meta": {
+    "repo": "coderkk/google-timeline-viewer",
+    "app": "Timeline Map",
+    "updated": "2026-09-17",
+    "scope": "Default configuration only (tile source = OpenStreetMap, no persisted user settings). Assertion: every network request initiated by the app runtime is allowed by this allowlist or the run FAILS.",
+    "surfaces": [
+      "README.md \"## 隐私声明\"",
+      "COPY.md claim: privacy-default-config-no-egress",
+      "index.html CSP meta",
+      "SMOKE-CHECKLIST.md 隐私/数据断言段",
+      "SettingsPage tile-warn / Landing privacy card"
+    ],
+    "limitations": [
+      "External anchor navigation (OPC link, Google Maps links) is user opt-in; the sweep never clicks external anchors (hard rule).",
+      "The merge worker chunk is lazy-loaded only when merging; covered by static audit (no XHR/fetch; grep-enforced), not by runtime tap.",
+      "Requests from windows/popups opened by external navigation are not observed (opt-in)."
+    ]
+  },
+  "localSchemes": ["blob:", "data:", "about:", "file:"],
+  "network": {
+    "self": { "match": "origin-equals-page-base" },
+    "tile": [
+      {
+        "name": "OpenStreetMap",
+        "origin": "https://tile.openstreetmap.org",
+        "pathPattern": "^\\/[0-9]+\\/[0-9]+\\/[0-9]+\\.png$",
+        "note": "Default TileLayer host (TripMap + PlacesMap). Sends viewer IP + visible bbox to OSM — disclosed opt-in per README/Privacy UI."
+      }
+    ]
+  },
+  "policy": {
+    "networkRequestsNoQuery": true,
+    "networkRequestsNoPayload": true,
+    "cspConnectSrcHostTokens": true,
+    "customTileSource": {
+      "status": "user-explicit-opt-in-outside-default-scope",
+      "surfaces": ["SettingsPage tile-warn", "README.md 隐私声明 → 地图瓦片", "COPY.md claim: privacy-custom-tile-opt-in", "tiles.ts module head comment"],
+      "decisionRecord": "DESIGN-T42.md §1 (2026-09-17, Security Engineer ruling; CEO 追认)",
+      "enforcement": "Calibration probe B drives Settings UI to set an arbitrary https:// tile host and asserts the tap flags it red."
+    }
+  },
+  "exceptions": []
+}
