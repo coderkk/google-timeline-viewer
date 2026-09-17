@@ -1364,3 +1364,89 @@ Trips 侧 N1 修复（`map._animatingZoom=false` unmount 复位）正确，但�
 ## 2026-09-16 13:15 — v1.0.0 发布 + 发布 Retro（CEO + Dev + Reviewer）
 - **T40 发布闭环**：GitHub Pages 部署（push 自动触发 deploy.yml，run 35056682330 success）+ 线上双视口冒烟 14/14 PASS（4 卡渲染、0 overflowX、hash 路由可达、0 pageerror 仅已知 CSP meta 噪音）+ bundle 特征核对确认 T39 终版（`Merge exports, keep it all` / `_animatingZoom` 复位）+ tag `v1.0.0` + CHANGELOG v1.0.0 段。发布地址 `https://coderkk.github.io/google-timeline-viewer/`。
 - **发布 Retro**（docs/records/retros/2026-09-16.md）：全员反馈，产出 A10–A15 行动项（验证脚本入库 / 根治声明附同族清单 / 已知噪音量化+时效 / L1 冒烟豁免例外 / 同族枚举前置 / 数据交付三方对账），已落 Backlog。Dev+Reviewer 重点共识：**验证资产不入库=假信号的根源**；N1 家族三中招（T27→T38→T39）靠共享 hook + 封印脚本结构性消除。
+
+## 2026-09-17 12:50 — Dev T41: 流程修订落地（runbook/COPY 入库）+ i18n 死键与 DataBar 死分支清除
+
+### ①文档落地
+- **`docs/release-runbook.md`**：模板复制 + 项目适配（GitHub Pages 发布通道 = push main 自动触发 deploy.yml、build 三步命令、T42 privacy job 与 T43 smoke-release.mjs 均为后续生效引用、凭据 grep/CSP diff/截图核对按 SMOKE-CHECKLIST 三层义务对接）。下次发布链拆卡前必做，发布验收引用它。
+- **`docs/COPY.md`**：主张登记表落地并填实——**10 条主张**（隐私段 1-4 强制登记：坐标不出设备 / 本地处理不上传 / 瓦片请求明示 IP+bbox / Google Maps 外链 opt-in）+ Landing 4 卡 + 单文件导入 + 四格式 + 合并归档 + 导出护栏 + 默认近 30 天范围；术语表登记 6 组对照（含「存档」仅存内部文档、用户面零残留的实证）；截图表登记全部 10 张截图；变更日志留空待首条。
+- 截图核对结论：**T41 无法人工开图**（工具模型无图像识别能力），全部如实标注「待人工核对」；附客观证据（截图生成 09-15 09:28-09:38 早于 T30/T35/T36/T39）→ 其中 6 张标「疑似不一致」（landing-full 缺 Merge 第 4 卡 / trips×2 旧双月历 / places 旧默认半径 / help 旧 FAQ 文案），release-runbook 已把「疑似不一致须重截」写成发布硬条件。
+
+### ②活 bug 修复（Designer 2026-09-16 抓到的 T38 grep 词表盲区）
+- **`data.filesSuffix` 死键**：grep 确认唯一消费方 = DataBar `dataFileCount > 1` 死分支（T35 单文件化后永不触发），T36/T38 均未清除 → 从 `en.ts`/`zh.ts` 双 catalog 删除；i18n guard 测试无对它的直接断言（catalog parity 自动覆盖，双删即绿）。
+- **DataBar `dataFileCount > 1` 死分支**：`dataFileCount` 字段全清——store 接口声明 + 初始值 + `importFiles`/`loadSample`/`clearData` 三处 set + DataBar selector；保留 1 档展示路径（sample → `t('data.sample')`；user → 纯文件名）；ImportPanel.test.tsx mock 同步移除该字段。`importFiles` 保持 `File[]` 签名不动（ImportPanel 传 `[files[0]]`，超出 T41 范围不做 API 变更）。
+- **全 repo grep 盲区验证**：`more files|moreFiles|filesSuffix|dataFileCount` → src/ 下**零命中**；全 repo 仅剩 3 处历史文档引用（NOTES L243 T28 旧设计描述 / TASKS T41 卡自身 / ARCHIVE T28 归档）——均为追溯记录非死代码，按追加式纪律不改写。
+
+**自测**：`npm run lint` ✓ / `npm test` **243 全绿**（基线不变）/ `npm run build` ✓（仅既有 chunk-size 警告）。
+
+**冒烟（D 类 + 通用，临时脚本 `/tmp/opencode/t41-databar-smoke.mjs` 跑完即弃）**：production build + vite preview（port 0）+ Playwright——
+- A sample 路径：Landing → 载示例 → DataBar 显示 `Sample data`，body 无「more files」（0 pageerror）
+- B user 路径：更换数据 → 导入单文件 → DataBar 显示 `sample-timeline.json` 纯文件名，body 无「more files / 个文件」（0 pageerror）
+
+**已知遗留（诚实标注，非 T41 范围）**：①截图「待人工核对」6 张疑似不一致须发布前人工重截（已入 release-runbook 硬条件 + COPY 核对该）；②COPY 术语表发现 README 与 zh i18n 混用「模拟数据/示例数据」微漂移（低优先，候选统一「模拟数据」）；③`dataFileCount` 删除后 parse worker 的 per-file progress 事件仍是 `index/fileCount` 协议（T35 记录功能 14 将真实消费），未受影响。
+
+## 2026-09-17 13:25 — Dev T42: 隐私断言机器化（network-tap）+ Security 评审前置设计落地
+
+### 交付物（按 `docs/DESIGN-T42.md` 逐字实现）
+- **`scripts/privacy-allowlist.json`**：出网面单一机器源——`meta`（repo/app/updated/scope/surfaces/limitations）+ `localSchemes`（blob:/data:/about:/file:）+ `network`（self=origin-equals-page-base；tile=[OSM]）+ `policy`（networkRequestsNoQuery / networkRequestsNoPayload / cspConnectSrcHostTokens 三布尔 + customTileSource 例外登记）+ `exceptions`（空）。
+- **`scripts/smoke-network-tap.mjs`**（单文件 ESM，Playwright **零新依赖** ^1.63.0 已在 scripts/package.json）：`--base` / `--allowed`（默认相对 import.meta.url）/ `--json` / `--calibrate-only`。双视口 S1–S8 + fixture tmpdir 真实导入（worker 路径）+ 逐请求裁決 + 空转守卫 + 校准双探针 + CSP 静态复核 + report JSON。
+- **`.github/workflows/deploy.yml`** 重写为 **build → privacy → deploy**：build 产出并 upload artifact `dist`（单一事实源，无 job 重建）；privacy 下载 dist + `python3 -m http.server 4173 -d dist` + 跑 tap；deploy `needs: [build, privacy]`（牙③结构性硬门禁）。
+- **`docs/SMOKE-CHECKLIST.md`** 隐私段加可复现入口（tap 命令 + allowlist 路径 + 退出码语义 + 校准项）。
+- **`docs/COPY.md`** 新增 **#11 `privacy-default-config-no-egress`** / **#12 `privacy-custom-tile-opt-in`** 两条机器断言主张 + 变更日志首条。
+- 本 NOTES + TASKS T42 关卡。
+
+### A1 allowlist schema（node -e 断言）
+9 项全过：localSchemes 4 项含 `blob:`；`network.tile.length===1`（OpenStreetMap，pathPattern `^/\d+/\d+/\d+\.png$` 可编译）；policy 三布尔 true；exceptions.length===0。**PASS**
+
+### A2 默认配置跑 tap（build → vite preview → tap）
+- `csp-static OK — connect-src tokens: 'self' https:`（无 `*`、无 host token，符合 policy.cspConnectSrcHostTokens）
+- 双视口旅程全通：S1 landing → S2 sample（`.trip-map`）→ S3 settle 1500ms → **S4 `setInputFiles` 真实导入（dataReady=true，捕获 `parse.worker-*.js` 走 self，证明 worker 路径真跑）** → S5 places → S6 merge → S7 export-download **fired** → S8 settings/help/landing
+- 捕获并集 **108 请求全 ALLOW**：ALLOW-SELF（index js/css + worker + 页面）+ **ALLOW-TILE 71 个 OSM 瓦片**（zoom 4/5/12/13 多层，tile 必达信号满足）
+- 校准：`probe A fetch-injection -> 1 request VIOLATION-HOST FLAGGED` / `probe B custom-tile-UI -> 24 requests VIOLATION-HOST FLAGGED`
+- **verdict PASS，exit 0** ✓（report `/tmp/t42-report-clean*.json`：counts {total:108, allows:108, violations:0}，vacuous {tilePathExercised:true, dataReady:true}）
+
+### A3 三态必红（量具自检，宣言原则 2）+ 抓到一个真 bug
+| 状态 | 操作 | 结果 |
+|------|------|------|
+| 干净 | 默认构建 | exit 0 |
+| 注入 | `Landing.tsx` 临时 `fetch('https://example.com/t42-injected-egress')` + 重建 | **exit 1**，输出 `>>> VIOLATION-HOST https://example.com/t42-injected-egress (https://example.com)`，verdict FAIL（assert-failures=1） |
+| 还原 | 移除注入 + 重建 | exit 0（0 违例） |
+
+- **真 bug（A3 抓到）**：初版 tap 把逐请求违例 push 进 `report.violations` 但 **未入 `assertFailures`** → 注入态的 `example.com` 请求虽被判 VIOLATION-HOST 并列出，**verdict 仍 PASS / exit 0（假绿）**。A3 必红要求把此假绿暴露，修复（违例同步 push assertFailures）后三态闭环。**这正是「阳性对照」存在的价值：缺了 A3，这个假绿会直接进 CI 门禁。**
+- **环境教训（状态 3 复验歧义）**：还原后初次仍 exit 1 且报注入 URL——根因不是代码，而是 `npm run build && npx vite preview &` 整链后台化 + 旧 preview 残留占 4173（stale server 供旧 dist）。清理端口（`lsof -t -i:4173` + kill）+ **前台 build + 独立 preview** 后稳定回绿。**规则：门禁链路复现把 build / 起服 / 运行分段执行，别用 && 整链后台化。**
+
+### A4–A6 退出码语义
+- **A4** `--calibrate-only`：跳过 assert 只跑校准，双探针 FLAGGED，**exit 0** ✓
+- **A5** `T42_VACUOUS_SIM=1`（模拟空 sweep）：`[vacuous] tile path not exercised` + `[vacuous] data not ready after fixture import` 两守卫触发，**exit 1** ✓（防「跑了个寂寞」）
+- **A6** **exit 2** = `T42_PROBE_A_URL=''`（校准量具坏 → `calibration-probes-flagged=false/true` → 非零，绝不假绿）；**exit 3** = 死 base（`waitReady` 超时抛错）。0/1/2/3 四语义实测可区分 ✓
+
+### C3 README 隐私声明对照（目录侧）
+README L132–141「隐私声明」披露的外部请求 = ①地图瓦片（默认 OSM，暴露 IP + 视野 bbox；可切自托管）②Google Maps 外链 opt-in（默认「复制坐标」纯本机）——与 allowlist 非 self 面（tile=OSM）+ `exceptions`/policy 中的 opt-in 例外面**一一对应，无未披露出网面**。COPY #3/#4 措辞红线（不写「0 网络请求」）与 DESIGN §0 N 面盘点一致。
+
+### 回归 + 纪律
+- `npm run test` **243 全绿**（18 文件）/ `npm run lint` 0 问题 / `npm run build` ✓（仅既有 chunk-size 告警）；`node --check scripts/smoke-network-tap.mjs` ✓。
+- **零新依赖**：`git diff --stat scripts/package.json scripts/package-lock.json` 无输出（playwright 既有）。
+- 范围纪律：产品代码 T42 期间**零改动**（A3 注入已完整还原，`grep t42-injected-egress src/` 零命中）；仅动 tap/allowlist/deploy.yml/SMOKE-CHECKLIST/COPY/NOTES/TASKS。**尚未提交**（CEO 统一）。
+- 遗留：B1/B2（deploy.yml 拓扑静态核对）+ CI 实跑（push 后首次 privacy job 绿灯）留给 Reviewer/Security 本轮评审与 CEO 提交后验证。
+
+## 2026-09-17 13:36 — Dev T41 G1–G3 修复（文档准确性：i18n key / README 行号 / 截图计数）
+
+Reviewer 复核 T41 抓到 3 处文档准确性缺陷（G4 = 提交卫生：只改 T41 范围，不碰 T42 的 `scripts/` + `deploy.yml` + `DESIGN-T42.md`）。纯文档改动。
+
+### G1 — COPY #6 引用了不存在的 i18n key
+- `docs/COPY.md` 主张 #6 原写 Help `help.formatsHint`+`formatsTree`。全仓 grep：**`help.formatsTree`（复数）不存在**；实际 key 为单数 **`help.formatTree`**（`en.ts:184` / `zh.ts:188`，消费方 `HelpPage.tsx:91`）；`help.formatsHint` 存在（`en.ts:179` / `zh.ts:183` / `HelpPage.tsx:71`）。
+- 修复：`formatsTree` → `formatTree`。en/zh 双 catalog parity 一致，无代码改动。
+
+### G2 — COPY 术语表 README 行号不实
+- 「模拟/示例数据」行原写「模拟数据（L89/136）」+「示例数据（L98「点击『立即体验』」语境）」。`grep -n "模拟数据\|示例数据" README.md` 实测**仅 2 处**：**L89**「…点击『立即体验』可一键载入**模拟数据**试玩」（旧表把『立即体验』语境错挂到「示例数据」）、**L179**「状态管理（Zustand）：导入数据、**示例数据**加载…」。L136/L98 无这些词。
+- 修复：改为「模拟数据（L89「点击『立即体验』」语境）与示例数据（L179「状态管理」段）」。
+
+### G3 — 截图「疑似不一致」5 vs 6 **定死为 6**
+- 现状矛盾：COPY 截图表实际只标 **5**（landing-full / trips / trips-activity / places / help），而 NOTES 上一则 T41 记录 + TASKS T41 卡写 **6**（且 NOTES 括号内只列了 5 个名字——自相矛盾）。
+- 核对方法（逐张客观证据，非猜）：①`ls -la docs/screenshots/` + `git log -- <file>` 确认 10 张 PNG 内容**全部定格于 `2151b9d`（T20-T26，09-15 09:28–09:38）**；②列出其后 UI 变更 commit（T30 `b6550cf` 09-15 13:28 / T35 / T36 `951ef4b` / T38 `ba6090c` / T39 `7df39ae`）逐张比对；③唯一存疑的 `mobile.png`（原判「风险中」）**做实测**：`git worktree add /tmp/opencode/gtv-2151b9d 2151b9d`（即生成该图的精确 commit）→ Playwright 390×780 重渲染 → 与仓库图逐像素比对。
+- **实测结论（坐实 `mobile.png` 为旧版）**：`2151b9d` 的 390×780 移动端 bottom-sheet 日期控件 = **内联整月日历**——`.drp` h=**547**、`hasTrigger:false`、`hasWeekdays:true`、`calVisible:true`，bodyText 含「日期范围 / 全部 / 近 30 天 / 近 1 年 / 2026 年 9 月 / 一二三四五六日」，nav 5 项（无 Merge，印证早于 T36）；现版 `.drp` h=**73**、紧凑 trigger、无日历。像素差同样偏向旧版：date-picker 区（y519-780）MAE **11.94 @2151b9d** vs 14.91 @current；bottom-sheet 区（y455-780）**11.31** vs 14.26；全图 14.07 vs 16.75。→ 图中为 T30 前旧日期控件，**构成疑似不一致**。
+- 修复：COPY 截图表 `mobile.png` 行改标「疑似不一致」+ 依据；COPY 说明段把「疑似不一致」定死为 **6 张**并列名（landing-full / trips / trips-activity / places / mobile / help），并顺带订正 T30 时间（「09-15晚」→「09-15 13:28」）+ 补 T38；TASKS T41 卡补明确清单与 G3 依据；COPY 变更日志加一条（原为「留空待首条」，补上首条）。
+- 闸门：`npm run lint` 0 问题 + `npm test` **243 全绿**（18 文件）+ `npm run build` ✓（仅既有 chunk-size 告警）。未动 `src/`，i18n catalog / guard 不受影响。
+
+### 清理
+- 临时物（worktree `gtv-2151b9d` / `gtv-pret30` + `render-*.mjs` + `*-mobile.png`，均在 `/tmp/opencode/`）在项目 repo 外，已 `git worktree remove` 清理；项目 repo 内无残留。**提交留给 CEO**。

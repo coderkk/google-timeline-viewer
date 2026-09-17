@@ -8,22 +8,16 @@ import ExportButton from './ExportButton'
 export default function DataBar() {
   const dataSource = useTimelineStore((state) => state.dataSource)
   const dataLabel = useTimelineStore((state) => state.dataLabel)
-  const dataFileCount = useTimelineStore((state) => state.dataFileCount)
   const clearData = useTimelineStore((state) => state.clearData)
   const { t } = useI18n()
 
   if (dataSource === 'none') return null
 
   // The store keeps only language-neutral values; the display label is resolved
-  // here so it follows the active language.
+  // here so it follows the active language. Import is single-file (PRD 功能 1),
+  // so the label is simply the file name.
   const label =
-    dataSource === 'sample'
-      ? t('data.sample')
-      : dataLabel === null
-        ? t('data.unnamed')
-        : dataFileCount > 1
-          ? `${dataLabel} ${t('data.filesSuffix', { count: dataFileCount })}`
-          : dataLabel
+    dataSource === 'sample' ? t('data.sample') : dataLabel === null ? t('data.unnamed') : dataLabel
 
   return (
     <div className="data-bar">

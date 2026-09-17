@@ -47,12 +47,10 @@ interface TimelineStore {
   dataSource: DataSource
   /**
    * Language-neutral dataset label: the first imported file name, or null for
-   * the built-in sample. The UI resolves the display text (sample name / file
-   * count suffix) through i18n at render time.
+   * the built-in sample. The UI resolves the display text through i18n at
+   * render time.
    */
   dataLabel: string | null
-  /** Number of imported files (1 for a single file or the sample). */
-  dataFileCount: number
   errorMsg: string | null
   /** Raw parser warning behind an "unrecognized data" error, localized in the UI. */
   errorWarning: string | null
@@ -83,7 +81,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   status: 'empty',
   dataSource: 'none',
   dataLabel: null,
-  dataFileCount: 1,
   errorMsg: null,
   errorWarning: null,
   dateRange: RESET_RANGE,
@@ -114,7 +111,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
       errorWarning: null,
       dataSource: 'user',
       dataLabel: files[0].name,
-      dataFileCount: files.length,
     })
     parseFilesInWorker(files, {
       onProgress: (event) => {
@@ -157,7 +153,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
       errorWarning: null,
       dataSource: 'sample',
       dataLabel: null,
-      dataFileCount: 1,
     })
     try {
       const data = await loadSampleTimeline()
@@ -182,7 +177,6 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
       status: 'empty',
       dataSource: 'none',
       dataLabel: null,
-      dataFileCount: 1,
       errorMsg: null,
       errorWarning: null,
       dateRange: RESET_RANGE,

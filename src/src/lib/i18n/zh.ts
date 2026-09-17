@@ -23,7 +23,6 @@ export const zh = {
   'data.change': '更换数据',
   'data.export': '导出',
   'data.exportTitle': '导出当前筛选范围内的轨迹与停留',
-  'data.filesSuffix': '等 {count} 个文件',
   'data.sample': '模拟数据',
 
   // -- Date range picker -----------------------------------------------------

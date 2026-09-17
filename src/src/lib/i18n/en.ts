@@ -23,7 +23,6 @@ export const en = {
   'data.change': 'Change data',
   'data.export': 'Export',
   'data.exportTitle': 'Export the trajectory and stays in the current range',
-  'data.filesSuffix': '+{count} more files',
   'data.sample': 'Sample data',
 
   'drp.title': 'Date range',

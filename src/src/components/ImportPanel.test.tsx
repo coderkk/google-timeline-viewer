@@ -16,7 +16,6 @@ vi.mock('../store/timelineStore', () => ({
       status: 'parsing',
       dataSource: 'user',
       dataLabel: 'Timeline.json',
-      dataFileCount: 1,
       errorMsg: null,
       errorWarning: null,
       importFiles: () => undefined,

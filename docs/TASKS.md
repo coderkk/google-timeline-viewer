@@ -1,10 +1,16 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T41 -->
+<!-- next: T43 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
 ## 📋 To Do
+
+- [ ] ~~T43: A10 验证脚本入库~~ (09-17→) [P1] — 来源: 2026-09-16 v1.0.0 发布 Retro（A10 → WORKFLOW 规则 16）
+  - T38 双视口冒烟收编为 `scripts/smoke-release.mjs`（从 `scripts/out/gh-live-smoke.mjs` 演化：支持对本地 build 冒烟；live 模式保留）
+  - 确认 SMOKE-CHECKLIST 每项已指到 `scripts/` 可复现入口（标不出可复现入口的项目 = 装饰）
+  - 验收: ①smoke-release.mjs 落 `scripts/`（非 out/）；②本地 build + preview 冒烟可跑通（0 pageerror，已知噪音除外）；③SMOKE-CHECKLIST 头部加「可复现入口」指引；④Reviewer 确认
+  - 冒烟: D + 通用
 
 - [ ] [P2] 合并页面下载文件名侧加载大小展示 + 归档记录（候选，用户评估后开卡）
 
@@ -24,22 +30,11 @@
 
 ## 📭 Backlog（上 = 优先）
 
-- [ ] [P1] **隐私断言机器化（Security Engineer 全员追认抓到的真缺口）**：本项目核心承诺是「本地处理、不上传」，但全 repo 只有 SMOKE-CHECKLIST 两行文字，**无脚本实现、deploy.yml 零请求断言**——而 deploy.yml 是 push 自动部署，最高价值的安全不变量唯一只靠人肉勾选。
-  - 建 `scripts/smoke-network-tap.mjs`（Playwright 零新依赖）：`page.on('request')` 全量捕获，命中白名单外即非零退出
-  - 白名单 machine-readable 单一源：`scripts/privacy-allowlist.json`（self + tile hosts + 已登记端点 + blob 下载）
-  - 进 `deploy.yml` 作阻塞门禁（独立 privacy job，build `needs` 它）——否则自动部署链里没有可卡的时点
-  - 来源: 2026-09-16 全员追认（docs/records/meetings/2026-09-16.md）
+> 三个 P1 项已于 09-17 拆卡：隐私断言机器化 → **T42**；流程修订落地 → **T41**；A10 验证脚本入库 → **T43**。
 
-- [ ] [P1] **流程修订落地：项目级文档补齐**（2026-09-16 流程提案 P1–P9 + A16 拍板后）：
-  - 复制 `templates/project/docs/release-runbook.md` → 本项目 `docs/release-runbook.md`（下次发布链拆卡前必做；发布验收引用它）
-  - 复制 `templates/project/docs/COPY.md` → 本项目 `docs/COPY.md`，登记现有对外主张（README/i18n/Help/Landing/截图，含 landing-full.png 截图核对）
-  - 顺手修 Designer 抓到的活 bug：`data.filesSuffix`「+{count} more files」残留 i18n 键 + DataBar `dataFileCount > 1` 死分支（T38 grep 词表盲区）
-  - 来源: 2026-09-16 流程修订（Reviewer G7）
-
-- [ ] [P1] **A10–A15 Retro 行动项**（2026-09-16 v1.0.0 发布 Retro；**已制度化为 WORKFLOW 规则 8/12/13/14/15/16**，此卡只余项目级落地）：
-  - **A10 验证脚本入库**（→ WORKFLOW 规则 16）：本项目待做 = T38 双视口冒烟收编为 `scripts/smoke-release.mjs`；确认 SMOKE-CHECKLIST 每项已指到 `scripts/` 可复现入口
-  - **A11/A12/A13/A14/A15** 已进 WORKFLOW（规则 14/6+12/5/14/15）与 SMOKE-CHECKLIST，无需重复落地；仅需下次拆卡时验证规则生效
-  - 来源: 2026-09-16 v1.0.0 发布 Retro（docs/records/retros/2026-09-16.md）
+- [x] ~~[P1] **隐私断言机器化（Security Engineer 全员追认抓到的真缺口）**~~ → **已拆卡 T42**
+- [x] ~~[P1] **流程修订落地：项目级文档补齐**~~ → **已拆卡 T41**
+- [x] ~~[P1] **A10–A15 Retro 行动项**~~ → **已拆卡 T43**（A11–A15 已进 WORKFLOW，无需重复落地）
 
 - [ ] [P2] 范围切换性能——Last year/All 预设全量重建 2.3s 单 longtask（4,593 stays + 12k 点重挂载）；一次性范围切换不阻塞发布，候选分块/异步重建（T37 附带发现）(09-16)
 - [ ] [P2] 离线瓦片 / 自托管瓦片服务器 — 彻底消除瓦片请求隐私（→ PRD 不做）(09-13)
@@ -96,5 +91,19 @@
   - 指派: CEO + Dev
   - 来源: 用户拍板「发布」（2026-09-16）
   - 时间: 09-16 创建 → 09-16 Done
+
+- [x] ~~T41: 流程修订落地：项目级文档补齐~~ (09-17→09-17) [P1] — ①`docs/release-runbook.md` 落地（模板 + 项目适配：deploy.yml 自动部署链、T42 privacy job / T43 smoke-release.mjs 后续引用、截图核对接 COPY 表）；②`docs/COPY.md` 落地：**10 条主张登记**（隐私段 1-4 强制：坐标不出设备 / 本地处理不上传 / 瓦片请求明示 IP+bbox / Google Maps 外链 opt-in；另 6 条 = 单文件导入 / 四格式 / 合并归档 / Landing 4 卡 / 导出护栏 / 默认近 30 天）+ 术语表 6 组对照 + 截图表 10 张；③活 bug：`data.filesSuffix` 死键（唯一消费方 = DataBar `dataFileCount>1` 死分支）en/zh 双 catalog 删除 + `dataFileCount` 全字段清除（store 接口/初始/set×3/DataBar selector/ImportPanel mock），保留 1 档展示路径；全 repo grep `filesSuffix|dataFileCount|moreFiles|more files` → src/ 零命中（仅余 3 处历史文档追溯非死代码）。**243 单测 + lint + build 全绿**；冒烟 D+通用：preview + Playwright sample/user 双路径 DataBar 单文件名、无「+N more」、0 pageerror。截图核对如实标注：T41 无图像识别能力 → 全 10 张「待人工核对」，其中 **6 张**按 git 时间线标「疑似不一致」（`landing-full` / `trips` / `trips-activity` / `places` / `mobile` / `help`；早于 T30/T35/T36/T38/T39），发布前须人工重截（已入 runbook 硬条件）。**【09-17 G3 复核定死】6 张为准**：原 COPY 表只标了 5 张（漏 `mobile.png`）；`mobile.png` 以生成该图的精确 commit `2151b9d` 重渲染实测坐实——该 commit 下 390×780 `.drp` h=547 含整月内联日历（`hasWeekdays:true`），现版 h=73 紧凑 trigger 无日历，像素差亦偏向旧版
+  - 验收: ①runbook/COPY 落地且 COPY 登记与实际主张一致；②i18n 无残留键 + 死分支清除（243 单测 + lint + build 全绿）；③冒烟 D 类（文案/截图核对）+ 0 pageerror —— **全过**
+  - 冒烟: D + 通用
+  - 指派: Dev + Reviewer
+  - 来源: 2026-09-16 流程修订（Reviewer G7）+ CEO 指令「宣言/流程同步到项目 repo」
+  - 时间: 09-17 创建 → 09-17 Done（尚未提交）
+
+- [x] ~~T42: 隐私断言机器化（network-tap）~~ (09-17→09-17) [P1] — 设计 `docs/DESIGN-T42.md`（Security 出网面盘点 N1–N8 + 牙①②③裁决：默认拒绝 / 自定义瓦片源 = 用户显式 opt-in 例外不进动态白名单 / privacy job 结构硬门禁）。交付：①`scripts/privacy-allowlist.json` 单一机器源（self + OSM tile + blob:/data:/about:/file: + policy 三硬化断言：无 query / 无 payload / CSP connect-src 无 host token）；②`scripts/smoke-network-tap.mjs`（Playwright **零新依赖**，双视口 1440×900+390×844 × S1–S8：landing→sample/OSM 瓦片爆发→settle→**fixture 真实导入走 worker**→places→merge→export blob 下载→settings/help/landing；逐请求裁決 ALLOW-SELF/ALLOW-TILE/VIOLATION-HOST/PATH/QUERY/PAYLOAD + 空转守卫 + 校准双探针 A/B + CSP 静态复核；退出码 0/1/2/3）；③`deploy.yml` 重写 build → **privacy**（下载 dist + python http.server + 跑 tap）→ **deploy**（`needs: [build, privacy]` = 牙③不可豁免）；④SMOKE-CHECKLIST 隐私段加可复现入口；⑤COPY #11/#12 两机器断言主张。**A1–A6 全过**：A2 默认配置双视口 exit 0（108 捕获全 ALLOW，OSM 瓦片 71 请求 ≈ zoom 4/5/12/13，tile 必达信号满足）；**A3 三态必红**（注入 `fetch('https://example.com/…')` → exit 1 列 `VIOLATION-HOST` → 还原 → exit 0）——**过程中抓到真 bug**：初版逐请求违例只进 `report.violations` 未进 `assertFailures` → 注入态假绿（verdict PASS/exit 0），三态必红暴露后修复闭环（量具自检价值实证，宣言原则 2）；A4 `--calibrate-only` exit 0；A5 `T42_VACUOUS_SIM=1` exit 1（空转守卫）；A6 exit 2（`T42_PROBE_A_URL=''` 校准量具坏）/ exit 3（死 base）可区分。C3 README「隐私声明」外部请求两例外（OSM 瓦片 + Google Maps 外链 opt-in）= allowlist 非 self 面，核对一致。**243 单测 + lint + build 全绿**（scripts/ 零新增依赖）
+  - 验收: ①本地默认配置跑 tap 0 违例（A2 ✓）；②注入违例 URL 非零退出（A3 ✓，且抓到假绿真 bug）；③deploy.yml privacy job 存在且 deploy 依赖它（B1/B2 ✓）；④Security 评审通过（硬门禁，待 Reviewer/Security 本轮）
+  - 冒烟: D + 通用
+  - 指派: Dev（Security 设计前置已完）
+  - 来源: Security Engineer 全员追认抓到的真缺口（2026-09-16）；设计 `docs/DESIGN-T42.md`
+  - 时间: 09-17 创建 → 09-17 Done（尚未提交）
 
 ## ❌ Cancelled
