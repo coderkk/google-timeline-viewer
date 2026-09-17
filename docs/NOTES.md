@@ -1450,3 +1450,85 @@ Reviewer 复核 T41 抓到 3 处文档准确性缺陷（G4 = 提交卫生：只�
 
 ### 清理
 - 临时物（worktree `gtv-2151b9d` / `gtv-pret30` + `render-*.mjs` + `*-mobile.png`，均在 `/tmp/opencode/`）在项目 repo 外，已 `git worktree remove` 清理；项目 repo 内无残留。**提交留给 CEO**。
+
+## 2026-09-17 14:05 — Dev T43 A10 验证脚本入库（smoke-release.mjs / DataBar 三态单测 / SMOKE-CHECKLIST 可复现入口）
+
+来源: 2026-09-16 v1.0.0 发布 Retro A10 → WORKFLOW 规则 16（验证脚本入库；标不出可复现入口的冒烟项 = 装饰）。T38 双视口冒烟临时脚本（`scripts/out/gh-live-smoke.mjs`）收编为正式脚本。
+
+### 交付物
+1. **`scripts/smoke-release.mjs`（新，RELEASE-SMOKE v1）** — T38 双视口冒烟正式化：
+   - `--base <url>` 指本地 build；缺省 = live `https://coderkk.github.io/google-timeline-viewer`；**self origin 从 base 运行期派生**（`new URL(BASE).origin` + per-viewport `origin match` 断言），零硬编码。
+   - 双视口 1440×900 + 390×844 × 9 项 = 18 项：landing 200 / origin match / 4 feature cards（`waitForSelector('.feature-card')` + count==4）/ landing title / feature tags / hero CTA visible / help 路由（`#/help`）/ overflowX / **pageerror**（每视口显式断言，过滤已知 frame-ancestors CSP 噪音）。
+   - 输出 `PASS|FAIL  name: value` + verdict 行；退出码 **0=全过 / 1=断含失败（含真 pageerror）/ 2=运行错误**；`waitReady` 断连**快速失败**（死端口 ~1s 出 exit 2，不硬等 30s）。
+   - 零新依赖（playwright 既有）；结构对齐 `smoke-network-tap.mjs`（argValue + waitReady + 分离 exit 语义 + 头注校准记录——规则 8 硬要求）。
+2. **`src/src/components/DataBar.test.tsx`（新）** — DataBar 三态 label 锁定：sample → `t('data.sample')`（"Sample data"）、unnamed（`dataSource='user'` + `dataLabel=null`）→ `t('data.unnamed')`（"Unnamed data"）、fileName（`dataLabel='Timeline_2024.json'`）→ 原样输出。复用 ImportPanel.test 的 `renderToString` + store mock 模式（`vi.hoisted` 可变状态 + `beforeEach` 复位），无新依赖。
+3. **`docs/SMOKE-CHECKLIST.md`** — 头部加「可复现入口（A10 / 规则 16）」指引表；**每条勾选项标注 `— 可复现: <scripts/ 命令>` 或 `— 人工项: <说明>`**（半机器化项拆开如实标）。纯人工项（截图核对 / 视觉确认 / 真数据体感 / 统计肉眼比对 / 环境矩阵抽查）全部如实标「人工项」，不假装都有脚本——诚实原则。
+4. **`docs/release-runbook.md`** — 线上冒烟入口 `scripts/out/gh-live-smoke.mjs` → `node scripts/smoke-release.mjs`（live 模式）。
+
+### 本地验证（全部实际跑成）
+```
+$ node scripts/smoke-release.mjs --base http://127.0.0.1:4173   # 本地 build + http.server
+RELEASE-SMOKE v1 base=http://127.0.0.1:4173 self=http://127.0.0.1:4173
+PASS  desktop landing 200: 200
+PASS  desktop origin match: http://127.0.0.1:4173
+PASS  desktop landing 4 feature cards: 4
+PASS  desktop landing title: After the web version shut down, your history went dark
+PASS  desktop feature tags: Trips,Places,Privacy,Merge
+PASS  desktop hero CTA visible: visible
+PASS  desktop help route: ok
+PASS  desktop overflowX: 0
+PASS  desktop pageerror: 0 (ignored 1 known CSP frame-ancestors noise)
+PASS  mobile …（同 9 项全 PASS）
+verdict: PASS (18/18 checks PASS)
+exit code: 0
+```
+- **负向校准（规则 8 门禁型脚本）**：
+  - **死端口** `--base http://127.0.0.1:4199` → `base not reachable … fetch failed` → **exit 2（~1s 快速失败）** ✓
+  - **最小 HTML（无 `.feature-card`）** 起 4198 → 4 项 FAIL（cards/title/tags/CTA）×2 视口 → **exit 1** ✓（绝无假绿）
+- **live 模式**（缺省 URL）→ **exit 0、18/18 PASS**、0 pageerror（仅既有 CSP 噪音 1/视口）✓
+- `cd src && npm run test` → **246 全绿（19 文件；+3 DataBar）**；`npm run lint` 0；`npm run build` ✓（仅既有 chunk-size 告警）。
+- 端口纪律（T42 教训防复发）：4173 先 `ss` 确认空闲 → `python3 -m http.server 4173 -d src/dist`（前台 build + 独立起服分段，不用 `&&` 整链后台化）；`pkill` 用过 `-f` 自匹配陷阱（本次 `pkill -f "http.server 4198"` 挂起自身 shell——`-f` 全命令行匹配到 `bash -c` 里的字符串）→ 改用 `pgrep -af '[h]ttp.server'` 括号技巧核对后清理。
+
+### 旧脚本处置
+- `scripts/out/gh-live-smoke.mjs` **实际被 git 跟踪**（`git ls-files` 命中；out/ 下仅两个 perf JSON 是 gitignore 产物）——**保留不删**（避免 tracked 删除噪音）；runbook 已改指新脚本，out/ 脚本留作历史产物。
+
+### 遗留
+- 验收④ Reviewer 确认 + CEO 统一提交（本任务未 commit）；T42 的 B1/B2（deploy.yml 拓扑）同样待本轮。
+
+---
+
+## 2026-09-17 15:00 — Dev T43 Reviewer PASS 消费轮: G1/G2 + S2–S6 一轮修完
+
+> Reviewer 判定: `判定|致命0/严重0/一般2/建议6|历史矛盾: -|安全阻塞: NA`。CEO 指令: G1/G2 + 便宜建议级一轮修完；S1 已裁决保留。本轮回改文件 = `scripts/smoke-release.mjs` + `docs/SMOKE-CHECKLIST.md` + `docs/TASKS.md`（+ NOTES 收尾），未 commit。
+
+### G1 help route 空转 → 已修 + 负向校准
+- 旧判据 `waitForSelector('h1, .section-title, main')` 会假绿：Landing 有 h1、Layout 恒渲染 main——坏哈希路由/空白 shell 也 PASS。
+- 改断 **Help 特有 `.help-section`**（HelpPage.tsx 4 处渲染，grep 确认唯一来源）+ `page.url()` 尾 `#/help`。
+- **负向校准（门禁必红）**：起临时 http server 对任意路径返回 `<main><h1>not the app</h1></main>`（`/tmp/opencode/g1-negative-probe.mjs`，ephemeral Node http server，用完即关）→ 双视口 `FAIL … help route: page.waitForSelector: Timeout 10000ms exceeded.`，verdict FAIL（8/18）exit 1 ✓ ——旧判据下 `<h1>`+`<main>` 必假绿，证明 G1 是实缺口。
+- **正向**：本地 build（http.server dist 4173）双视口 `PASS … help route: http://127.0.0.1:4173/#/help`，18/18 exit 0。
+
+### G2 SMOKE-CHECKLIST 归因失实 → 已修正
+- 核实：`smoke-network-tap.mjs` 只注册 `page.on('dialog')` + `page.on('request')`（L331/L333/L402/L404），**无 pageerror 收集**——「0 pageerror」条写「全旅程页面路径由 tap S1–S8 遍历」暗示 tap 兜了错误检查，失实。
+- 改：第 32 行 → 「tap = 网络视角遍历全旅程页（不判 pageerror）；全旅程页面 0 pageerror = **人工项兜底**」；顺带修第 67 行同类并列归因（「J1/J3 首屏 0 錯誤 + 路由可達 = smoke-release + tap」拆开：「0 錯誤」归属 release（landing/help）+ 人工兜底，「路由可達」归属 tap + release）。
+- **grep 复核无其他失实归因**：L14/16/35/39/104 及 runbook/COPY 中 tap 表述均只涉请求捕获/数据就绪/白名单，无 pageerror 归因（NOTES 历史条目如实）。
+
+### 建议级（S2–S6）
+- **S2 CLI**：`--base=<url>` 等号形式识别；`--base` 缺值 / 未知参数 → usage 到 stderr + **exit 2**（不再静默回落 live URL）。
+- **S3** `--base` 非 http(s) URL（`not-a-url` / `localhost:4173` 协议冒充）→ usage + **exit 2**（`new URL()` 包 try + protocol 白名单 http/https）。
+- **S4** landing 200 显式 `status()===200` 断言（非 200 即 FAIL，不再只回显状态码）。
+- **S5** hero CTA present-but-hidden → **FAIL**（旧为 value `'hidden'` 也算 PASS）。
+- **S6** pageerror 过滤后**逐行打印被忽略的具体行**（来源+触发条件可查，A12），不只计数。
+- **S1** `data.unnamed`（DataBar.tsx L20 `dataLabel===null` 防御死分支 + DataBar.test.tsx 对应例）：**CEO 裁决保留**（文档化防御、无害不删），已在 TASKS T43 卡注明——本轮不触碰。
+
+### 验证证据（同命令重跑输出）
+- `node --check scripts/smoke-release.mjs` → SYNTAX OK
+- `npm run build`（src）→ ✓（仅既有 chunk-size 告警）
+- 正向（等号形式 + 空格形式各一次，dist @4173）→ **18/18 PASS / exit 0**，pageerror 0（仅既有 CSP 噪音 1/视口，S6 已逐行打印）
+- 裸页负向 → help route **双视口 FAIL** / verdict FAIL / **exit 1** ✓
+- 死 base `http://127.0.0.1:59999` → **exit 2**（fetch failed 快速失败）✓
+- `--base not-a-url` / `--base localhost:4173` / `--base`（缺值）/ `--base=`（空）/ `--hello`（未知）→ usage + **exit 2** 全 ✓
+- `cd src && npm run test` → **246 全绿（19 文件）**；`npm run lint` → 0；`npm run build` → ✓
+- 端口纪律：T43 原 NOTES 已记（`pgrep -af '[h]ttp.server'` 括号技巧核对后再清理；本次已确认 0 残留）
+
+### 遗留
+- 未 commit（过审后统一提交）；runbook 无改动需求（T43 原文已指新脚本）。

@@ -1,16 +1,10 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T43 -->
+<!-- next: T44 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
 ## 📋 To Do
-
-- [ ] ~~T43: A10 验证脚本入库~~ (09-17→) [P1] — 来源: 2026-09-16 v1.0.0 发布 Retro（A10 → WORKFLOW 规则 16）
-  - T38 双视口冒烟收编为 `scripts/smoke-release.mjs`（从 `scripts/out/gh-live-smoke.mjs` 演化：支持对本地 build 冒烟；live 模式保留）
-  - 确认 SMOKE-CHECKLIST 每项已指到 `scripts/` 可复现入口（标不出可复现入口的项目 = 装饰）
-  - 验收: ①smoke-release.mjs 落 `scripts/`（非 out/）；②本地 build + preview 冒烟可跑通（0 pageerror，已知噪音除外）；③SMOKE-CHECKLIST 头部加「可复现入口」指引；④Reviewer 确认
-  - 冒烟: D + 通用
 
 - [ ] [P2] 合并页面下载文件名侧加载大小展示 + 归档记录（候选，用户评估后开卡）
 
@@ -104,6 +98,13 @@
   - 冒烟: D + 通用
   - 指派: Dev（Security 设计前置已完）
   - 来源: Security Engineer 全员追认抓到的真缺口（2026-09-16）；设计 `docs/DESIGN-T42.md`
+  - 时间: 09-17 创建 → 09-17 Done（尚未提交）
+
+- [x] ~~T43: A10 验证脚本入库~~ (09-17→09-17) [P1] — ①`scripts/smoke-release.mjs`（新，RELEASE-SMOKE v1）：T38 双视口冒烟从 `scripts/out/gh-live-smoke.mjs` 收编——`--base <url>` 本地 build / 缺省 live URL；**self origin 运行期派生**（origin match 断言）；双视口 1440×900+390×844 × 9 项 = 18 项（landing 200 / 4 卡 / title / tags / CTA / help 路由 / overflowX / 0 pageerror 显式断言，过滤已知 frame-ancestors 噪音）；退出码 **0=全过 / 1=断言失败 / 2=运行错误**（断连快速失败）；结构对齐 smoke-network-tap.mjs；零新依赖。②`src/src/components/DataBar.test.tsx`（新）：三态 label 锁定（sample / unnamed / fileName），+3 单测。③SMOKE-CHECKLIST 头部「可复现入口」指引 + 每条勾选项标注脚本命令或**如实标「人工项」**（截图核对/视觉确认/真数据体感/肉眼比对，诚实原则）；runbook 线上冒烟改指 `scripts/smoke-release.mjs`。**验证**：本地 build+preview exit 0、18/18 PASS、0 pageerror（仅既有 CSP 噪音）；负向校准死端口 exit 2 / 无 `.feature-card` 最小页 exit 1；live 模式 exit 0；246 单测 + lint + build 全绿。`scripts/out/gh-live-smoke.mjs` 为 git 跟踪历史产物，保留不删。**【09-17 Reviewer PASS 消费轮】**：G1 help route 改断 `.help-section` 选择器 + `page.url()` 尾 `#/help`（旧 `h1,.section-title,main` 遇坏哈希 route 会假绿；裸页 `<main><h1>not the app</h1></main>` 负向校准 help route **必 FAIL** ✓）；G2 SMOKE-CHECKLIST「0 pageerror」条归因去假（tap 只注册 dialog/request、**不判 pageerror**；全旅程页面 0 pageerror = 人工项兜底，第 32 行 + 第 67 行同行皆有此误、均已修）；S2–S6：CLI 支持 `--base=<url>` 等号形式，缺值/未知参数/非 http(s) URL → usage 报错 exit 2（不再静默回落 live URL）、landing 200 显式 `status()===200`、hero CTA hidden = FAIL、pageerror 过滤后逐行打印被忽略行；**S1 `data.unnamed` = CEO 裁决保留**（`dataLabel===null` 防御性死分支 + DataBar.test.tsx 对应用例，文档化防御、无害，不删）。
+  - 验收: ①smoke-release.mjs 落 `scripts/`（非 out/）✓；②本地 build + preview 冒烟 exit 0、0 pageerror（已知噪音除外）✓；③SMOKE-CHECKLIST 头部「可复现入口」指引 ✓；④Reviewer 确认（待本轮）
+  - 冒烟: D + 通用
+  - 指派: Dev + Reviewer
+  - 来源: 2026-09-16 v1.0.0 发布 Retro（A10 → WORKFLOW 规则 16）
   - 时间: 09-17 创建 → 09-17 Done（尚未提交）
 
 ## ❌ Cancelled

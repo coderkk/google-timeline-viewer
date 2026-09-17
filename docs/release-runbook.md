@@ -33,7 +33,7 @@
 - [ ] **打 tag**：`vX.Y.Z`（annotated），问「这个 commit 能不能对外负责？」
 - [ ] **build**：`cd src && npm run lint && npm test && npm run build` 全绿（deploy.yml 也会跑一遍）
 - [ ] **push + deploy**：push main 自动触发 workflow，build/privacy/deploy 各 job 全绿（记录 GitHub Actions run ID）
-- [ ] **线上冒烟**：`scripts/out/gh-live-smoke.mjs` 全过 + 0 pageerror（已知噪音除外；T43 落地后改走 `scripts/smoke-release.mjs` live 模式）
+- [ ] **线上冒烟**：`node scripts/smoke-release.mjs`（live 模式，缺省为线上 URL）全过 + 0 pageerror（已知噪音除外；`--base <url>` 可另指本地 preview 复验）
 - [ ] **归档**：发布结论 + run ID + 线上 URL 记入 `docs/DECISIONS.md`
 
 ## 回滚预案
