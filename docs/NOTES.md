@@ -1567,3 +1567,7 @@ exit code: 0
 ### 范围纪律
 
 - 零新依赖（process.execPath + taskkill 均 node builtin / 系统命令）；未 commit；未动 TASKS.md（T44 卡维持 Doing）；旧 T39 记录未改写。
+
+## 2026-09-19 23:17 — Dev
+
+T45 冒烟纪律补布局核对（3 文件：项目 SMOKE-CHECKLIST / 模板 SMOKE-CHECKLIST / 公司 WORKFLOW 规则5）——标准项 N/A（无运行时触达）

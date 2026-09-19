@@ -1,6 +1,6 @@
 # SMOKE-CHECKLIST — 瀏覽器冒煙清單（按任務類型）
 
-> 目的: 避免每次「從腦中隨機抽驗」造成遺漏（教訓: T30 冒煙漏 popover 焦點陷阱、T27 白屏回歸、T38 同族漏 Places）。
+> 目的: 避免每次「從腦中隨機抽驗」造成遺漏（教訓: T30 冒煙漏 popover 焦點陷阱、T27 白屏回歸、T38 同族漏 Places、T44 教訓: T36 merge 頁上線時 D 類冒煙只查 pageerror 不查視覺 → 佈局全錯漏審）。
 > 用法: Dev 提交審查前按卡上 `冒煙:` 標註類別勾選必驗項做瀏覽器實測，**把勾選結果附在提交說明**（缺則 Reviewer 可打回）。
 > 冒煙 = **獨立維度，與檔位解耦**。**三層義務（A13 裁決基準）**：①**標準項（通用必驗段）任何檔位都要跑**，豁免只針對本次改動引發的迴歸冒煙；②**類別冒煙（§A-D）= 迴歸冒煙**，L1 豁免（無類別標註），L2/L3 按卡上標註跑；③**發佈鏈任務（發佈前收尾/終批/發佈驗證）不論檔位跑全集 = 標準項 + 全部類別**（發佈門禁不隨檔位縮水）。
 > 位置: 項目級清單（本文件），模板在 `templates/project/docs/SMOKE-CHECKLIST.md`；Dev 複製當前任務對應的類型段落 + 旅程板到提交說明即可。
@@ -24,10 +24,12 @@
 | A 導入/數據 | import/parse/merge/統計 | §A |
 | B UI/交互 | 組件/狀態機/旅程變更 | §B（含旅程板） |
 | C 性能/渲染 | 壓測/優化/門檻 | §C（分佈量判據） |
-| D 文檔/配置/部署 | 文案/模板/gitignore/發布 | §D |
+| D 文檔/配置/部署/佈局 | 文案/模板/gitignore/發布/新增頁面·路由·佈局容器語義 | §D（含佈局核對） |
 | 發布鏈 | 發布前收尾/終批/發布驗證 | 全集 + `docs/release-runbook.md`（卡上冒煙字段寫「全集+runbook」） |
 
 ## 通用必驗（所有類型都會跑）
+
+> **適用前提**：改動觸達運行時/瀏覽器面。**純文檔/無運行時觸達的任務**（README typo、gitignore、模板註釋）在 NOTES 記一行 `標準項: N/A（無運行時觸達）` 作顯式豁免——沒有運行時改動，就沒有存量可保護。
 
 - [ ] 0 pageerror（console errors = 0；既有已知告警除外並註明來源 + 觸發條件 + 記錄日期——A12 量化規則）— **可複現**: `node scripts/smoke-release.mjs`（雙視口 landing/help 路徑；兩路徑均是顯式 pageerror 斷言）；**全旅程頁面 0 pageerror 無腳本可覆蓋 = 人工項兜底**（`smoke-network-tap.mjs` S1–S8 只是網絡視角遍歷全旅程頁——只註冊 dialog/request 事件，**不判 pageerror**，勿誤認它兜了錯誤檢查）；首交互競態區由 `smoke-race-check.mjs`（0 `_leaflet_pos` pageerror 專項）
 - [ ] 主流程單測 + build（tsc / vite build）綠 — **可複現**: `cd src && npm run lint && npm run test && npm run build`
@@ -87,11 +89,21 @@
 - [ ] 曾優化過的 long task 複測（Performance 記錄全量入庫，不只看最後一次跑了綠）— **可複現**: `scripts/perf-browser.mjs`（記錄全量輸出至 `scripts/out/`）
 - [ ] **重跑規則**：有效重跑上限 3 次且全分佈入庫；連續 FAIL 2 次即上報 CEO，不悶頭重跑到綠 — **人工項**（紀律，人守）
 
-## §D 文檔 / 配置 / 部署
+## §D 文檔 / 配置 / 部署 / 佈局
 
 - [ ] 文件模板 / gitignore 一致 — **人工項**（diff 判斷）
 - [ ] build 產物可部署；部署後 hash 比對 live 是否更新 — **半機器化**：`sha256sum dist/index.html` vs `curl -s <live>/index.html | sha256sum`（命令可跑，比對結論人工判）
 - [ ] 對外主張與 codebase 一致（COPY.md 對照；**截圖人工核對**——grep 盲區）— **人工項**（逐張開圖看實物 vs 當前 UI；標註「疑似不一致」的重截後再發佈，見 runbook）
+
+### D-1 佈局核對（T44 教訓，2026-09-19 入列）
+
+> 觸發: 任務新增/變更頁面、路由、佈局容器語義（全屏 vs 標準列）、視覺語言——**不因 L1 豁免**（T44: 新路由 `/app/merge` 上線僅查 pageerror，貼左/無 footer/邊距錯全漏）。發布鏈任務必含本塊。
+
+- [ ] 雙視口（桌面 1440 + 移動 390）頁面幾何與同族頁面一致（居中列 left/top/width 相等或符合設計） — **可複現**: 仿 `scripts/smoke-merge-layout.mjs` 模式（截圖全頁 + 幾何斷言對比參照頁）；無腳本覆蓋的新頁 — **人工項**（DevTools 量測 + 截圖）
+- [ ] 路由容器語義正確: 地圖類路由（`/app`、`/app/places`）= 全屏、無 footer；非地圖路由 = 標準列 + footer — **可複現**: `smoke-merge-layout.mjs`（merge vs settings 幾何嚴格相等 + footer 存在/缺失斷言）
+- [ ] 無 overflowX（水平溢出）— **可複現**: `node scripts/smoke-release.mjs --base <url>`（雙視口 overflowX 斷言）
+- [ ] 與相鄰頁面 margin / 間距對齊、導航高亮精確（無前綴誤配） — **人工項**（截圖逐張核對——grep 盲區）
+
 - [ ] CHANGELOG 已切版/追加（發布鏈：先於 tag）— **人工項**
 
 ## 隱私/數據斷言（Security Engineer 2026-09-16；機器斷言，非人工勾選）

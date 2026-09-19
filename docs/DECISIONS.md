@@ -2,6 +2,10 @@
 
 > 决策日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 主题` + `决定: ... 理由: ...`
 
+## 2026-09-19 23:25 — T45 冒烟纪律「布局核对」落地 + 全员过目窗口关闭
+决定: ①T45 验收通过：D 类冒烟必须含布局核对（T44 教训闭环）——项目 SMOKE-CHECKLIST 加 D-1 布局核对子块（双视口几何一致/路由容器语义/无 overflowX/margin 对齐，逐项可复现或人工项）+ 类别速查 D 行扩为「文档/配置/部署/布局」+ 触动词「新增页面·路由·布局容器语义」；模板 SMOKE-CHECKLIST 同步（可复现入口表前移 + 隐私机器断言 + A12 量化 + N1 封印引用，A10/T42 产物欠账一并清）；公司 WORKFLOW 规则 5 类别定义句补「D 类含新增页面/路由的布局核对」+ **另例**「含新增页面/路由/布局容器语义变更的卡冒烟强制含布局核对（§D D-1），不因 L1 豁免」。②**全员过目窗口关闭**：Reviewer 审（PASS 0 致命/0 严重/0 一般/6 建议，三层义务无冲突——另例=第②层内与 Designer 例同构的定向缩小豁免，不碰第①层标准项）+ CEO 验收（6 建议全消费）+ NOTES 记录。③Designer 视角视为已过：D-1 是流程纪律条款（语义锚 = T44 经验 + SMOKE 既有截图核对纪律），非视觉语言决策，不进设计评审。
+理由: review 证实「T36 merge 页上线仅查 pageerror 致布局全错漏审」教训已显式化为可复现检查项——下次新页面/路由上线时，冒烟卡上有硬勾选项 + 可复现脚本模式（smoke-merge-layout.mjs）。规则增量保持最小侵入：不新增类别字母、不改三层义务结构、不扩发布门禁。窗口台账三要件齐（NOTES 记 / Reviewer 审 / CEO 验收落 DECISIONS）。
+
 ## 2026-09-19 10:30 — T44 merge 页布局修复验收通过 + Windows 服务启动规范立项
 决定: ①**T44 验收通过**：merge 页「贴左/无 footer/顶距 0」根因 = Layout 用 `pathname.startsWith('/app')` 把 `/app/merge` 误判地图全屏页；改为精确匹配 `/app`+`/app/places` 后，merge 与 settings 几何严格相等（14/14 smoke PASS），Trips/Places 全屏无回归；②**Windows 服务启动规范立项**：反复「起 vite preview 就 stuck/timeout」是环境机制问题不是 bug——负 pid 进程组 kill Windows 恒 ESRCH（实测残留 6 孤儿 vite）、detached 子进程 stdio 挂事件循环、spawn('npx') ENOENT、URL.pathname POSIX 路径、ANSI 色码、.ps1 执行策略六条已实证，规范落根 `docs/HOWTO.md` §12 并修正两 smoke 脚本清理逻辑（taskkill 分支）；③**T39「零残留」旧记录判定为 Windows 假信号**（`kill(-pid)` no-op + `pgrep` 非 Windows），复核结论追加 NOTES，不改历史。
 理由: 用户实测反馈（2026-09-18）+ Reviewer PASS-WITH-CONDITIONS（Windows 清理 + T39 复核两一般级已消费）+ Dev 复测 exit 0 零残留。T44 联动教训：**D 类冒烟必须含布局核对项**（pageerror 全 0 但视觉全错），已记 SMOKE 纪律候选。

@@ -8,13 +8,7 @@
 
 - [ ] [P2] 合并页面下载文件名侧加载大小展示 + 归档记录（候选，用户评估后开卡）
 
-## ⏸ KIV
-
-- [ ] **T-K1: 移动端适配**
-  - 等待: v1 发布后评估公开分享带来的移动访问占比
-  - 时间: 09-13 创建
-
-
+- [ ] [P2] 合并页面下载文件名侧加载大小展示 + 归档记录（候选，用户评估后开卡）
 
 ## ⏸ KIV
 
@@ -38,6 +32,14 @@
 - [x] ~~[P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿~~ **(09-14→09-16 完成)** — T37 真实 15k 窗口压测放行：无卡顿无需降 cap；报告 DATA-FINDINGS §10
 
 ## ✅ Done
+
+- [x] ~~T45: 冒烟纪律补「布局核对」~~ (09-19→09-19) [P1] — T44 教训落地：D 类冒烟含布局核对。①项目 `docs/SMOKE-CHECKLIST.md`：头部教训行补 T44 + 类别速查 D 行→「文档/配置/部署/布局」+ 触动词「新增页面·路由·布局容器语义」+ §D 新增 **D-1 布局核对**（双视口页面几何与同族一致 / 路由容器语义（地图全屏无 footer vs 标准列+footer）/ 无 overflowX / 相邻 margin+导航高亮，逐项标可复现或人工项）+ 通用必验补适用前提框；②模板 `templates/project/docs/SMOKE-CHECKLIST.md`：同步项目版领先内容（可复现入口表前移、隐私机器断言段补单一源+校准双探针+退出码、A12 量化、N1 封印脚本引用、提交附注格式）+ 同款 D-1（不写死项目路由，通用表述）；③公司 `.agents/skills/opc-workflow/WORKFLOW.md` 规则 5：类别定义句补「D 文档/部署/布局——D 类含新增页面/路由的布局核对」+ **另例**（T44 教训）：含新增页面/路由/布局容器语义变更的卡冒烟强制含布局核对（§D D-1），不因 L1 豁免。**Reviewer PASS**（0 致命/0 严重/0 一般/6 建议）：三层义务一致性核过（另例=第②层内与 Designer 例同构的定向缩小豁免，不碰第①层标准项）；全员过目窗口结论「可关闭（附条件）」。
+  - **建议消费（CEO 验收轮，全消费）**：①项目版补适用前提框 ✓ ②WORKFLOW/模板「无运行时触达的 L1」→档位中立「任务」✓ ③全员窗口补 Designer 视角=视为已过（D-1 是流程纪律非视觉决策，语义锚 T44 经验，DECISIONS 记录）④T45 卡补基准区（见下行）⑤NOTES 裸行→标准小节头 ✓ ⑥TASKS KIV 重复段去重 ✓
+  - 基准: 纯文档×3 文件（项目 SMOKE-CHECKLIST / 模板 SMOKE-CHECKLIST / WORKFLOW 规则 5），联动面: WORKFLOW 规则 5 三层义务 + A13 裁决基准 + A16 预算线；前提: 不新增类别字母、不改三层义务结构
+  - 冒烟: D（文档）/ 标准项: N/A（无运行时触达）/ 开销: ~10min
+  - 指派: Dev + Reviewer
+  - 来源: T44 教训 + CEO 拆卡（2026-09-19）
+  - 时间: 09-19 创建 → 09-19 Done（未提交）
 
 - [x] ~~T44: merge 页布局修复——居中 / Footer / margin 对齐~~ (09-18→09-19) [P1] — 用户实测反馈 `/app/merge` 贴左、无 footer、顶距 0。根因：`Layout.tsx` `isApp = pathname.startsWith('/app')` 把 `/app/merge` 误判为地图全屏页（`.app-main--app` = padding:0/无居中/overflow:hidden）+ `!isApp` 隐藏 Footer；T36 上线仅验证功能路径、D 类冒烟只查 pageerror 不查视觉（CEO 验收漏项）。修复：`isMapPage = pathname === '/app' || pathname === '/app/places'`（`startsWith('/app')` 全仓唯一使用点，Header NavLink 全 `end`、RouterBridge 无依赖，无连锁）。**250 单测（+4 Layout.test）** + lint + build 全绿。验收证据：`scripts/smoke-merge-layout.mjs`（T44 回归脚本）双视口 **14/14 PASS**——merge 与 /settings **严格几何相等**（desktop left=190 top=97 width=780; mobile left=20 top=97 width=350）+ footer 存在 + Trips/Places 仍全屏无 footer + 0 pageerror/0 overflowX；截图 `docs/screenshots/merge-page-{desktop,mobile}-t44.png`。**Reviewer PASS-WITH-CONDITIONS**（Windows 服务清理 + T39 假信号复核）。**副产品（大收获）**：诊断「Windows 起 web 服务常 stuck/timeout」——负 pid 进程组 kill 在 Windows 恒 ESRCH 无效（Reviewer 对照探针 + 现场 6 孤儿 vite 实证）、detached 子进程 stdio pipe 挂住事件循环（须 process.exit 兜底）、spawn('npx') ENOENT、URL.pathname POSIX 路径、ANSI 色码打断解析、.ps1 执行策略——规范落公司根 `docs/HOWTO.md` §12；**PASS 消费轮（Dev）**：①smoke-merge-layout/race-check 停服改 Windows 有效清理（`taskkill /PID /T /F` + 正 pid SIGKILL 兜底，POSIX 分支保留）+ 注释去「零残留」不实宣称 + race-check 补 npx/路径/ANSI Windows 兼容；复测两脚本 exit 0 且残留 vite 计数 0；②T39「故障注入零残留」旧记录 = Windows 假信号（`kill(-pid)` no-op + `pgrep` 非 Windows 命令），复核结论追加 NOTES 不改历史；③Layout.tsx 尾换行补齐。NOTES 追加 L1536-1569。
   - 档位: L1
