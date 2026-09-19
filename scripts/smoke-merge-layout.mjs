@@ -8,10 +8,14 @@
 //
 // This gate seals the fix so a future release can re-verify cheaply:
 //   A. merge page uses the STANDARD centered column + footer + 40px top pad,
-//      and its content column left edge matches the /settings page exactly.
+//      and its content column geometry (left/top/width) is identical across
+//      /app/merge, /settings and /help AND horizontally centered.
 //   B. Trips/Places stay full-viewport (app-main--app) with NO footer.
 //   C. 0 pageerror + 0 horizontal overflow on all checked routes, both
 //      viewports.
+//
+// T46: +help 页纳入几何互等 + 水平居中断言（|center−viewportCenter|≤1）——
+// T44 只断言互等未断言居中。
 //
 // Server hygiene: `vite preview` on port 0 (OS-assigned free port), BASE
 // parsed from vite's own `Local:` stdout line, and the preview process tree is
@@ -180,7 +184,7 @@ async function check(name, fn) {
 }
 
 try {
-  console.log('SMOKE-MERGE-LAYOUT (T44)')
+  console.log('SMOKE-MERGE-LAYOUT (T44/T46)')
   server = await startPreview()
   const BASE0 = server.base
   globalThis.BASE = BASE0
@@ -213,19 +217,57 @@ try {
       if (!state.hasFooter) throw new Error('footer missing on merge page')
       return state.mainClass
     })
-    await check(`${tag} merge: matches settings column geometry`, async () => {
-      const merge = await pageGeometry(page, '#/app/merge')
-      const settings = await pageGeometry(page, '#/settings')
-      if (merge.left !== settings.left) {
-        throw new Error(`merge left ${merge.left}px !== settings left ${settings.left}px`)
+    // T46: the three content pages (/app/merge, /settings, /help) share one
+    // centered column — assert left/top/width equal across all three AND that
+    // each box is horizontally centered in the viewport (|center−vpCenter|≤1).
+    const CONTENT_PAGES = [
+      ['merge', '#/app/merge'],
+      ['settings', '#/settings'],
+      ['help', '#/help'],
+    ]
+    await check(`${tag} pages: equal column geometry (merge/settings/help)`, async () => {
+      const geo = {}
+      for (const [, route] of CONTENT_PAGES) geo[route] = await pageGeometry(page, route)
+      const base = geo['#/app/merge']
+      for (const [name, route] of CONTENT_PAGES) {
+        const g = geo[route]
+        if (g.left !== base.left) {
+          throw new Error(`${name} left ${g.left}px !== merge left ${base.left}px`)
+        }
+        if (g.top !== base.top) {
+          throw new Error(`${name} top ${g.top}px !== merge top ${base.top}px`)
+        }
+        if (g.width !== base.width) {
+          throw new Error(`${name} width ${g.width}px !== merge width ${base.width}px`)
+        }
       }
-      if (merge.top !== settings.top) {
-        throw new Error(`merge top ${merge.top}px !== settings top ${settings.top}px`)
+      return `left=${base.left} top=${base.top} width=${base.width} (= merge)`
+    })
+    for (const [name, route] of CONTENT_PAGES) {
+      await check(`${tag} ${name}: horizontally centered`, async () => {
+        const g = await pageGeometry(page, route)
+        const vpCenter = viewport.w / 2
+        const center = g.left + g.width / 2
+        if (Math.abs(center - vpCenter) > 1) {
+          throw new Error(`${name} left=${g.left} → center ${center}px ≠ viewport center ${vpCenter}px`)
+        }
+        return `${name} center ${center}px == viewport center ${vpCenter}px (left=${g.left})`
+      })
+    }
+    // T46 (Reviewer 建议 3): overflowX 按内容页逐页量测（原只在最后停留的
+    // places 路由量，三内容页无机器覆盖——居中/几何断言不保证无横向溢出）。
+    await check(`${tag} content pages overflowX clean`, async () => {
+      const issues = []
+      for (const [name, route] of CONTENT_PAGES) {
+        await page.goto(`${BASE0}${route}`, { waitUntil: 'networkidle' })
+        await page.waitForSelector('.page', { timeout: 10000 })
+        const o = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        )
+        if (o > 0) issues.push(`${name}:${o}px`)
       }
-      if (merge.width !== settings.width) {
-        throw new Error(`merge width ${merge.width}px !== settings width ${settings.width}px`)
-      }
-      return `left=${merge.left} top=${merge.top} width=${merge.width} (= /settings)`
+      if (issues.length > 0) throw new Error(issues.join(' '))
+      return '0px on merge/settings/help'
     })
     await check(`${tag} merge: footer present`, async () => {
       await page.goto(`${BASE0}/#/app/merge`, { waitUntil: 'networkidle' })

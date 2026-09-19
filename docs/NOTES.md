@@ -1571,3 +1571,13 @@ exit code: 0
 ## 2026-09-19 23:17 — Dev
 
 T45 冒烟纪律补布局核对（3 文件：项目 SMOKE-CHECKLIST / 模板 SMOKE-CHECKLIST / 公司 WORKFLOW 规则5）——标准项 N/A（无运行时触达）
+
+## 2026-09-19 23:50 — Dev
+
+T46 内容页水平居中修复——merge/help/settings 根容器缺 margin auto。
+- 现象: 用户实测「merge, guide, settings content 没有在中间」。
+- 根因: .page-help/.settings-page/.merge-page 均 max-width:780px 无 margin:0 auto → 在 .app-main（可用宽 1060px）内左对齐，右侧空约 280px。Landing 子块全带 margin auto 故居中，仅三个内容页偏左。T44 只断言互等未断言居中（T45 D-1 布局核对教训）。
+- 修复: index.css 三处各加 margin: 0 auto。
+- 脚本: scripts/smoke-merge-layout.mjs 断言升级——三页互等（/app/merge + /settings + /help，left/top/width 全等）+ 每页水平居中 |center - viewportCenter| ≤ 1px。
+- 验证: lint ✓ / 250 tests + 4 skip ✓ / build ✓；smoke 22/22 PASS exit 0——desktop left 190→330、center 720==720 真居中；mobile left 20、center 195==195（350px 内容宽天然撑满）；0 pageerror（1 已知 CSP 噪音过滤）；overflowX 0px（merge/settings/help 逐页强制项，Reviewer 建议 3 消费）；smoke 脚本自身路径结束后残留 vite 进程 0（另：临时截图脚本 shot-t46.mjs 曾泄漏 1 个 vite preview——pid 44636，Reviewer 现场捉到后 taskkill 已清）；脚本断言最终 22/22 = 三页互等 + 每页居中 + 每页 overflowX + footer + 全屏语义 + pageerror。
+- 截图: docs/screenshots/center-{merge,help,settings}-desktop-t46.png + center-merge-mobile-t46.png（4 张，临时脚本 shot-t46.mjs 生成后已无引用）。

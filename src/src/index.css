@@ -1327,6 +1327,7 @@ body {
 
 .page-help {
   max-width: 780px;
+  margin: 0 auto;
 }
 
 .page-help h1 {
@@ -1522,6 +1523,7 @@ code {
 
 .settings-page {
   max-width: 780px;
+  margin: 0 auto;
 }
 
 .settings-page h1 {
@@ -1701,6 +1703,7 @@ code {
 
 .merge-page {
   max-width: 780px;
+  margin: 0 auto;
 }
 
 .merge-form {

@@ -2,6 +2,10 @@
 
 > 决策日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 主题` + `决定: ... 理由: ...`
 
+## 2026-09-19 23:58 — T46 内容页水平居中验收通过（T45 D-1 首次实战）
+决定: T46 验收通过：`.page-help`/`.settings-page`/`.merge-page` 三处 `max-width: 780px` 各补 `margin: 0 auto`，merge/help/settings 三内容页在宽视口主列内真居中（desktop left 190→330、center 720==720；mobile center 195==195）；smoke-merge-layout.mjs 断言升级——三页几何互等 + 每页居中 ≤1px + 每页 overflowX 强制项（Reviewer 建议 3），22/22 PASS exit 0。Reviewer PASS（2 一般/1 建议全消费：shot-t46.mjs 泄漏 vite pid 44636 已清、NOTES 措辞收窄、next→T47）。**T45 D-1「布局核对」上线即立功**：T44 只断言「merge==settings」两页同偏左故漏，新纪律强制居中 + 逐页覆盖。
+理由: 用户实测反馈（2026-09-19）；lint / 250 tests / build 全绿 + smoke 22/22 + 零残留。教训闭环：T44（断言互等）→ T45（纪律要求居中）→ T46（用户报告脏布局，修复并机器化）。另记：临时截图脚本（TEMP 目录）也会泄漏 vite preview——「残留检查」应覆盖所有本机 vite 进程，不只看 smoke 脚本主路径。
+
 ## 2026-09-19 23:25 — T45 冒烟纪律「布局核对」落地 + 全员过目窗口关闭
 决定: ①T45 验收通过：D 类冒烟必须含布局核对（T44 教训闭环）——项目 SMOKE-CHECKLIST 加 D-1 布局核对子块（双视口几何一致/路由容器语义/无 overflowX/margin 对齐，逐项可复现或人工项）+ 类别速查 D 行扩为「文档/配置/部署/布局」+ 触动词「新增页面·路由·布局容器语义」；模板 SMOKE-CHECKLIST 同步（可复现入口表前移 + 隐私机器断言 + A12 量化 + N1 封印引用，A10/T42 产物欠账一并清）；公司 WORKFLOW 规则 5 类别定义句补「D 类含新增页面/路由的布局核对」+ **另例**「含新增页面/路由/布局容器语义变更的卡冒烟强制含布局核对（§D D-1），不因 L1 豁免」。②**全员过目窗口关闭**：Reviewer 审（PASS 0 致命/0 严重/0 一般/6 建议，三层义务无冲突——另例=第②层内与 Designer 例同构的定向缩小豁免，不碰第①层标准项）+ CEO 验收（6 建议全消费）+ NOTES 记录。③Designer 视角视为已过：D-1 是流程纪律条款（语义锚 = T44 经验 + SMOKE 既有截图核对纪律），非视觉语言决策，不进设计评审。
 理由: review 证实「T36 merge 页上线仅查 pageerror 致布局全错漏审」教训已显式化为可复现检查项——下次新页面/路由上线时，冒烟卡上有硬勾选项 + 可复现脚本模式（smoke-merge-layout.mjs）。规则增量保持最小侵入：不新增类别字母、不改三层义务结构、不扩发布门禁。窗口台账三要件齐（NOTES 记 / Reviewer 审 / CEO 验收落 DECISIONS）。
