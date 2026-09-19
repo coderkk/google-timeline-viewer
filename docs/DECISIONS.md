@@ -2,6 +2,10 @@
 
 > 决策日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 主题` + `决定: ... 理由: ...`
 
+## 2026-09-19 10:30 — T44 merge 页布局修复验收通过 + Windows 服务启动规范立项
+决定: ①**T44 验收通过**：merge 页「贴左/无 footer/顶距 0」根因 = Layout 用 `pathname.startsWith('/app')` 把 `/app/merge` 误判地图全屏页；改为精确匹配 `/app`+`/app/places` 后，merge 与 settings 几何严格相等（14/14 smoke PASS），Trips/Places 全屏无回归；②**Windows 服务启动规范立项**：反复「起 vite preview 就 stuck/timeout」是环境机制问题不是 bug——负 pid 进程组 kill Windows 恒 ESRCH（实测残留 6 孤儿 vite）、detached 子进程 stdio 挂事件循环、spawn('npx') ENOENT、URL.pathname POSIX 路径、ANSI 色码、.ps1 执行策略六条已实证，规范落根 `docs/HOWTO.md` §12 并修正两 smoke 脚本清理逻辑（taskkill 分支）；③**T39「零残留」旧记录判定为 Windows 假信号**（`kill(-pid)` no-op + `pgrep` 非 Windows），复核结论追加 NOTES，不改历史。
+理由: 用户实测反馈（2026-09-18）+ Reviewer PASS-WITH-CONDITIONS（Windows 清理 + T39 复核两一般级已消费）+ Dev 复测 exit 0 零残留。T44 联动教训：**D 类冒烟必须含布局核对项**（pageerror 全 0 但视觉全错），已记 SMOKE 纪律候选。
+
 <!-- 示例：
 ## 2026-09-12 15:40 — 登录方案
 决定: 用 JWT，不用 session。理由: 前后端分离，JWT 更简单。

@@ -23,9 +23,14 @@
 //
 // Server hygiene: `vite preview` runs on port 0 (OS-assigned free port → no
 // fixed-port conflicts, no stale-server false signals). BASE is parsed from
-// vite's own `Local:` stdout line. The process is spawned detached so the whole
-// process group (npx wrapper + vite child) is killed in the finalizer — a
-// preview server is NEVER left behind, on either the success or failure path.
+// vite's own `Local:` stdout line. The preview process tree is torn down in
+// the finalizer on the success AND failure paths. Cleanup is cross-platform:
+// POSIX kills the detached process group (vite node process + any children)
+// via kill(-pid); on Windows kill(-pid) is unimplemented (always throws ESRCH
+// → a silent no-op, which actually leaked preview servers inside the original
+// T39 S1 fix — see NOTES 2026-09-19 recheck), so the finalizer uses
+// `taskkill /PID <pid> /T /F` (whole tree) plus a positive-pid SIGKILL
+// fallback.
 //
 // Usage:
 //   node scripts/smoke-race-check.mjs
@@ -35,23 +40,31 @@
 
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
-const ROOT = new URL('../src/', import.meta.url).pathname
-const SAMPLE = new URL('../src/src/lib/sample/sample-timeline.json', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('../src/', import.meta.url))
+const SAMPLE = fileURLToPath(new URL('../src/src/lib/sample/sample-timeline.json', import.meta.url))
+const VITE_BIN = fileURLToPath(new URL('../src/node_modules/vite/bin/vite.js', import.meta.url))
 
 // Spawn `vite preview` on port 0 (vite 8.x honors 0 = random free port) and
-// resolve with the preview URL parsed from its `Local:` stdout line. detached
-// makes npx the leader of a new process group so kill(-pid) reaches npx + the
-// vite child together.
+// resolve with the preview URL parsed from its `Local:` stdout line. Spawned
+// via process.execPath + vite.js (project Windows convention: `npx` is not
+// auto-resolved on Windows and fails with ENOENT). `detached` makes vite the
+// leader of a new process group — on POSIX that lets kill(-pid) reach vite +
+// any children together; on Windows the group kill is a no-op and the
+// finalizer falls back to `taskkill /T /F` against this pid.
 function startPreview() {
   return new Promise((resolve, reject) => {
     const proc = spawn(
-      'npx',
-      ['--no-install', 'vite', 'preview', '--port', '0', '--host', '127.0.0.1'],
+      process.execPath,
+      [VITE_BIN, 'preview', '--port', '0', '--host', '127.0.0.1'],
       { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], detached: true },
     )
     let out = ''
-    const parse = () => out.match(/Local:\s+(http:\/\/[^\s]+)/)
+    // Vite prints ANSI colors even when piped on some shells; strip them so
+    // the `Local:` line always matches.
+    const stripAnsi = (s) => s.replace(/\u001b\[[0-9;]*m/g, '')
+    const parse = () => stripAnsi(out).match(/Local:\s+(http:\/\/[^\s]+)/)
     const onData = (d) => {
       out += d.toString()
       const m = parse()
@@ -66,8 +79,11 @@ function startPreview() {
       if (m) resolve({ proc, base: m[1].replace(/\/+$/, '') })
       else reject(new Error(`vite preview exited before printing Local URL (exit=${proc.exitCode}, output=${out.slice(0, 400)})`))
     }
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       cleanup()
+      // Never leak the preview server on the timeout path: tear down the whole
+      // process tree (POSIX group kill / Windows taskkill) before rejecting.
+      await killProcessTree(proc.pid)
       reject(new Error(`timed out waiting for vite preview Local URL (output=${out.slice(0, 400)})`))
     }, 15000)
     function cleanup() {
@@ -82,18 +98,54 @@ function startPreview() {
   })
 }
 
-// Kill the ENTIRE process group (npx wrapper + vite preview child): SIGTERM
-// first, wait for the group to fully disappear, SIGKILL any straggler. Called
-// from the finalizer so no preview server outlives the gate, passed or failed.
+// Tear down a spawned preview process tree (async). POSIX: a negative pid
+// kills the detached process group (the spawned process is its leader).
+// Windows: kill(-pid) always throws ESRCH (unimplemented), so this goes to
+// `taskkill /T /F`, the only way to reach children/grandchildren (vite's
+// esbuild service process, or any shell/js wrapper the spawn went through).
+function killProcessTree(pid) {
+  if (typeof pid !== 'number') return Promise.resolve()
+  if (process.platform === 'win32') {
+    return new Promise((resolve) => {
+      const tk = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        windowsHide: true,
+        stdio: 'ignore',
+      })
+      tk.on('error', resolve)
+      tk.on('exit', resolve)
+    })
+  }
+  try { process.kill(-pid, 'SIGKILL') } catch {}
+  return Promise.resolve()
+}
+
+function isAlive(pid) {
+  try { process.kill(pid, 0); return true } catch { return false }
+}
+
+// Kill the preview process tree (npx wrapper + vite preview child and any
+// grandchildren) and wait for it to fully disappear. Called from the finalizer
+// so no preview server outlives the gate, passed or failed.
 async function stopPreview(server) {
   if (!server?.proc?.pid) return
   const pid = server.proc.pid
-  try { process.kill(-pid, 'SIGTERM') } catch {}
-  for (let i = 0; i < 20; i++) {
-    await new Promise((r) => setTimeout(r, 100))
-    try { process.kill(-pid, 0) } catch { return } // group fully gone
+  if (process.platform !== 'win32') {
+    // POSIX: SIGTERM the whole group, wait for the group to disappear, SIGKILL
+    // any straggler.
+    try { process.kill(-pid, 'SIGTERM') } catch {}
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 100))
+      try { process.kill(-pid, 0) } catch { return } // group fully gone
+    }
+    try { process.kill(-pid, 'SIGKILL') } catch {}
+    return
   }
-  try { process.kill(-pid, 'SIGKILL') } catch {}
+  // Windows: kill(-pid) is a no-op, so reach the whole tree with taskkill /T
+  // /F, then a positive-pid SIGKILL as the final fallback (probe first so a
+  // stale pid never gets a meaningless signal).
+  if (!isAlive(pid)) return
+  await killProcessTree(pid)
+  try { process.kill(pid, 'SIGKILL') } catch {}
 }
 
 async function waitReady(base) {

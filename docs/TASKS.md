@@ -1,6 +1,6 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T44 -->
+<!-- next: T45 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
@@ -38,6 +38,12 @@
 - [x] ~~[P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿~~ **(09-14→09-16 完成)** — T37 真实 15k 窗口压测放行：无卡顿无需降 cap；报告 DATA-FINDINGS §10
 
 ## ✅ Done
+
+- [x] ~~T44: merge 页布局修复——居中 / Footer / margin 对齐~~ (09-18→09-19) [P1] — 用户实测反馈 `/app/merge` 贴左、无 footer、顶距 0。根因：`Layout.tsx` `isApp = pathname.startsWith('/app')` 把 `/app/merge` 误判为地图全屏页（`.app-main--app` = padding:0/无居中/overflow:hidden）+ `!isApp` 隐藏 Footer；T36 上线仅验证功能路径、D 类冒烟只查 pageerror 不查视觉（CEO 验收漏项）。修复：`isMapPage = pathname === '/app' || pathname === '/app/places'`（`startsWith('/app')` 全仓唯一使用点，Header NavLink 全 `end`、RouterBridge 无依赖，无连锁）。**250 单测（+4 Layout.test）** + lint + build 全绿。验收证据：`scripts/smoke-merge-layout.mjs`（T44 回归脚本）双视口 **14/14 PASS**——merge 与 /settings **严格几何相等**（desktop left=190 top=97 width=780; mobile left=20 top=97 width=350）+ footer 存在 + Trips/Places 仍全屏无 footer + 0 pageerror/0 overflowX；截图 `docs/screenshots/merge-page-{desktop,mobile}-t44.png`。**Reviewer PASS-WITH-CONDITIONS**（Windows 服务清理 + T39 假信号复核）。**副产品（大收获）**：诊断「Windows 起 web 服务常 stuck/timeout」——负 pid 进程组 kill 在 Windows 恒 ESRCH 无效（Reviewer 对照探针 + 现场 6 孤儿 vite 实证）、detached 子进程 stdio pipe 挂住事件循环（须 process.exit 兜底）、spawn('npx') ENOENT、URL.pathname POSIX 路径、ANSI 色码打断解析、.ps1 执行策略——规范落公司根 `docs/HOWTO.md` §12；**PASS 消费轮（Dev）**：①smoke-merge-layout/race-check 停服改 Windows 有效清理（`taskkill /PID /T /F` + 正 pid SIGKILL 兜底，POSIX 分支保留）+ 注释去「零残留」不实宣称 + race-check 补 npx/路径/ANSI Windows 兼容；复测两脚本 exit 0 且残留 vite 计数 0；②T39「故障注入零残留」旧记录 = Windows 假信号（`kill(-pid)` no-op + `pgrep` 非 Windows 命令），复核结论追加 NOTES 不改历史；③Layout.tsx 尾换行补齐。NOTES 追加 L1536-1569。
+  - 档位: L1
+  - 指派: Dev + Reviewer
+  - 来源: 用户实测反馈（2026-09-18）
+  - 时间: 09-18 创建 → 09-19 Done
 
 - [x] ~~T37: raw 点渲染性能压测（发布前）~~ (09-16→09-16) [P2] — 真实 livedata 15k 点窗口（2026 文件默认 30 天 = 15,072 raw → 12,000 绘制）production build 复测（headless Chromium + Playwright 真实手势）：缩放帧 p95 pooled **183ms**（单步 100–283ms）/ longtask max **219ms**（无秒级冻结），平移 **43/41fps**（16 拖中 11 拖无 longtask、5 拖零星，z12 首拖 tile+点层冷启动 max 647ms，p95 恒 50ms），均优于 §8 pre-fix（p95 461ms / 1796ms）→ **验收通过，产品代码零修改，无需降 cap**。附加场景（合并 62 天档 37,287 stays）同上结论；附带发现：切范围预设（Last year / All）有一次性 1.3–2.3s 长任务冻结，非阻塞，入 Backlog 候选。报告 **DATA-FINDINGS §10** + `scripts/out/perf-report.json`；可复现 `scripts/perf-raw-window.mjs` / `perf-make-merged.mjs` / `perf-browser.mjs` 三件套。**Reviewer PASS**（一般级已修：§10 平移 longtask 如实化 11/16 + 聚合 `Math.max` 修复 + 全景数据持久化 + Backlog 落子）。
 

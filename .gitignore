@@ -1,4 +1,5 @@
 docs/livedata
+node_modules/
 scripts/node_modules/
 scripts/out/timeline-merged-perf.json
 scripts/out/perf-report-smoke.json

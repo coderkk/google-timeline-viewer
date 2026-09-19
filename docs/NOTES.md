@@ -1532,3 +1532,38 @@ exit code: 0
 
 ### 遗留
 - 未 commit（过审后统一提交）；runbook 无改动需求（T43 原文已指新脚本）。
+
+## 2026-09-19 22:43 — Dev T44 PASS 消费轮: Windows 进程清理修复 + T39 零残留复核 + Layout 尾换行
+
+来源: T44 Reviewer PASS-WITH-CONDITIONS（一般级 1 项 + 一般级复核 1 项 + 建议级 1 项）。只动 `scripts/smoke-merge-layout.mjs` / `scripts/smoke-race-check.mjs` / `src/src/components/Layout.tsx` + 本 NOTES，未 commit。
+
+### ① 两 smoke 脚本 Windows 进程清理修复（一般级）
+
+**根因确认**: `process.kill(-pid, ...)`（负 pid 进程组杀）是 POSIX 语义，Windows 上未实现——**恒抛 ESRCH**，被 `catch {}` 吞掉 → 原 `stopPreview` 整套清理在 Windows 变 no-op，vite preview 进程残留。CEO 开工前实测的 6 个孤儿 vite 进程即该失效清理机制的产物。
+
+**改动**（两脚本同构）:
+- 新增 `killProcessTree(pid)` 跨平台清理: win32 → `spawn('taskkill', ['/PID', String(pid), '/T', '/F'])`（异步等 exit，含 error 分支）+ 之后正 pid `process.kill(pid, 'SIGKILL')` 兜底；非 win32 → 原 `kill(-pid, 'SIGKILL')`。
+- `stopPreview`: 非 win32 保留原「SIGTERM 组 → 轮询 `kill(-pid,0)` 消失 → SIGKILL」逻辑；win32 走「`kill(pid,0)` 探测存活 → `killProcessTree(pid)` → 正 pid SIGKILL」。
+- `startPreview` 超时路径统一 `await killProcessTree(proc.pid)` 再 reject（merge 原有负 pid 一并修掉；race 脚本原本超时路径完全不杀 → 顺手补上，与「零残留」意图一致）。
+- 头注释删除「never leaves a preview server behind / NEVER left behind」等不实宣称，改写为跨平台清理语义（Windows = taskkill /T /F + SIGKILL 兜底）。
+
+**额外发现（「确认现在能跑」暴露的 Windows 兼容缺口）**: `smoke-race-check.mjs` 在 Windows 原生 **`spawn('npx', ...)` ENOENT**（Windows 不自动解析 npx.cmd），且 ROOT 用 `new URL().pathname` 得到 `/D:/...` 畸形路径。已按项目 Windows 服务启动纪律对齐 `smoke-merge-layout.mjs`: `process.execPath` + `src/node_modules/vite/bin/vite.js`、`fileURLToPath` 取 ROOT/SAMPLE/VITE_BIN、剥 ANSI 后解析 `Local:` 行——现可原生跑通。
+
+**复测（Windows 原生 + tasklist 级残留指纹）**:
+- `node scripts/smoke-merge-layout.mjs` → **14/14 PASS / exit 0**；跑完 `Get-CimInstance Win32_Process | Where CommandLine -match 'vite'` → **COUNT=0**。
+- `node scripts/smoke-race-check.mjs` → A 6/6 轮 `navAt=181~233ms`（全 <250ms 真踩窗）0 race + B tooltip=true 0 race + C rootOk=true 0 race → **全 PASS / exit 0**；跑完同上指纹 → **COUNT=0**。
+
+### ② T39「零残留」验收记录复核（一般级，只查不改历史）
+
+- 旧记录（NOTES L1350-1353 / TASKS T39 卡 / DECISIONS 2026-09-16）: 清理 = `kill(-pid)` 组杀，验证 = `pgrep -f 'vite preview'` 零残留（含故障注入 exit 1 路径）。
+- **复核判断**: ①`pgrep -f` 是 POSIX 命令，Windows 原生不存在——该探测在 Windows 上不可执行；②清理依赖的 `kill(-pid)` 在 Windows 恒 ESRCH no-op，`kill(-pid, 0)` 轮询同样恒 ESRCH → 立即判「组已消失」返回。**故「零残留」旧记录在 Windows 原生环境下是假信号**（过程上无法验证、机理上清理从未发生）。实证旁证: T44 开工前实测残留的 6 个孤儿 vite 进程。
+- **复核实测（修复后, Windows 原生）**: 上面 ① 两脚本 exit 0 后逐次跑 tasklist 级指纹（`Get-CimInstance Win32_Process` + CommandLine 匹配 vite）→ 均 **COUNT=0**。旧记录依追加式纪律不改写，本段为追加观察。
+- 注: 故障注入（exit 1）路径本轮未复跑（任务范围限定）；两脚本对 exit 0/1/2 走同一 `finally → stopPreview`，清理路径一致。
+
+### ③ Layout.tsx 文件尾换行（建议级）
+
+- `src/src/components/Layout.tsx` 原末行 `}` 后无换行（`\ No newline at end of file`，文件 CRLF 风格）→ 已补 CRLF 尾换行；`git diff` 末 hunk 仅新增尾换行。
+
+### 范围纪律
+
+- 零新依赖（process.execPath + taskkill 均 node builtin / 系统命令）；未 commit；未动 TASKS.md（T44 卡维持 Doing）；旧 T39 记录未改写。
