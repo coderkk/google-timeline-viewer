@@ -1,8 +1,6 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T53 -->
-
-## 🔨 Doing（WIP ≤ 2）
+<!-- next: T54 -->
 
 ## 📋 To Do
 
@@ -24,6 +22,13 @@
 - [x] ~~[P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿~~ **(09-14→09-16 完成)** — T37 真实 15k 窗口压测放行：无卡顿无需降 cap；报告 DATA-FINDINGS §10
 
 ## ✅ Done
+
+- [x] ~~T53: DateRangePicker 改进（Year 选择 + Date To UX）~~ (09-21→09-21) — L2：① `src/components/DateRangePicker.tsx` 新增 Year 选择器下拉（`drp-year-wrap` / `drp-year-btn` / `drp-year-dropdown`，51 年 ±25 围绕当前视图年）+ `pickingEnd` 模式（仅设起始日时点击日期直接设结束日并关闭 popover）+ 「→ 选结束日」高亮提示 ② `index.css` 新增 `.drp-year-wrap` / `.drp-year-btn` / `.drp-year-dropdown` / `.drp-year-item` / `.drp-range-pick-end` 样式 ③ i18n en/zh 各 3 key（`drp.selectYear` / `drp.year` / `drp.pickEnd`）④ `DateRangePicker.test.tsx` 10 单测（yearList/shiftMonth/pickingEnd/pick behavior）⑤ lint + build 全绿（286 tests + 4 skip）。**验收**: ①Year 选择可用 ✓ ②Date To UX 改进 ✓ ③归档记录补齐 ✓。**标准项: N/A（无新增运行时面，smoke 覆盖存量）**。NOTES 追加。
+   - 档位: L2
+   - 冒烟: 通用（lint + test + build）
+   - 指派: Dev
+   - 来源: 用户反馈（2026-09-21）
+   - 时间: 09-21 创建 → 09-21 Done
 
 - [x] ~~T47: 移动端适配立项（盘查 + 数据源采集 + 子卡拆分）~~ (09-21→09-21) [P1] — 先侦察不急于写全：① `scripts/mobile-audit.mjs` 新建（Playwright 390px 视口全路由盘查：overflowX / 页面几何 / 字体 / 触摸目标 / 侧栏 / 地图容器），产出 `docs/records/mobile-audit/2026-09-21.md`；② `scripts/repo-traffic.mjs` 新建（GitHub API traffic 采集），产出 `docs/records/repo-traffic/2026-09-21.md`；③ `docs/T47-SUBTASKS.md` 拆分子卡方案（3 个子卡 P1/P2/P3 排序）。**盘查结论**：布局层面已就绪（T24 断点覆盖充分），唯一 P1 问题 = 触摸目标尺寸不足（6 nav-link 29px < 44px + Settings 页 2 按钮 < 44px）；无 overflowX / 布局错位 / 字体过小。子卡：T47.1 触摸目标修复（L1，CSS 3 行）→ T47.2 脚本入库 → T47.3 PRD 入册。**A17 绝对锚点**：所有断言含与视口/祖先的绝对关系（min-height >= 44px、overflowX == 0px、|center - vpCenter| <= 1px）。**255 tests + 4 skip / lint 0 error / build 全绿**。**标准项: N/A（无新增运行时面，smoke 覆盖存量）**。
    - 档位: L2（盘查 + 脚本 + 方案）

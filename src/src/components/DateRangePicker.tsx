@@ -7,7 +7,7 @@
 // popover closes on Esc, an outside click (transparent backdrop), a completed
 // double pick and preset application; it is also force-closed when the dataset
 // is replaced or cleared so an open popover never describes a stale range.
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { endOfDayMs, lastNDaysRange, startOfDayMs, type DateRangeFilter } from '../lib/trips'
 import { useI18n } from '../lib/i18n'
 import { useTimelineStore } from '../store/timelineStore'
@@ -16,6 +16,9 @@ interface ViewMonth {
   year: number
   month: number
 }
+
+/** How many years to show above/below the visible year in the year picker. */
+const YEAR_RANGE = 25
 
 function monthOf(ms: number): ViewMonth {
   const d = new Date(ms)
@@ -54,9 +57,23 @@ export default function DateRangePicker() {
   const [view, setView] = useState<ViewMonth>(() =>
     monthOf(dateRange.startMs ?? dataTimeRange?.maxMs ?? Date.now()),
   )
+  const [yearOpen, setYearOpen] = useState(false)
   // "Today" is captured once per mount (lazy initializer) rather than read
   // during render, which the react-hooks purity rule disallows.
   const [todayStart] = useState(() => startOfDayMs(Date.now()))
+
+  // Close year picker on outside click.
+  const yearRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!yearOpen) return
+    const handler = (e: MouseEvent): void => {
+      if (yearRef.current && !yearRef.current.contains(e.target as Node)) {
+        setYearOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [yearOpen])
 
   // When the dataset is replaced or cleared, the store resets `dateRange`
   // (importFiles / loadSample write a fresh range, clearData returns to the
@@ -74,11 +91,15 @@ export default function DateRangePicker() {
     [],
   )
 
-  // Esc closes the popover (listener attached only while it is open).
+  // Esc closes the popover and year picker (listener attached only while
+  // the popover is open).
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') {
+        setYearOpen(false)
+        setOpen(false)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -86,6 +107,23 @@ export default function DateRangePicker() {
 
   const startDay = dateRange.startMs === null ? null : startOfDayMs(dateRange.startMs)
   const endDay = dateRange.endMs === null ? null : startOfDayMs(dateRange.endMs)
+
+  // When only a start date is set, we are in "pick end date" mode: clicking a
+  // day should set the end date (not restart the range).
+  const pickingEnd = startDay !== null && endDay === null
+
+  /** Generate a list of years for the year picker dropdown. */
+  const yearList = (() => {
+    const center = view.year
+    const years: number[] = []
+    for (let y = center - YEAR_RANGE; y <= center + YEAR_RANGE; y++) years.push(y)
+    return years
+  })()
+
+  const pickYear = (year: number): void => {
+    setView({ ...view, year })
+    setYearOpen(false)
+  }
 
   const presets: Preset[] = (() => {
     const endAnchor = dataTimeRange ? endOfDayMs(dataTimeRange.maxMs) : 0
@@ -128,19 +166,14 @@ export default function DateRangePicker() {
   })()
 
   const pick = (dayMs: number): void => {
-    if (startDay === null || endDay !== null) {
-      // Start a fresh selection: this day becomes the (open-ended) start.
-      setDateRange(dayMs, null)
+    if (pickingEnd) {
+      // Picking end date mode: set end date, then close.
+      setDateRange(startDay!, endOfDayMs(dayMs))
+      setOpen(false)
       return
     }
-    if (dayMs < startDay) {
-      setDateRange(dayMs, endOfDayMs(startDay))
-    } else {
-      setDateRange(startDay, endOfDayMs(dayMs))
-    }
-    // Double-click pattern complete: hide the popover (T30.2). "Clear" stays
-    // open on purpose (the user may keep picking another range).
-    setOpen(false)
+    // Start a fresh selection: this day becomes the (open-ended) start.
+    setDateRange(dayMs, null)
   }
 
   const renderMonth = (vm: ViewMonth) => (
@@ -230,6 +263,36 @@ export default function DateRangePicker() {
               <button type="button" className="drp-cal-nav" aria-label={t('drp.prevMonth')} onClick={() => setView(shiftMonth(view, -1))}>
                 ‹
               </button>
+
+              {/* Year selector dropdown */}
+              <div className="drp-year-wrap" ref={yearRef}>
+                <button
+                  type="button"
+                  className={`drp-cal-nav drp-year-btn${yearOpen ? ' active' : ''}`}
+                  aria-label={t('drp.selectYear')}
+                  aria-haspopup="listbox"
+                  aria-expanded={yearOpen}
+                  onClick={() => setYearOpen((current) => !current)}
+                >
+                  {view.year} {t('drp.year')} ▾
+                </button>
+                {yearOpen && (
+                  <div className="drp-year-dropdown" role="listbox" aria-label={t('drp.selectYear')}>
+                    {yearList.map((y) => (
+                      <button
+                        key={y}
+                        type="button"
+                        className={`drp-year-item${y === view.year ? ' is-current' : ''}`}
+                        aria-selected={y === view.year}
+                        onClick={() => pickYear(y)}
+                      >
+                        {y} {t('drp.year')}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <button type="button" className="drp-cal-nav" aria-label={t('drp.nextMonth')} onClick={() => setView(shiftMonth(view, 1))}>
                 ›
               </button>
@@ -245,7 +308,15 @@ export default function DateRangePicker() {
 
             <div className="drp-range">
               <span className="drp-range-label">
-                {startLabel} → {endLabel}
+                {startLabel}
+                {pickingEnd ? (
+                  <span className="drp-range-pick-end">
+                    {' '}
+                    → {t('drp.pickEnd')}
+                  </span>
+                ) : (
+                  ` → ${endLabel}`
+                )}
               </span>
               <button
                 type="button"

@@ -37,6 +37,9 @@ export const zh = {
   'drp.clear': '清除',
   'drp.hint': '点起始日 → 点结束日；只点一天 = 从该日起（单边）',
   'drp.any': '不限',
+  'drp.selectYear': '选择年份',
+  'drp.year': '年',
+  'drp.pickEnd': '选结束日',
 
   // -- Trips -----------------------------------------------------------------
   'trips.title': 'Trips',

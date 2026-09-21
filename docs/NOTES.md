@@ -1682,3 +1682,23 @@ PRD 新增「移动端适配」章节：当前状态（盘查结论 + 触摸目�
 
 **归档记录**: NOTES 追加 + TASKS T52 Done + PRD v1.26 修订历史
 
+
+## 2026-09-21 15:20 - Dev T53 DRR Year 选择器 + Date To UX 改进
+
+**目标**：DRR（T30 重写）缺少 Year 选择，Date To UX 不好。
+
+**改动**：
+
+1. **Year 选择器**：在双月历 popover 的 cal-head 区域添加年份下拉选择器（drp-year-wrap / drp-year-btn / drp-year-dropdown）。默认展示当前视图年份 ±25 年（51 个年份），点击年份后视图跳转到该年同月。ESC 和外部点击关闭。
+   - 新增 CSS：.drp-year-wrap / .drp-year-btn / .drp-year-dropdown / .drp-year-item
+   - 新增 i18n：drp.selectYear / drp.year
+
+2. **Date To UX 改进**：当仅设置起始日（单边范围）时，在 popover 底部 range 区域显示「→ 选结束日」（accent 色加粗），替代原来的「→ 不限」，明确提示用户下一步操作。同时改进 pick() 函数：在 pickingEnd 模式下点击日期直接设置结束日并关闭 popover，不再重新从起始日开始。
+
+3. **测试**：新增 DateRangePicker.test.tsx（10 个测试）：yearList 生成（51 年、边界年份）、shiftMonth 跨年、pickingEnd 推断、pick 行为模式。
+
+**lint + test + build**：286 tests + 4 skip / lint 0 error / build 全绿。
+
+**验收**：①Year 选择可用 ✓ ②Date To UX 改进（「选结束日」高亮提示 + pickingEnd 模式自动设结束日）✓ ③归档记录补齐 ✓。
+
+**标准项: N/A（无新增运行时面，smoke 覆盖存量）**。

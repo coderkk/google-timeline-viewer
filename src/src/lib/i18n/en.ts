@@ -36,6 +36,9 @@ export const en = {
   'drp.clear': 'Clear',
   'drp.hint': 'Click a start day → click an end day; a single day = from that day (open-ended)',
   'drp.any': 'Any',
+  'drp.selectYear': 'Select year',
+  'drp.year': 'year',
+  'drp.pickEnd': 'pick end',
 
   'trips.title': 'Trips',
   'trips.mode.timeline': 'Timeline',
