@@ -95,7 +95,7 @@ export default function CollectionPanel() {
             {t('collection.add')}
           </button>
         ) : (
-          <div className="collection-input-row">
+          <div className="collection-input-block">
             <input
               type="text"
               className="collection-input"
