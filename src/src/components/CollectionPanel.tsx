@@ -54,11 +54,12 @@ export default function CollectionPanel() {
   const filename = dataLabel
 
   const handleSave = () => {
-    if (dateRange.startMs === null && dateRange.endMs === null) return
+    // Reject partial range: both start and end must be set
+    if (dateRange.startMs === null || dateRange.endMs === null) return
     const entry = addCollection(filename, {
       label: labelInput.trim() || t('collection.defaultLabel'),
-      startMs: dateRange.startMs ?? 0,
-      endMs: dateRange.endMs ?? 0,
+      startMs: dateRange.startMs,
+      endMs: dateRange.endMs,
     })
     setSaved((prev) => [...prev, entry])
     setLabelInput('')
