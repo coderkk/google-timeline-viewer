@@ -1,6 +1,6 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T50 -->
+<!-- next: T51 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
@@ -14,6 +14,24 @@
    - 时间: 09-21 创建 → 09-21 Done
 
 - [ ] **T-K1: 移动端适配** — **已提前立项 → T47（CEO 拍板 09-20 00:05）**；本条保留历史锚（原判据「等公开分享移动占比」已在 T47 卡内由 repo traffic 数据源承接）
+
+- [ ] **T47.2: mobile-audit 脚本入库 + SMOKE-CHECKLIST 更新（P2, L1）**
+  - T47 子卡（P2）——盘查脚本 `scripts/mobile-audit.mjs` 已在 T47 创建，现需正式入库到 SMOKE-CHECKLIST + 模板同步
+  - 内容: ①SMOKE-CHECKLIST 新增移动端盘查条目（指向 `scripts/mobile-audit.mjs`）②模板 `templates/project/docs/SMOKE-CHECKLIST.md` 同步
+  - 冒烟: 通用（lint + test + build）
+  - 验收: ①SMOKE-CHECKLIST 有 mobile-audit.mjs 条目 ②模板同步 ③归档记录
+  - 指派: Dev
+  - 来源: T47 盘查 → T47.2（P2 子卡）
+  - 时间: 09-21 创建
+
+- [ ] **T47.3: PRD 移动端适配章节入册（P3, L1）**
+  - T47 子卡（P3）——PRD 新增移动端适配段落（当前状态 + 子卡计划）+ 修订历史 v1.25
+  - 内容: ①PRD 新增移动端适配章节 ②修订历史 v1.25 ③归档记录
+  - 冒烟: 通用（lint + test + build）
+  - 验收: ①PRD 有移动端适配章节 ②修订历史 v1.25 ③归档记录
+  - 指派: Dev
+  - 来源: T47 盘查 → T47.3（P3 子卡）
+  - 时间: 09-21 创建
 
 ## 📭 Backlog（上 = 优先）
 

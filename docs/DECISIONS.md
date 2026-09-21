@@ -117,3 +117,8 @@
 ## 2026-09-21 11:30 — T47.1 触摸目标修复验收通过
 决定: T47.1 验收通过。`.site-nav-link` + `.btn-primary` + `.theme-btn` 各加 `min-height: 44px`，全路由触摸目标 ≥44px（WCAG 2.5.5）。255 tests + 4 skip / lint 0 error / build 全绿。
 理由: L1 CSS 3 行修复，`min-height` 不影响桌面端布局。移动端 390px 视口下触摸目标达标。
+
+## 2026-09-21 12:00 - T47.2 mobile-audit 脚本入库验收通过
+决定: T47.2 验收通过。scripts/mobile-audit.mjs 正式入库 SMOKE-CHECKLIST 可复现入口表（项目级 + 模板同步）。
+理由: L1 脚本入库，无运行时改动。标准项: N/A（无运行时触达）。255 tests + 4 skip / lint 0 error / build 全绿。
+

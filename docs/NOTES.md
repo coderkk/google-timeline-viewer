@@ -1638,3 +1638,12 @@ T46 å†…å®¹é¡µæ°´å¹³å±…ä¸­ä¿®å¤â€”â€”mer
 ## 2026-09-21 11:30 — Dev T47.1 触摸目标修复（L1）
 
 CSS 3 行：`.site-nav-link` + `.btn-primary` + `.theme-btn` 各加 `min-height: 44px`（WCAG 2.5.5）。255 tests + 4 skip / lint 0 error / build 全绿。
+
+## 2026-09-21 12:00 - Dev T47.2 mobile-audit 脚本入库（L1）
+
+脚本 scripts/mobile-audit.mjs 已正式入库 SMOKE-CHECKLIST 可复现入口表。项目级 + 模板 SMOKE-CHECKLIST.md 同步。
+
+自测: lint 0 error / tests 255 passed / build ✓
+冒烟: N/A（无运行时触达，纯文档/模板改动）
+改动: templates/project/docs/SMOKE-CHECKLIST.md（可复现入口表新增 mobile-audit.mjs 行）
+
