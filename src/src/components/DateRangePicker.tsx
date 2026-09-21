@@ -172,6 +172,16 @@ export default function DateRangePicker() {
       setOpen(false)
       return
     }
+    // Range refinement: if both start and end are set, clicking a day
+    // adjusts the range (day < start → new start; day >= start → new end).
+    if (startDay !== null && endDay !== null) {
+      if (dayMs < startDay) {
+        setDateRange(dayMs, endDay)
+      } else {
+        setDateRange(startDay, endOfDayMs(dayMs))
+      }
+      return
+    }
     // Start a fresh selection: this day becomes the (open-ended) start.
     setDateRange(dayMs, null)
   }
