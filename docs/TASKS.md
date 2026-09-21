@@ -4,15 +4,6 @@
 
 ## 🔨 Doing（WIP ≤ 2）
 
-- [ ] **T52: Collection/Bookmark（date range 收藏，关联 filename）** [P2]
-  - 需求: 将 `date from/to` + 备注（如 "Thailand Trip"）存 localStorage，关联 filename（切换 timeline 时 collection 不错位）
-  - 内容: ① `src/lib/collections.ts`（store + localStorage CRUD）② Collection UI（收藏按钮 + 列表展示 + 加载/删除）③ DRR 联动（加载 collection 时自动设置 DRR）
-  - 冒烟: 通用（lint + test + build）
-  - 验收: ①collection 关联 filename ②加载 collection 时自动设置 DRR ③归档记录
-  - 指派: Dev
-  - 来源: 用户反馈（2026-09-21）
-  - 时间: 09-21 创建
-
 ## 📋 To Do
 
 - [ ] **T-K1: 移动端适配** — **已提前立项 → T47（CEO 拍板 09-20 00:05）**；本条保留历史锚（原判据「等公开分享移动占比」已在 T47 卡内由 repo traffic 数据源承接）
@@ -60,6 +51,13 @@
    - 冒烟: 通用（lint + test + build）
    - 指派: Dev
    - 来源: T47 盘查 → T47.3（P3 子卡）
+   - 时间: 09-21 创建 → 09-21 Done
+
+- [x] ~~T52: Collection/Bookmark（date range 收藏，关联 filename）~~ (09-21→09-21) — L2：① `src/lib/collections.ts`（localStorage CRUD，filename 隔离 key `collections_{filename}`，边界安全降级）② `src/components/CollectionPanel.tsx`（收藏按钮 + label 输入 + 列表展示 + 加载/删除）③ i18n en/zh 各 8 key ④ CSS ⑤ TripsPage + PlacesPage 集成 ⑥ 17 单测 + lint + build 全绿（272 tests + 4 skip）。**验收**: ①collection 关联 filename ✓ ②加载 collection 自动设置 DRR ✓ ③切换 timeline 自动切换上下文 ✓ ④归档记录补齐 ✓。**标准项: N/A（无新增运行时面，smoke 覆盖存量）**。NOTES 追加。
+   - 档位: L2
+   - 冒烟: 通用（lint + test + build）
+   - 指派: Dev
+   - 来源: 用户反馈（2026-09-21）
    - 时间: 09-21 创建 → 09-21 Done
 
 - [x] ~~T46: 内容页水平居中修复——merge/help/settings 根容器缺 `margin: 0 auto`~~ (09-19→09-19) [P1] — 用户实测「merge, guide, settings content 没有在中间」。根因：`.page-help`/`.settings-page`/`.merge-page` 均 `max-width: 780px` 但无 `margin: 0 auto` → `.page` 普通 block 在 `.app-main`（可用宽 1060px）内左对齐、右侧空 ~280px；Landing 子块全带 margin auto 故居中，仅三个内容页偏左。**T44 只断言互等未断言居中**（两页同偏左故 PASS）——T45 D-1「布局核对」首次实战。修复：index.css 三处各加 `margin: 0 auto`。脚本 `smoke-merge-layout.mjs` 断言升级：三页（merge/settings/help）几何互等 + 每页水平居中 `|center−viewportCenter|≤1` + **每页 overflowX 强制项**（Reviewer 建议 3）。**验证全绿**：lint ✓ / **250 tests + 4 skip** / build ✓；smoke **22/22 PASS exit 0**——desktop left **190→330**、center 720==720 真居中；mobile left 20、center 195==195；0 pageerror（1 已知 CSP 噪音）/ overflowX 0px×6 / 零残留。截图 4 张 `docs/screenshots/center-*-t46.png`。**Reviewer PASS**（0 致命/0 严重/2 一般/1 建议，全消费：shot-t46.mjs 泄漏 vite pid 44636 已 taskkill、NOTES 措辞收窄、next 指针→T47、overflowX 逐页化）；NOTES L1574-1582。

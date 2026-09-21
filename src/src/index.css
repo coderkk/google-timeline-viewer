@@ -353,6 +353,166 @@ body {
   color: var(--color-accent);
 }
 
+/* Collection / Bookmark panel (T52 / PRD 功能 15) */
+.collection-panel {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.collection-save-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.collection-save-btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.collection-save-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.collection-save-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.collection-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.collection-input {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text);
+  width: 100%;
+  outline: none;
+}
+
+.collection-input:focus {
+  border-color: var(--color-accent);
+}
+
+.collection-input-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.collection-input-btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.collection-input-btn--ok:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.collection-input-btn--cancel:hover {
+  border-color: var(--color-text-dim);
+}
+
+.collection-list {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.collection-list-head {
+  font-size: 10px;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.collection-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.collection-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.collection-item-label {
+  font-size: 12px;
+  color: var(--color-text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-item-range {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.collection-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.collection-load-btn,
+.collection-delete-btn {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.collection-load-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.collection-delete-btn:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
 /* Date range picker (T30.2: compact trigger + popover) */
 .drp {
   position: relative; /* anchors the popover below the trigger */

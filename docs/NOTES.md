@@ -1651,3 +1651,34 @@ CSS 3 行：`.site-nav-link` + `.btn-primary` + `.theme-btn` 各加 `min-height:
 
 PRD 新增「移动端适配」章节：当前状态（盘查结论 + 触摸目标已修复）+ 子卡计划表（T47.1/T47.2/T47.3）+ 修订历史 v1.25。标准项: N/A（无运行时触达）。
 
+## 2026-09-21 14:10 — Dev T52 Collection/Bookmark（L2）
+
+**需求**: 将 `date from/to` + 备注存 localStorage，关联 filename（切换 timeline 时 collection 不错位）。
+
+**实现**:
+
+1. **store** `src/lib/collections.ts` — localStorage CRUD（filename 隔离 key `collections_{filename}`）
+   - 每条记录: `{id, label, startMs, endMs, createdAt}`
+   - 方法: `getCollections`, `addCollection`, `deleteCollection`, `loadCollection`
+   - 边界处理: 空值/类型错误/非对象条目/非有限数字均安全降级
+   - filename 安全化: 非 `[a-zA-Z0-9\-_.~]` 字符替换为 `_`
+
+2. **UI** `src/components/CollectionPanel.tsx` — 收藏面板（DataBar 与 DateRangePicker 之间）
+   - 收藏按钮: 点击弹出 label 输入框（Enter 保存 / Esc 取消）
+   - 列表展示: label + 日期范围（→ DRR 格式）
+   - 加载: 点击 Load 自动设置 DRR（`setDateRange(startMs, endMs)`）
+   - 删除: 确认弹窗 → `deleteCollection`
+   - filename 切换: zustand subscribe 自动 re-sync
+
+3. **i18n** en/zh 各 8 个 key（`collection.*`）
+
+4. **CSS** `.collection-panel` / `.collection-save-*` / `.collection-list-*` / `.collection-item-*`
+
+5. **集成** TripsPage + PlacesPage 侧栏各加 `<CollectionPanel />`
+
+**测试**: 17 个单测全绿（get/add/delete/load + filename scoping + 边界过滤）
+
+**lint + test + build**: ✓ 全绿（272 tests + 4 skip）
+
+**归档记录**: NOTES 追加 + TASKS T52 Done + PRD v1.26 修订历史
+

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import DataBar from '../components/DataBar'
 import DateRangePicker from '../components/DateRangePicker'
+import CollectionPanel from '../components/CollectionPanel'
 import PlacesMap from '../components/PlacesMap'
 import VisitHistoryPanel from '../components/VisitHistoryPanel'
 import { SpatialGrid, type CircleHit } from '../lib/geo/SpatialGrid'
@@ -159,6 +160,7 @@ function PlacesView({ data, dataSource, dateRange }: PlacesViewProps) {
   const sidebar = (
     <aside className="trips-side">
       <DataBar />
+      <CollectionPanel />
       <DateRangePicker />
       <div className="places-help">{t('places.help')}</div>
       <div className="places-controls">

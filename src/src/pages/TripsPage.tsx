@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import DataBar from '../components/DataBar'
 import DateRangePicker from '../components/DateRangePicker'
+import CollectionPanel from '../components/CollectionPanel'
 import TimelineList from '../components/TimelineList'
 import TripChainList from '../components/TripChainList'
 import TripStatsPanel from '../components/TripStatsPanel'
@@ -124,6 +125,7 @@ function MapPane({
     <>
       <div className="trips-side">
         <DataBar />
+        <CollectionPanel />
         <DateRangePicker />
         <TripStatsPanel
           route={route}
