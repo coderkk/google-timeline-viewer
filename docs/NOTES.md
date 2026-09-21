@@ -1647,3 +1647,7 @@ CSS 3 行：`.site-nav-link` + `.btn-primary` + `.theme-btn` 各加 `min-height:
 冒烟: N/A（无运行时触达，纯文档/模板改动）
 改动: templates/project/docs/SMOKE-CHECKLIST.md（可复现入口表新增 mobile-audit.mjs 行）
 
+## 2026-09-21 12:30 — Dev T47.3 PRD 移动端适配章节入册（L1）
+
+PRD 新增「移动端适配」章节：当前状态（盘查结论 + 触摸目标已修复）+ 子卡计划表（T47.1/T47.2/T47.3）+ 修订历史 v1.25。标准项: N/A（无运行时触达）。
+
