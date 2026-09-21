@@ -6,16 +6,6 @@
 
 ## 📋 To Do
 
-- [ ] **T47: 移动端适配立项（T-K1 提前拉出 KIV + 拆分侦察）** [P2→P1]
-  - CEO 拍板 09-20 00:05「三条建议全采纳」——K-T1 判据已自足：① 用户已实际移动端访问 + 实测反馈（T46 用户实测触发点含移动端）② smoke 双视口 390/1440 护栏已就位——「等数据」不再成立。
-  - **卡职责**: 先侦察不急于写全 —— 产出移动端差异盘查（F12 390 视口全路由过一遍 + 断点行为清单）+ 拆分子卡方案 + PRD 移动端章节入册。**预设 A17 绝对锚点纪律**（同族互等 390 下恒真 = T44 同型坑，直接预置防）——冒烟断言必须含「与视口/祖先的绝对关系」（如 `width == vw`、块横跨满宽），不得只用三页互等。
-  - **数据源**: `repo traffic`（GitHub 触达观测，09-16 Retro 遗留项）→ 拆子卡时引用。
-  - 指派: Dev + Reviewer
-  - 来源: 09-13 KIV T-K1 → 09-20 CEO 提前立项
-  - 时间: 09-20 创建
-
-## 📋 To Do
-
 - [ ] **T-K1: 移动端适配** — **已提前立项 → T47（CEO 拍板 09-20 00:05）**；本条保留历史锚（原判据「等公开分享移动占比」已在 T47 卡内由 repo traffic 数据源承接）
 
 ## 📭 Backlog（上 = 优先）
@@ -34,6 +24,13 @@
 - [x] ~~[P2] raw 点渲染性能压测 — A1 遗留：RAW_POINT_CAP=20000 整量渲染 1.5 万+ CircleMarker 潜在卡顿~~ **(09-14→09-16 完成)** — T37 真实 15k 窗口压测放行：无卡顿无需降 cap；报告 DATA-FINDINGS §10
 
 ## ✅ Done
+
+- [x] ~~T47: 移动端适配立项（盘查 + 数据源采集 + 子卡拆分）~~ (09-21→09-21) [P1] — 先侦察不急于写全：① `scripts/mobile-audit.mjs` 新建（Playwright 390px 视口全路由盘查：overflowX / 页面几何 / 字体 / 触摸目标 / 侧栏 / 地图容器），产出 `docs/records/mobile-audit/2026-09-21.md`；② `scripts/repo-traffic.mjs` 新建（GitHub API traffic 采集），产出 `docs/records/repo-traffic/2026-09-21.md`；③ `docs/T47-SUBTASKS.md` 拆分子卡方案（3 个子卡 P1/P2/P3 排序）。**盘查结论**：布局层面已就绪（T24 断点覆盖充分），唯一 P1 问题 = 触摸目标尺寸不足（6 nav-link 29px < 44px + Settings 页 2 按钮 < 44px）；无 overflowX / 布局错位 / 字体过小。子卡：T47.1 触摸目标修复（L1，CSS 3 行）→ T47.2 脚本入库 → T47.3 PRD 入册。**A17 绝对锚点**：所有断言含与视口/祖先的绝对关系（min-height >= 44px、overflowX == 0px、|center - vpCenter| <= 1px）。**255 tests + 4 skip / lint 0 error / build 全绿**。**标准项: N/A（无新增运行时面，smoke 覆盖存量）**。
+   - 档位: L2（盘查 + 脚本 + 方案）
+   - 冒烟: 通用（lint + test + build）——无新增运行时面
+   - 指派: Dev
+   - 来源: 09-13 KIV T-K1 → 09-20 CEO 提前立项
+   - 时间: 09-20 创建 → 09-21 Done
 
 - [x] ~~T46: 内容页水平居中修复——merge/help/settings 根容器缺 `margin: 0 auto`~~ (09-19→09-19) [P1] — 用户实测「merge, guide, settings content 没有在中间」。根因：`.page-help`/`.settings-page`/`.merge-page` 均 `max-width: 780px` 但无 `margin: 0 auto` → `.page` 普通 block 在 `.app-main`（可用宽 1060px）内左对齐、右侧空 ~280px；Landing 子块全带 margin auto 故居中，仅三个内容页偏左。**T44 只断言互等未断言居中**（两页同偏左故 PASS）——T45 D-1「布局核对」首次实战。修复：index.css 三处各加 `margin: 0 auto`。脚本 `smoke-merge-layout.mjs` 断言升级：三页（merge/settings/help）几何互等 + 每页水平居中 `|center−viewportCenter|≤1` + **每页 overflowX 强制项**（Reviewer 建议 3）。**验证全绿**：lint ✓ / **250 tests + 4 skip** / build ✓；smoke **22/22 PASS exit 0**——desktop left **190→330**、center 720==720 真居中；mobile left 20、center 195==195；0 pageerror（1 已知 CSP 噪音）/ overflowX 0px×6 / 零残留。截图 4 张 `docs/screenshots/center-*-t46.png`。**Reviewer PASS**（0 致命/0 严重/2 一般/1 建议，全消费：shot-t46.mjs 泄漏 vite pid 44636 已 taskkill、NOTES 措辞收窄、next 指针→T47、overflowX 逐页化）；NOTES L1574-1582。
    - 档位: L1（CSS 3 行 + 脚本断言扩展）

@@ -1,1292 +1,1292 @@
-# Notes
+﻿# Notes
 
-> 开发日志（追加式）。格式：`## YYYY-MM-DD HH:mm — 角色` + 内容。
+> å¼€å‘æ—¥å¿—ï¼ˆè¿½åŠ å¼ï¼‰ã€‚æ ¼å¼ï¼š`## YYYY-MM-DD HH:mm â€” è§’è‰²` + å†…å®¹ã€‚
 
-## 2026-09-15 22:37 — Dev T33 B5 方案A 实现（experiment/b5-livedata-overlap）
+## 2026-09-15 22:37 â€” Dev T33 B5 æ–¹æ¡ˆA å®žçŽ°ï¼ˆexperiment/b5-livedata-overlapï¼‰
 
-**目标**：by-activity 行程链只基于 activity-keyed 段（方案 A），过滤 timelinePath-only 孤儿 trace，三角归零；时间轴模式硬边界不碰。
+**ç›®æ ‡**ï¼šby-activity è¡Œç¨‹é“¾åªåŸºäºŽ activity-keyed æ®µï¼ˆæ–¹æ¡ˆ Aï¼‰ï¼Œè¿‡æ»¤ timelinePath-only å­¤å„¿ traceï¼Œä¸‰è§’å½’é›¶ï¼›æ—¶é—´è½´æ¨¡å¼ç¡¬è¾¹ç•Œä¸ç¢°ã€‚
 
-**方案（已实施）**：
+**æ–¹æ¡ˆï¼ˆå·²å®žæ–½ï¼‰**ï¼š
 
-1. **解析层标记（types.ts + parse/common.ts addSegment）**：`Segment` 新增 `hasActivitySemantics?: boolean`；addSegment 从原始 record 形状判据——`activityRec !== null || activityType 字段存在 || start/end 位置存在`——设置标记。孤儿 trace 的精确定义：有 `timelinePath` 键但无 activity 包装、无 activityType 字段、无 start/end 位置（纯 2h GPS ambient 巡逻窗口）。
-   - 为什么在解析层：判据「有 activity 键 vs 只有 timelinePath 键」是原始 record 形状信息，flatten 后丢失（activityType 只是代理，可能漏标）。
-   - livedata 全量扫描：activity 26,843（100% 带 type）、trace 25,655、activityWithTrace=0（Google 是干净时间分区）。
-   - bug 修复：`start !== undefined` → `start !== null`（getLatLng 返回 null 不是 undefined）。
+1. **è§£æžå±‚æ ‡è®°ï¼ˆtypes.ts + parse/common.ts addSegmentï¼‰**ï¼š`Segment` æ–°å¢ž `hasActivitySemantics?: boolean`ï¼›addSegment ä»ŽåŽŸå§‹ record å½¢çŠ¶åˆ¤æ®â€”â€”`activityRec !== null || activityType å­—æ®µå­˜åœ¨ || start/end ä½ç½®å­˜åœ¨`â€”â€”è®¾ç½®æ ‡è®°ã€‚å­¤å„¿ trace çš„ç²¾ç¡®å®šä¹‰ï¼šæœ‰ `timelinePath` é”®ä½†æ—  activity åŒ…è£…ã€æ—  activityType å­—æ®µã€æ—  start/end ä½ç½®ï¼ˆçº¯ 2h GPS ambient å·¡é€»çª—å£ï¼‰ã€‚
+   - ä¸ºä»€ä¹ˆåœ¨è§£æžå±‚ï¼šåˆ¤æ®ã€Œæœ‰ activity é”® vs åªæœ‰ timelinePath é”®ã€æ˜¯åŽŸå§‹ record å½¢çŠ¶ä¿¡æ¯ï¼Œflatten åŽä¸¢å¤±ï¼ˆactivityType åªæ˜¯ä»£ç†ï¼Œå¯èƒ½æ¼æ ‡ï¼‰ã€‚
+   - livedata å…¨é‡æ‰«æï¼šactivity 26,843ï¼ˆ100% å¸¦ typeï¼‰ã€trace 25,655ã€activityWithTrace=0ï¼ˆGoogle æ˜¯å¹²å‡€æ—¶é—´åˆ†åŒºï¼‰ã€‚
+   - bug ä¿®å¤ï¼š`start !== undefined` â†’ `start !== null`ï¼ˆgetLatLng è¿”å›ž null ä¸æ˜¯ undefinedï¼‰ã€‚
 
-2. **buildTripChain 过滤（tripChain.ts）**：新增 `isActivityMovement(s) = s.hasActivitySemantics !== false`（undefined 按"有语义"处理，向后兼容旧测试手写 segment）；构建 events 时跳过 `hasActivitySemantics === false` 的段，**保留原数组索引**，ChainMovement.segmentIndex / TripMap 高亮 / onSelectSegment 契约不变。
-   - 唯一产品调用点：TripsPage.tsx:230（`mode === 'activityType'` 时）。
-   - ⚠️ prepareTrips.segments（被 map 渲染/bridges/legend/bounds/summary 共用）完全不动；segmentIndex 索引 contract 不变。
+2. **buildTripChain è¿‡æ»¤ï¼ˆtripChain.tsï¼‰**ï¼šæ–°å¢ž `isActivityMovement(s) = s.hasActivitySemantics !== false`ï¼ˆundefined æŒ‰"æœ‰è¯­ä¹‰"å¤„ç†ï¼Œå‘åŽå…¼å®¹æ—§æµ‹è¯•æ‰‹å†™ segmentï¼‰ï¼›æž„å»º events æ—¶è·³è¿‡ `hasActivitySemantics === false` çš„æ®µï¼Œ**ä¿ç•™åŽŸæ•°ç»„ç´¢å¼•**ï¼ŒChainMovement.segmentIndex / TripMap é«˜äº® / onSelectSegment å¥‘çº¦ä¸å˜ã€‚
+   - å”¯ä¸€äº§å“è°ƒç”¨ç‚¹ï¼šTripsPage.tsx:230ï¼ˆ`mode === 'activityType'` æ—¶ï¼‰ã€‚
+   - âš ï¸ prepareTrips.segmentsï¼ˆè¢« map æ¸²æŸ“/bridges/legend/bounds/summary å…±ç”¨ï¼‰å®Œå…¨ä¸åŠ¨ï¼›segmentIndex ç´¢å¼• contract ä¸å˜ã€‚
 
-**对比报告（scripts/out/chain-compare-*.txt）**：
+**å¯¹æ¯”æŠ¥å‘Šï¼ˆscripts/out/chain-compare-*.txtï¼‰**ï¼š
 
-| 指标 | main 2025 | branch 2025 | delta | main 2026 | branch 2026 | delta |
+| æŒ‡æ ‡ | main 2025 | branch 2025 | delta | main 2026 | branch 2026 | delta |
 |---|---|---|---|---|---|---|
 | chain edges | 42,082 | 26,027 | **-38.2%** | 48,284 | 29,875 | **-38.1%** |
-| triangles | 12,037 | **0** | ✅ 归零 | 15,517 | **0** | ✅ 归零 |
+| triangles | 12,037 | **0** | âœ… å½’é›¶ | 15,517 | **0** | âœ… å½’é›¶ |
 | isolated visits | 0 (0%) | 0 (0%) | +0 | 0 (0%) | 0 (0%) | +0 |
 | median chain duration | 50.4 min | **15.0 min** | -70% | 47.8 min | **14.8 min** | -69% |
-| ≈2h bucket | 19,891 | 75 | -99.6% | 22,701 | 75 | -99.7% |
+| â‰ˆ2h bucket | 19,891 | 75 | -99.6% | 22,701 | 75 | -99.7% |
 
-- 预估孤立 visit +4,655/+7,412（RESEARCH-B5 §5）**偏保守**；实测每条 visit 至少有一条 activity movement 邻居，0 isolated。
-- ≈2h 桶残余 75 条为有 activityType 的 ~2h activity movement（真实长途出行），非 trace。
+- é¢„ä¼°å­¤ç«‹ visit +4,655/+7,412ï¼ˆRESEARCH-B5 Â§5ï¼‰**åä¿å®ˆ**ï¼›å®žæµ‹æ¯æ¡ visit è‡³å°‘æœ‰ä¸€æ¡ activity movement é‚»å±…ï¼Œ0 isolatedã€‚
+- â‰ˆ2h æ¡¶æ®‹ä½™ 75 æ¡ä¸ºæœ‰ activityType çš„ ~2h activity movementï¼ˆçœŸå®žé•¿é€”å‡ºè¡Œï¼‰ï¼Œéž traceã€‚
 
-**测试**：216 passed（15 档）；tsc -b ✓；eslint ✓；`npm run build` ✓（chunk-size warning 既有）。
+**æµ‹è¯•**ï¼š216 passedï¼ˆ15 æ¡£ï¼‰ï¼›tsc -b âœ“ï¼›eslint âœ“ï¼›`npm run build` âœ“ï¼ˆchunk-size warning æ—¢æœ‰ï¼‰ã€‚
 
-**改动文件（本任务）**：
-- `src/src/lib/types.ts`：Segment 加 `hasActivitySemantics?: boolean` 字段 + JSDoc。
-- `src/src/lib/parse/common.ts`：addSegment 设置 `hasActivitySemantics`（含 start!==null 修正）。
-- `src/src/lib/tripChain.ts`：`isActivityMovement` 导出谓词 + buildTripChain events 过滤 + 文件头注释更新。
-- `src/src/lib/tripChain.test.ts`：新增 `trace()` helper、`isActivityMovement` 单测、三角过滤/混合索引/legacy undefined 行为 5 个用例。
-- `src/src/lib/parse/parse.test.ts`：FIXTURE_DEVICE_EXPORT_2026 activity→true、trace→false 断言；FIXTURE_TIMELINE_DIRECT_ARRAY → true 断言。
-- `scripts/compare-chain-main-vs-branch.mjs`：新建对比脚本（镜像 buildTripChain 配对逻辑，独立 Node ESM）。
-- `scripts/out/chain-compare-*.txt`：两份 livedata 的 main vs branch 对比报告。
+**æ”¹åŠ¨æ–‡ä»¶ï¼ˆæœ¬ä»»åŠ¡ï¼‰**ï¼š
+- `src/src/lib/types.ts`ï¼šSegment åŠ  `hasActivitySemantics?: boolean` å­—æ®µ + JSDocã€‚
+- `src/src/lib/parse/common.ts`ï¼šaddSegment è®¾ç½® `hasActivitySemantics`ï¼ˆå« start!==null ä¿®æ­£ï¼‰ã€‚
+- `src/src/lib/tripChain.ts`ï¼š`isActivityMovement` å¯¼å‡ºè°“è¯ + buildTripChain events è¿‡æ»¤ + æ–‡ä»¶å¤´æ³¨é‡Šæ›´æ–°ã€‚
+- `src/src/lib/tripChain.test.ts`ï¼šæ–°å¢ž `trace()` helperã€`isActivityMovement` å•æµ‹ã€ä¸‰è§’è¿‡æ»¤/æ··åˆç´¢å¼•/legacy undefined è¡Œä¸º 5 ä¸ªç”¨ä¾‹ã€‚
+- `src/src/lib/parse/parse.test.ts`ï¼šFIXTURE_DEVICE_EXPORT_2026 activityâ†’trueã€traceâ†’false æ–­è¨€ï¼›FIXTURE_TIMELINE_DIRECT_ARRAY â†’ true æ–­è¨€ã€‚
+- `scripts/compare-chain-main-vs-branch.mjs`ï¼šæ–°å»ºå¯¹æ¯”è„šæœ¬ï¼ˆé•œåƒ buildTripChain é…å¯¹é€»è¾‘ï¼Œç‹¬ç«‹ Node ESMï¼‰ã€‚
+- `scripts/out/chain-compare-*.txt`ï¼šä¸¤ä»½ livedata çš„ main vs branch å¯¹æ¯”æŠ¥å‘Šã€‚
 
-**未动**：时间轴路径（prepareTimeline / timeline render）、livedata 文件（只读 gitignored）、`docs/RESEARCH-B5.md`、`docs/TASKS.md`（CEO 的 T33 卡片/B5 报告，未提交改动随分支带入）。
+**æœªåŠ¨**ï¼šæ—¶é—´è½´è·¯å¾„ï¼ˆprepareTimeline / timeline renderï¼‰ã€livedata æ–‡ä»¶ï¼ˆåªè¯» gitignoredï¼‰ã€`docs/RESEARCH-B5.md`ã€`docs/TASKS.md`ï¼ˆCEO çš„ T33 å¡ç‰‡/B5 æŠ¥å‘Šï¼Œæœªæäº¤æ”¹åŠ¨éšåˆ†æ”¯å¸¦å…¥ï¼‰ã€‚
 
-**by activity 观感判断**：过滤后链边数降 38%，三角归零，中位时长从 50min 降到 15min——链更真实，假移动清除干净。孤立 visit 为 0 说明 activity-keyed 段完整覆盖了所有真实移动，无连接性损失。
+**by activity è§‚æ„Ÿåˆ¤æ–­**ï¼šè¿‡æ»¤åŽé“¾è¾¹æ•°é™ 38%ï¼Œä¸‰è§’å½’é›¶ï¼Œä¸­ä½æ—¶é•¿ä»Ž 50min é™åˆ° 15minâ€”â€”é“¾æ›´çœŸå®žï¼Œå‡ç§»åŠ¨æ¸…é™¤å¹²å‡€ã€‚å­¤ç«‹ visit ä¸º 0 è¯´æ˜Ž activity-keyed æ®µå®Œæ•´è¦†ç›–äº†æ‰€æœ‰çœŸå®žç§»åŠ¨ï¼Œæ— è¿žæŽ¥æ€§æŸå¤±ã€‚
 
-**未 commit、未 push。分支 `experiment/b5-livedata-overlap`**。
+**æœª commitã€æœª pushã€‚åˆ†æ”¯ `experiment/b5-livedata-overlap`**ã€‚
 
-## 2026-09-15 21:31 — Dev T32 收尾（Reviewer PASS）
+## 2026-09-15 21:31 â€” Dev T32 æ”¶å°¾ï¼ˆReviewer PASSï¼‰
 
-**Reviewer 判定**：PASS（N1 建议级可并入收尾）。
+**Reviewer åˆ¤å®š**ï¼šPASSï¼ˆN1 å»ºè®®çº§å¯å¹¶å…¥æ”¶å°¾ï¼‰ã€‚
 
-**收尾项**：
-- **N1 已补**：`DATA-FINDINGS.md` §9.4 末尾补 completeness 量化对比——visits（30,682 / 37,287）显著多于 activity-keyed chain movements（26,027 / 29,875），部分 visit 可能仅通过 timelinePath trace 与其他段连接；过滤 traces 时这些 visit 将缺失 incoming/outgoing。
-- **N2 格式统一（一般，可选）**：核查 `scripts/out/` 三份报告——所有小数已是句点（`29.9 min`/`46.6 min`/`10.8 min`），无逗号小数残留；**无须改动**（报告中的逗号均为千分位）。
-- **N3 已知边界（不修）**：path-less 且跨午夜的段仍以未裁 `[start,end]` fallback 绘制，属既有固有限制（见 `DATA-FINDINGS §8.5`），本轮不涉及。
-- **TASKS 同步**：T32 Doing → Done（09-15 完成）；Backlog B5 注记「侦察完成：visit/activity 0 重叠，三角现象源于 timelinePath traces（23%），待用户拍板是否开实验分支」；next 指针保持 T33。
-- **Commit**：`fd1cffa`（本收尾 commit；仅 scripts/analyze-visit-activity-overlap.mjs + scripts/out/ + docs/DATA-FINDINGS.md + docs/NOTES.md + docs/TASKS.md + docs/TASKS.yaml；livedata gitignored，src/ 零改动）。注：hash 为自引用，若后续 amend 改变则以 git log 实际头为准。
+**æ”¶å°¾é¡¹**ï¼š
+- **N1 å·²è¡¥**ï¼š`DATA-FINDINGS.md` Â§9.4 æœ«å°¾è¡¥ completeness é‡åŒ–å¯¹æ¯”â€”â€”visitsï¼ˆ30,682 / 37,287ï¼‰æ˜¾è‘—å¤šäºŽ activity-keyed chain movementsï¼ˆ26,027 / 29,875ï¼‰ï¼Œéƒ¨åˆ† visit å¯èƒ½ä»…é€šè¿‡ timelinePath trace ä¸Žå…¶ä»–æ®µè¿žæŽ¥ï¼›è¿‡æ»¤ traces æ—¶è¿™äº› visit å°†ç¼ºå¤± incoming/outgoingã€‚
+- **N2 æ ¼å¼ç»Ÿä¸€ï¼ˆä¸€èˆ¬ï¼Œå¯é€‰ï¼‰**ï¼šæ ¸æŸ¥ `scripts/out/` ä¸‰ä»½æŠ¥å‘Šâ€”â€”æ‰€æœ‰å°æ•°å·²æ˜¯å¥ç‚¹ï¼ˆ`29.9 min`/`46.6 min`/`10.8 min`ï¼‰ï¼Œæ— é€—å·å°æ•°æ®‹ç•™ï¼›**æ— é¡»æ”¹åŠ¨**ï¼ˆæŠ¥å‘Šä¸­çš„é€—å·å‡ä¸ºåƒåˆ†ä½ï¼‰ã€‚
+- **N3 å·²çŸ¥è¾¹ç•Œï¼ˆä¸ä¿®ï¼‰**ï¼špath-less ä¸”è·¨åˆå¤œçš„æ®µä»ä»¥æœªè£ `[start,end]` fallback ç»˜åˆ¶ï¼Œå±žæ—¢æœ‰å›ºæœ‰é™åˆ¶ï¼ˆè§ `DATA-FINDINGS Â§8.5`ï¼‰ï¼Œæœ¬è½®ä¸æ¶‰åŠã€‚
+- **TASKS åŒæ­¥**ï¼šT32 Doing â†’ Doneï¼ˆ09-15 å®Œæˆï¼‰ï¼›Backlog B5 æ³¨è®°ã€Œä¾¦å¯Ÿå®Œæˆï¼švisit/activity 0 é‡å ï¼Œä¸‰è§’çŽ°è±¡æºäºŽ timelinePath tracesï¼ˆ23%ï¼‰ï¼Œå¾…ç”¨æˆ·æ‹æ¿æ˜¯å¦å¼€å®žéªŒåˆ†æ”¯ã€ï¼›next æŒ‡é’ˆä¿æŒ T33ã€‚
+- **Commit**ï¼š`fd1cffa`ï¼ˆæœ¬æ”¶å°¾ commitï¼›ä»… scripts/analyze-visit-activity-overlap.mjs + scripts/out/ + docs/DATA-FINDINGS.md + docs/NOTES.md + docs/TASKS.md + docs/TASKS.yamlï¼›livedata gitignoredï¼Œsrc/ é›¶æ”¹åŠ¨ï¼‰ã€‚æ³¨ï¼šhash ä¸ºè‡ªå¼•ç”¨ï¼Œè‹¥åŽç»­ amend æ”¹å˜åˆ™ä»¥ git log å®žé™…å¤´ä¸ºå‡†ã€‚
 
-**T32 结论一句话**：visit/activity-keyed 是干净时间分区（0 重叠），T29 三角全部来自 timelinePath traces（~23% chain movements），是否开 experiment 分支交用户拍板。
+**T32 ç»“è®ºä¸€å¥è¯**ï¼švisit/activity-keyed æ˜¯å¹²å‡€æ—¶é—´åˆ†åŒºï¼ˆ0 é‡å ï¼‰ï¼ŒT29 ä¸‰è§’å…¨éƒ¨æ¥è‡ª timelinePath tracesï¼ˆ~23% chain movementsï¼‰ï¼Œæ˜¯å¦å¼€ experiment åˆ†æ”¯äº¤ç”¨æˆ·æ‹æ¿ã€‚
 
-## 2026-09-15 21:30 — Dev T32 B5 侦察：livedata visit/activity 重叠形态量化
+## 2026-09-15 21:30 â€” Dev T32 B5 ä¾¦å¯Ÿï¼šlivedata visit/activity é‡å å½¢æ€é‡åŒ–
 
-**目标**：量化 livedata（2025/2026 两份文件）中 visit 段与 activity 段的时间重叠形态，为 T29 行程链在重叠形态下的正确性提供依据。
+**ç›®æ ‡**ï¼šé‡åŒ– livedataï¼ˆ2025/2026 ä¸¤ä»½æ–‡ä»¶ï¼‰ä¸­ visit æ®µä¸Ž activity æ®µçš„æ—¶é—´é‡å å½¢æ€ï¼Œä¸º T29 è¡Œç¨‹é“¾åœ¨é‡å å½¢æ€ä¸‹çš„æ­£ç¡®æ€§æä¾›ä¾æ®ã€‚
 
-**脚本**：`scripts/analyze-visit-activity-overlap.mjs`（Node ESM，独立，~3.7s/文件），O(V log S + k) 扫描，T29 配对模拟（事件排序 + 前后扫描，与 `lib/tripChain.ts` 逻辑一致）。报告输出至 `scripts/out/overlap-report-{20250213,20260820}.txt`。
+**è„šæœ¬**ï¼š`scripts/analyze-visit-activity-overlap.mjs`ï¼ˆNode ESMï¼Œç‹¬ç«‹ï¼Œ~3.7s/æ–‡ä»¶ï¼‰ï¼ŒO(V log S + k) æ‰«æï¼ŒT29 é…å¯¹æ¨¡æ‹Ÿï¼ˆäº‹ä»¶æŽ’åº + å‰åŽæ‰«æï¼Œä¸Ž `lib/tripChain.ts` é€»è¾‘ä¸€è‡´ï¼‰ã€‚æŠ¥å‘Šè¾“å‡ºè‡³ `scripts/out/overlap-report-{20250213,20260820}.txt`ã€‚
 
-**核心发现 — 两层结果**：
+**æ ¸å¿ƒå‘çŽ° â€” ä¸¤å±‚ç»“æžœ**ï¼š
 
-### [1] 任务字面定义：visit ↔ activity-keyed segments
+### [1] ä»»åŠ¡å­—é¢å®šä¹‰ï¼švisit â†” activity-keyed segments
 
-**零重叠**。两份文件中，visit（停留）和 activity（出行）段形成**干净的时间分区**——Google 不产生 visit 和 activity 重叠。T29 的纯前后假设在此配对下 100% 正确。
+**é›¶é‡å **ã€‚ä¸¤ä»½æ–‡ä»¶ä¸­ï¼Œvisitï¼ˆåœç•™ï¼‰å’Œ activityï¼ˆå‡ºè¡Œï¼‰æ®µå½¢æˆ**å¹²å‡€çš„æ—¶é—´åˆ†åŒº**â€”â€”Google ä¸äº§ç”Ÿ visit å’Œ activity é‡å ã€‚T29 çš„çº¯å‰åŽå‡è®¾åœ¨æ­¤é…å¯¹ä¸‹ 100% æ­£ç¡®ã€‚
 
-| 文件 | visits | activity-segments | 重叠对 |
+| æ–‡ä»¶ | visits | activity-segments | é‡å å¯¹ |
 |---|---|---|---|
 | 2025 | 30,682 | 26,843 | **0** |
 | 2026 | 37,287 | 30,702 | **0** |
 
-### [2] T29 实际输入：visit ↔ ALL segments（含 timelinePath-only traces）
+### [2] T29 å®žé™…è¾“å…¥ï¼švisit â†” ALL segmentsï¼ˆå« timelinePath-only tracesï¼‰
 
-`parse/common.ts` 的 `addSegment` 把 `timelinePath`-only 记录（2h GPS 轨迹窗口）也当作 `Segment` 推入 `state.segments`，因此 `prepareTrips` 传给 `buildTripChain` 的 `segments` 包含两类：activity-keyed + timelinePath traces。**重叠全部来自 trace 段**。
-
-| | 2025 | 2026 |
-|---|---|---|
-| segment 总数 | 52,498 | 60,073 |
-| 其中 activity-keyed | 26,843 | 30,702 |
-| 其中 timelinePath-only trace | 25,655 | 29,371 |
-| 重叠对 | **35,349** | **43,092** |
-| 形态 A（trace ⊇ visit） | 8,579 | 10,988 |
-| 形态 B（visit ⊇ trace） | 4,581 | 5,519 |
-| 形态 C（head overlap） | 6,985 | 8,657 |
-| 形态 D（tail overlap） | 15,204 | 17,928 |
-| 中位重叠 | 46.6 min | 45.3 min |
-| 最大重叠 | 120 min | 120 min |
-| broad b2b（trace 重叠 ≥2 visits） | 6,931 / 11,174 pairs | 9,208 / 15,194 pairs |
-
-### T29 三角（back-to-back）实例
-
-模拟 T29 配对：一个 segment 同时作为 V1 的 outgoing 和 V2 的 incoming，且时间上与两者都重叠。
+`parse/common.ts` çš„ `addSegment` æŠŠ `timelinePath`-only è®°å½•ï¼ˆ2h GPS è½¨è¿¹çª—å£ï¼‰ä¹Ÿå½“ä½œ `Segment` æŽ¨å…¥ `state.segments`ï¼Œå› æ­¤ `prepareTrips` ä¼ ç»™ `buildTripChain` çš„ `segments` åŒ…å«ä¸¤ç±»ï¼šactivity-keyed + timelinePath tracesã€‚**é‡å å…¨éƒ¨æ¥è‡ª trace æ®µ**ã€‚
 
 | | 2025 | 2026 |
 |---|---|---|
-| 三角 segment 数 | **9,558** | **11,117** |
-| 三角 visit-pair 数 | 12,037 | 15,517 |
-| 占全部 chain movement 比例 | ~23% | ~23% |
-| 三角中位重叠 | 11.9 min | 10.8 min |
+| segment æ€»æ•° | 52,498 | 60,073 |
+| å…¶ä¸­ activity-keyed | 26,843 | 30,702 |
+| å…¶ä¸­ timelinePath-only trace | 25,655 | 29,371 |
+| é‡å å¯¹ | **35,349** | **43,092** |
+| å½¢æ€ Aï¼ˆtrace âŠ‡ visitï¼‰ | 8,579 | 10,988 |
+| å½¢æ€ Bï¼ˆvisit âŠ‡ traceï¼‰ | 4,581 | 5,519 |
+| å½¢æ€ Cï¼ˆhead overlapï¼‰ | 6,985 | 8,657 |
+| å½¢æ€ Dï¼ˆtail overlapï¼‰ | 15,204 | 17,928 |
+| ä¸­ä½é‡å  | 46.6 min | 45.3 min |
+| æœ€å¤§é‡å  | 120 min | 120 min |
+| broad b2bï¼ˆtrace é‡å  â‰¥2 visitsï¼‰ | 6,931 / 11,174 pairs | 9,208 / 15,194 pairs |
 
-**样本摘要（两文件共享同一条数据）**：
+### T29 ä¸‰è§’ï¼ˆback-to-backï¼‰å®žä¾‹
+
+æ¨¡æ‹Ÿ T29 é…å¯¹ï¼šä¸€ä¸ª segment åŒæ—¶ä½œä¸º V1 çš„ outgoing å’Œ V2 çš„ incomingï¼Œä¸”æ—¶é—´ä¸Šä¸Žä¸¤è€…éƒ½é‡å ã€‚
+
+| | 2025 | 2026 |
+|---|---|---|
+| ä¸‰è§’ segment æ•° | **9,558** | **11,117** |
+| ä¸‰è§’ visit-pair æ•° | 12,037 | 15,517 |
+| å å…¨éƒ¨ chain movement æ¯”ä¾‹ | ~23% | ~23% |
+| ä¸‰è§’ä¸­ä½é‡å  | 11.9 min | 10.8 min |
+
+**æ ·æœ¬æ‘˜è¦ï¼ˆä¸¤æ–‡ä»¶å…±äº«åŒä¸€æ¡æ•°æ®ï¼‰**ï¼š
 ```
-seg=timelinePath-trace  2017-12-16 02:00:00 → 04:00:00  (5.96923, 116.06471)
-  fromVisit  00:50:59 → 06:40:49  overlap 120min
-  toVisit    01:49:41 → 04:36:21  overlap 120min
+seg=timelinePath-trace  2017-12-16 02:00:00 â†’ 04:00:00  (5.96923, 116.06471)
+  fromVisit  00:50:59 â†’ 06:40:49  overlap 120min
+  toVisit    01:49:41 â†’ 04:36:21  overlap 120min
 ```
-→ 一个 2h GPS trace 窗口同时与两个长停留（~6h、~3h）重叠，T29 把它配成 V1→trace→V2 的链，trace 的 duration/distance 为整 2h 窗口而非真实旅途。
+â†’ ä¸€ä¸ª 2h GPS trace çª—å£åŒæ—¶ä¸Žä¸¤ä¸ªé•¿åœç•™ï¼ˆ~6hã€~3hï¼‰é‡å ï¼ŒT29 æŠŠå®ƒé…æˆ V1â†’traceâ†’V2 çš„é“¾ï¼Œtrace çš„ duration/distance ä¸ºæ•´ 2h çª—å£è€ŒéžçœŸå®žæ—…é€”ã€‚
 
-97%+ 三角实例发生在**时间范围不同的 distinct visits**（非同时间重复记录），现象真实存在。
+97%+ ä¸‰è§’å®žä¾‹å‘ç”Ÿåœ¨**æ—¶é—´èŒƒå›´ä¸åŒçš„ distinct visits**ï¼ˆéžåŒæ—¶é—´é‡å¤è®°å½•ï¼‰ï¼ŒçŽ°è±¡çœŸå®žå­˜åœ¨ã€‚
 
-### 领域结论
+### é¢†åŸŸç»“è®º
 
-1. **activity-keyed segments 与 visits 之间无重叠**：Google 将 timeline 划分为干净的 visit/activity 分区，T29 的「取最近前驱/后继」在 activity 配对层面完全正确。
+1. **activity-keyed segments ä¸Ž visits ä¹‹é—´æ— é‡å **ï¼šGoogle å°† timeline åˆ’åˆ†ä¸ºå¹²å‡€çš„ visit/activity åˆ†åŒºï¼ŒT29 çš„ã€Œå–æœ€è¿‘å‰é©±/åŽç»§ã€åœ¨ activity é…å¯¹å±‚é¢å®Œå…¨æ­£ç¡®ã€‚
 
-2. **timelinePath traces 是重叠的唯一来源**：它们是 2h GPS 轨迹窗口，物理上跨越该时段内的 visits（手机在停留期间也记录 ambient GPS）。
+2. **timelinePath traces æ˜¯é‡å çš„å”¯ä¸€æ¥æº**ï¼šå®ƒä»¬æ˜¯ 2h GPS è½¨è¿¹çª—å£ï¼Œç‰©ç†ä¸Šè·¨è¶Šè¯¥æ—¶æ®µå†…çš„ visitsï¼ˆæ‰‹æœºåœ¨åœç•™æœŸé—´ä¹Ÿè®°å½• ambient GPSï¼‰ã€‚
 
-3. **T29 的三角问题**：约 23% 的 chain movements 实际是 2h trace 窗口而非真实旅途。在行程链 UI 中，这些 movements 显示 2h duration 和整条 trace path，可能误导用户。但实际上，chain movements 的**时长**标签是 trace 窗口的 span，而 **activityType**（transport mode）缺失（trace 无 activity type），显示为默认「移动」。
+3. **T29 çš„ä¸‰è§’é—®é¢˜**ï¼šçº¦ 23% çš„ chain movements å®žé™…æ˜¯ 2h trace çª—å£è€ŒéžçœŸå®žæ—…é€”ã€‚åœ¨è¡Œç¨‹é“¾ UI ä¸­ï¼Œè¿™äº› movements æ˜¾ç¤º 2h duration å’Œæ•´æ¡ trace pathï¼Œå¯èƒ½è¯¯å¯¼ç”¨æˆ·ã€‚ä½†å®žé™…ä¸Šï¼Œchain movements çš„**æ—¶é•¿**æ ‡ç­¾æ˜¯ trace çª—å£çš„ spanï¼Œè€Œ **activityType**ï¼ˆtransport modeï¼‰ç¼ºå¤±ï¼ˆtrace æ—  activity typeï¼‰ï¼Œæ˜¾ç¤ºä¸ºé»˜è®¤ã€Œç§»åŠ¨ã€ã€‚
 
-4. **实际影响评估**：从三角样本看，涉及的 visits 多为长时间停留（数小时），trace 覆盖了整个停留期。用户不太可能注意到这些「移动」行的 duration 不准确，因为这些停留本身是"在家"或"在公司"等长停留，trace 是 ambient GPS 而非真正的移动轨迹。
+4. **å®žé™…å½±å“è¯„ä¼°**ï¼šä»Žä¸‰è§’æ ·æœ¬çœ‹ï¼Œæ¶‰åŠçš„ visits å¤šä¸ºé•¿æ—¶é—´åœç•™ï¼ˆæ•°å°æ—¶ï¼‰ï¼Œtrace è¦†ç›–äº†æ•´ä¸ªåœç•™æœŸã€‚ç”¨æˆ·ä¸å¤ªå¯èƒ½æ³¨æ„åˆ°è¿™äº›ã€Œç§»åŠ¨ã€è¡Œçš„ duration ä¸å‡†ç¡®ï¼Œå› ä¸ºè¿™äº›åœç•™æœ¬èº«æ˜¯"åœ¨å®¶"æˆ–"åœ¨å…¬å¸"ç­‰é•¿åœç•™ï¼Œtrace æ˜¯ ambient GPS è€ŒéžçœŸæ­£çš„ç§»åŠ¨è½¨è¿¹ã€‚
 
-**对是否开 experiment/b5-livedata-overlap 分支的建议**：现象规模大（23%）但实际用户影响中等——多数三角涉及的是 ambient trace（ambient GPS during long stays），而非真实移动数据的错乱。**建议开分支做轻量实验**：在 buildTripChain 的 segment 输入中过滤掉无 activityType 的 timelinePath-only traces（只保留 activity-keyed segments 作为 chain candidates），实测链 UI 在 livedata 下是否更准确。如果去掉 traces 后链的 completeness 不受影响（因为 activity-keyed 覆盖了所有真实移动），则可正式合并；否则保留现状（trace 作为链 movement 仍是真实 GPS 数据，只是 duration 粒度较粗）。
+**å¯¹æ˜¯å¦å¼€ experiment/b5-livedata-overlap åˆ†æ”¯çš„å»ºè®®**ï¼šçŽ°è±¡è§„æ¨¡å¤§ï¼ˆ23%ï¼‰ä½†å®žé™…ç”¨æˆ·å½±å“ä¸­ç­‰â€”â€”å¤šæ•°ä¸‰è§’æ¶‰åŠçš„æ˜¯ ambient traceï¼ˆambient GPS during long staysï¼‰ï¼Œè€ŒéžçœŸå®žç§»åŠ¨æ•°æ®çš„é”™ä¹±ã€‚**å»ºè®®å¼€åˆ†æ”¯åšè½»é‡å®žéªŒ**ï¼šåœ¨ buildTripChain çš„ segment è¾“å…¥ä¸­è¿‡æ»¤æŽ‰æ—  activityType çš„ timelinePath-only tracesï¼ˆåªä¿ç•™ activity-keyed segments ä½œä¸º chain candidatesï¼‰ï¼Œå®žæµ‹é“¾ UI åœ¨ livedata ä¸‹æ˜¯å¦æ›´å‡†ç¡®ã€‚å¦‚æžœåŽ»æŽ‰ traces åŽé“¾çš„ completeness ä¸å—å½±å“ï¼ˆå› ä¸º activity-keyed è¦†ç›–äº†æ‰€æœ‰çœŸå®žç§»åŠ¨ï¼‰ï¼Œåˆ™å¯æ­£å¼åˆå¹¶ï¼›å¦åˆ™ä¿ç•™çŽ°çŠ¶ï¼ˆtrace ä½œä¸ºé“¾ movement ä»æ˜¯çœŸå®ž GPS æ•°æ®ï¼Œåªæ˜¯ duration ç²’åº¦è¾ƒç²—ï¼‰ã€‚
 
-**补充数据格式发现**：
-- 时间戳字段名为 `startTime`/`endTime`（非 DATA-FINDINGS §2 所述的 `startTimestamp`/`endTimestamp`）。
-- 两文件段总数差异：83,202 vs 97,382（2026 多 16% 段，来自 13+ 年累积数据量）。
-- `timelineMemory` 段仅 22 条（两文件相同），按设计忽略。
-- 存在 1,082 对 exact duplicate visit records（同 start/end 时间范围，不同 placeId 候选），占总 visits 的 ~3.5%。
+**è¡¥å……æ•°æ®æ ¼å¼å‘çŽ°**ï¼š
+- æ—¶é—´æˆ³å­—æ®µåä¸º `startTime`/`endTime`ï¼ˆéž DATA-FINDINGS Â§2 æ‰€è¿°çš„ `startTimestamp`/`endTimestamp`ï¼‰ã€‚
+- ä¸¤æ–‡ä»¶æ®µæ€»æ•°å·®å¼‚ï¼š83,202 vs 97,382ï¼ˆ2026 å¤š 16% æ®µï¼Œæ¥è‡ª 13+ å¹´ç´¯ç§¯æ•°æ®é‡ï¼‰ã€‚
+- `timelineMemory` æ®µä»… 22 æ¡ï¼ˆä¸¤æ–‡ä»¶ç›¸åŒï¼‰ï¼ŒæŒ‰è®¾è®¡å¿½ç•¥ã€‚
+- å­˜åœ¨ 1,082 å¯¹ exact duplicate visit recordsï¼ˆåŒ start/end æ—¶é—´èŒƒå›´ï¼Œä¸åŒ placeId å€™é€‰ï¼‰ï¼Œå æ€» visits çš„ ~3.5%ã€‚
 
-## 2026-09-15 20:30 — Dev T31 fallback 门槛口径统一（收尾）
+## 2026-09-15 20:30 â€” Dev T31 fallback é—¨æ§›å£å¾„ç»Ÿä¸€ï¼ˆæ”¶å°¾ï¼‰
 
-**背景**：2026-09-15 流程 retro A3——fallback 门槛在同一套语义下同时存在 `>=2` 与 `>0` 两种写法，过去两轮（T27 S3 / T22 S2）都在此踩坑回退。本次统一口径，不再改产品语义（L2）。
+**èƒŒæ™¯**ï¼š2026-09-15 æµç¨‹ retro A3â€”â€”fallback é—¨æ§›åœ¨åŒä¸€å¥—è¯­ä¹‰ä¸‹åŒæ—¶å­˜åœ¨ `>=2` ä¸Ž `>0` ä¸¤ç§å†™æ³•ï¼Œè¿‡åŽ»ä¸¤è½®ï¼ˆT27 S3 / T22 S2ï¼‰éƒ½åœ¨æ­¤è¸©å‘å›žé€€ã€‚æœ¬æ¬¡ç»Ÿä¸€å£å¾„ï¼Œä¸å†æ”¹äº§å“è¯­ä¹‰ï¼ˆL2ï¼‰ã€‚
 
-**统一了什么**：
-- **几何源选择（6 处 `>0`）**：`hasPath(segment)`（`boundsOf`/`polylineEndpoints` 两处，语义为「有 path 就以 path 为准」）或 `segmentPathOrEndpoints()`（其余 4 处，几何源选择，path 非空返回 path，否则 `[start,end]`）——裁到 1 个顶点的段不再 fallback 到未裁的 `start/end`。
-- **渲染层闸门（`>=2`）**：`hasRenderablePath()` + `MIN_PATH_LEN` 共用常量（TripMap 折线/圆点等渲染决策）。
-- **解析层**：`segmentVertices`/`parse` 的 `>=2` **保持不变**（语义独立，非渲染口径）。
-- `grep '\.path\.length [><=]'` 收敛到 `hasPath`/`hasRenderablePath`/`segmentVertices`/`parse` 四处。
+**ç»Ÿä¸€äº†ä»€ä¹ˆ**ï¼š
+- **å‡ ä½•æºé€‰æ‹©ï¼ˆ6 å¤„ `>0`ï¼‰**ï¼š`hasPath(segment)`ï¼ˆ`boundsOf`/`polylineEndpoints` ä¸¤å¤„ï¼Œè¯­ä¹‰ä¸ºã€Œæœ‰ path å°±ä»¥ path ä¸ºå‡†ã€ï¼‰æˆ– `segmentPathOrEndpoints()`ï¼ˆå…¶ä½™ 4 å¤„ï¼Œå‡ ä½•æºé€‰æ‹©ï¼Œpath éžç©ºè¿”å›ž pathï¼Œå¦åˆ™ `[start,end]`ï¼‰â€”â€”è£åˆ° 1 ä¸ªé¡¶ç‚¹çš„æ®µä¸å† fallback åˆ°æœªè£çš„ `start/end`ã€‚
+- **æ¸²æŸ“å±‚é—¸é—¨ï¼ˆ`>=2`ï¼‰**ï¼š`hasRenderablePath()` + `MIN_PATH_LEN` å…±ç”¨å¸¸é‡ï¼ˆTripMap æŠ˜çº¿/åœ†ç‚¹ç­‰æ¸²æŸ“å†³ç­–ï¼‰ã€‚
+- **è§£æžå±‚**ï¼š`segmentVertices`/`parse` çš„ `>=2` **ä¿æŒä¸å˜**ï¼ˆè¯­ä¹‰ç‹¬ç«‹ï¼Œéžæ¸²æŸ“å£å¾„ï¼‰ã€‚
+- `grep '\.path\.length [><=]'` æ”¶æ•›åˆ° `hasPath`/`hasRenderablePath`/`segmentVertices`/`parse` å››å¤„ã€‚
 
-**改动**：8 文件（+151/−33）：`TripMap.tsx` / `export.ts` / `parse/common.ts` / `stats.ts` / `tripChain.ts` / `trips.ts`（+测试）/ `TripsPage.tsx`。
+**æ”¹åŠ¨**ï¼š8 æ–‡ä»¶ï¼ˆ+151/âˆ’33ï¼‰ï¼š`TripMap.tsx` / `export.ts` / `parse/common.ts` / `stats.ts` / `tripChain.ts` / `trips.ts`ï¼ˆ+æµ‹è¯•ï¼‰/ `TripsPage.tsx`ã€‚
 
-**验证**：**211 单测**（15 档）全绿；`tsc --noEmit` / `eslint` / `build` 全绿。
+**éªŒè¯**ï¼š**211 å•æµ‹**ï¼ˆ15 æ¡£ï¼‰å…¨ç»¿ï¼›`tsc --noEmit` / `eslint` / `build` å…¨ç»¿ã€‚
 
-**Reviewer**：PASS（零遗留）。唯一 N1（TASKS/PRD 验收描述「6 处统一走 segmentPathOrEndpoints」与实现「4 处 segmentPathOrEndpoints + 2 处 hasPath」有微小出入）——本轮已同步修正 TASKS.md / TASKS.yaml / PRD v1.21 措辞，阈值口径本身完全统一。
+**Reviewer**ï¼šPASSï¼ˆé›¶é—ç•™ï¼‰ã€‚å”¯ä¸€ N1ï¼ˆTASKS/PRD éªŒæ”¶æè¿°ã€Œ6 å¤„ç»Ÿä¸€èµ° segmentPathOrEndpointsã€ä¸Žå®žçŽ°ã€Œ4 å¤„ segmentPathOrEndpoints + 2 å¤„ hasPathã€æœ‰å¾®å°å‡ºå…¥ï¼‰â€”â€”æœ¬è½®å·²åŒæ­¥ä¿®æ­£ TASKS.md / TASKS.yaml / PRD v1.21 æŽªè¾žï¼Œé˜ˆå€¼å£å¾„æœ¬èº«å®Œå…¨ç»Ÿä¸€ã€‚
 
-**收尾**：代码 + 文档已 commit；`TASKS.md`/`TASKS.yaml` T31 → Done；已 push。
+**æ”¶å°¾**ï¼šä»£ç  + æ–‡æ¡£å·² commitï¼›`TASKS.md`/`TASKS.yaml` T31 â†’ Doneï¼›å·² pushã€‚
 
-## 2026-09-15 12:10 — Dev 修正 Reviewer T29（S3/A1/A2/A3/A4/N1/N）
+## 2026-09-15 12:10 â€” Dev ä¿®æ­£ Reviewer T29ï¼ˆS3/A1/A2/A3/A4/N1/Nï¼‰
 
-**S3（行動端觸控目標回歸）**：`index.css` 的 `@media (max-width:768px)` 觸控目標清單加入 `.chain-stay, .chain-move`（`min-height: 44px`）。**390px 實測**：`.chain-move` 由 21px → **44px**；`.chain-stay` 67px。
+**S3ï¼ˆè¡Œå‹•ç«¯è§¸æŽ§ç›®æ¨™å›žæ­¸ï¼‰**ï¼š`index.css` çš„ `@media (max-width:768px)` è§¸æŽ§ç›®æ¨™æ¸…å–®åŠ å…¥ `.chain-stay, .chain-move`ï¼ˆ`min-height: 44px`ï¼‰ã€‚**390px å¯¦æ¸¬**ï¼š`.chain-move` ç”± 21px â†’ **44px**ï¼›`.chain-stay` 67pxã€‚
 
-**A1（保留內聯顯示，補相鄰停留名）**：保留「常駐內聯移動行」做法；移動行補目的地：
-- incoming → `↑ 抵达：方式 · 时长 · 距离 → 本站`（en `→ this stay`）
-- outgoing → `↓ 移动：方式 · 时长 · 距离 → {下一站名}`（缺名用座標；最後一站用 segment end 座標）
-- `ChainMovement` 新增 `end: Point` 供最後一站 fallback；i18n key `chain.outgoing/incoming` 加 `{dest}`、新增 `chain.destHere`。
-- 同時修 **PRD 功能 13 ②**：改為「左側以**常駐**行程鏈列表顯示；點停留飛到該點、點移動飛到該段並高亮」，移除 click-to-show「← 從哪來 / → 去哪」措辭。
+**A1ï¼ˆä¿ç•™å…§è¯é¡¯ç¤ºï¼Œè£œç›¸é„°åœç•™åï¼‰**ï¼šä¿ç•™ã€Œå¸¸é§å…§è¯ç§»å‹•è¡Œã€åšæ³•ï¼›ç§»å‹•è¡Œè£œç›®çš„åœ°ï¼š
+- incoming â†’ `â†‘ æŠµè¾¾ï¼šæ–¹å¼ Â· æ—¶é•¿ Â· è·ç¦» â†’ æœ¬ç«™`ï¼ˆen `â†’ this stay`ï¼‰
+- outgoing â†’ `â†“ ç§»åŠ¨ï¼šæ–¹å¼ Â· æ—¶é•¿ Â· è·ç¦» â†’ {ä¸‹ä¸€ç«™å}`ï¼ˆç¼ºåç”¨åº§æ¨™ï¼›æœ€å¾Œä¸€ç«™ç”¨ segment end åº§æ¨™ï¼‰
+- `ChainMovement` æ–°å¢ž `end: Point` ä¾›æœ€å¾Œä¸€ç«™ fallbackï¼›i18n key `chain.outgoing/incoming` åŠ  `{dest}`ã€æ–°å¢ž `chain.destHere`ã€‚
+- åŒæ™‚ä¿® **PRD åŠŸèƒ½ 13 â‘¡**ï¼šæ”¹ç‚ºã€Œå·¦å´ä»¥**å¸¸é§**è¡Œç¨‹éˆåˆ—è¡¨é¡¯ç¤ºï¼›é»žåœç•™é£›åˆ°è©²é»žã€é»žç§»å‹•é£›åˆ°è©²æ®µä¸¦é«˜äº®ã€ï¼Œç§»é™¤ click-to-showã€Œâ† å¾žå“ªä¾† / â†’ åŽ»å“ªã€æŽªè¾­ã€‚
 
-**A2（chain 只在 activityType 計算）**：`TripsPage` 的 `buildTripChain` `useMemo` 加 `mode` 依賴，時間軸模式回傳模組級 `EMPTY_CHAIN`，不再白算。
+**A2ï¼ˆchain åªåœ¨ activityType è¨ˆç®—ï¼‰**ï¼š`TripsPage` çš„ `buildTripChain` `useMemo` åŠ  `mode` ä¾è³´ï¼Œæ™‚é–“è»¸æ¨¡å¼å›žå‚³æ¨¡çµ„ç´š `EMPTY_CHAIN`ï¼Œä¸å†ç™½ç®—ã€‚
 
-**A3/A4（PRD 措辭收緊）**：刪 PRD 功能 13 括號中「不重叠即相邻」半句（自相矛盾），只留「按時間排序取緊鄰前驅/後繼；首尾可缺」；並在 `tripChain.ts` 檔頭 + PRD 明示**配對邊界**：只有緊鄰前驅/後繼進鏈，兩停留之間的**中間段**與**不鄰接任何停留**的段不進鏈（設計使然）。
+**A3/A4ï¼ˆPRD æŽªè¾­æ”¶ç·Šï¼‰**ï¼šåˆª PRD åŠŸèƒ½ 13 æ‹¬è™Ÿä¸­ã€Œä¸é‡å å³ç›¸é‚»ã€åŠå¥ï¼ˆè‡ªç›¸çŸ›ç›¾ï¼‰ï¼Œåªç•™ã€ŒæŒ‰æ™‚é–“æŽ’åºå–ç·Šé„°å‰é©…/å¾Œç¹¼ï¼›é¦–å°¾å¯ç¼ºã€ï¼›ä¸¦åœ¨ `tripChain.ts` æª”é ­ + PRD æ˜Žç¤º**é…å°é‚Šç•Œ**ï¼šåªæœ‰ç·Šé„°å‰é©…/å¾Œç¹¼é€²éˆï¼Œå…©åœç•™ä¹‹é–“çš„**ä¸­é–“æ®µ**èˆ‡**ä¸é„°æŽ¥ä»»ä½•åœç•™**çš„æ®µä¸é€²éˆï¼ˆè¨­è¨ˆä½¿ç„¶ï¼‰ã€‚
 
-**N1（清死碼）**：刪除 `src/src/components/StopList.tsx`（已無引用）。`.stop-list-*` CSS class 仍被 `TimelineList`/Places 使用，**未動 CSS**。
+**N1ï¼ˆæ¸…æ­»ç¢¼ï¼‰**ï¼šåˆªé™¤ `src/src/components/StopList.tsx`ï¼ˆå·²ç„¡å¼•ç”¨ï¼‰ã€‚`.stop-list-*` CSS class ä»è¢« `TimelineList`/Places ä½¿ç”¨ï¼Œ**æœªå‹• CSS**ã€‚
 
-**N（補測試）**：新增「同時刻 segment 排在 visit 前（segment 為 incoming）」測試。
+**Nï¼ˆè£œæ¸¬è©¦ï¼‰**ï¼šæ–°å¢žã€ŒåŒæ™‚åˆ» segment æŽ’åœ¨ visit å‰ï¼ˆsegment ç‚º incomingï¼‰ã€æ¸¬è©¦ã€‚
 
-**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **202 passed**（15 檔；201 → +1）。**390px 瀏覽器實測**：鏈頭 `Trip chain (191)`、`.chain-move` 全部 44px、入向行 `↑ Arrived by: Driving · 20m · 7.6 km → this stay`、出向行 `↓ Movement: Driving · 20m · 7.3 km → 家（模拟）`、0 pageerror。**未 commit、未 push**。
+**é©—è­‰**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **202 passed**ï¼ˆ15 æª”ï¼›201 â†’ +1ï¼‰ã€‚**390px ç€è¦½å™¨å¯¦æ¸¬**ï¼šéˆé ­ `Trip chain (191)`ã€`.chain-move` å…¨éƒ¨ 44pxã€å…¥å‘è¡Œ `â†‘ Arrived by: Driving Â· 20m Â· 7.6 km â†’ this stay`ã€å‡ºå‘è¡Œ `â†“ Movement: Driving Â· 20m Â· 7.3 km â†’ å®¶ï¼ˆæ¨¡æ‹Ÿï¼‰`ã€0 pageerrorã€‚**æœª commitã€æœª push**ã€‚
 
-## 2026-09-15 11:55 — Dev T29 行程鏈（visit↔activity 關聯，功能 13）
+## 2026-09-15 11:55 â€” Dev T29 è¡Œç¨‹éˆï¼ˆvisitâ†”activity é—œè¯ï¼ŒåŠŸèƒ½ 13ï¼‰
 
-**範圍**：MVP 只做「按活動類型」模式；時間軸模式不動。
+**ç¯„åœ**ï¼šMVP åªåšã€ŒæŒ‰æ´»å‹•é¡žåž‹ã€æ¨¡å¼ï¼›æ™‚é–“è»¸æ¨¡å¼ä¸å‹•ã€‚
 
-**`lib/tripChain.ts`（純函式、O(n log n) 排序 + O(n) 掃描）**
-- **配對口徑**：把 visits 與 segments 合併成事件、依 `startMs` 升序（同時刻 segment 排在 visit 前，代表「停留一開始就在移動」）；一次前掃記下每個位置「最近的前驅 segment」，一次後掃記下「最近的後繼 segment」。每個 visit 得 `incoming`/`outgoing`（首尾可缺）；跨午夜以絕對 `startMs` 正確配對。
-- **每段提供**：`activityType`、`durationMs`（`endMs-startMs`，**clamp 到 range**，與統計 A1 一致）、`distanceKm`（沿 `path` 的 haversine；`path.length > 0 ? path : [start, end]`，與渲染器 S3 口徑一致——單點 path → 0）。
-- `ChainVisit` 另帶 `stayDurationMs`（clamp 到 range）與 `visitIndex`（呼叫端陣列索引，供選取）。
-- 未涵蓋：兩個 segment 之間沒有 visit 的段不進鏈（visit-centric，MVP 可接受）。
+**`lib/tripChain.ts`ï¼ˆç´”å‡½å¼ã€O(n log n) æŽ’åº + O(n) æŽƒæï¼‰**
+- **é…å°å£å¾‘**ï¼šæŠŠ visits èˆ‡ segments åˆä½µæˆäº‹ä»¶ã€ä¾ `startMs` å‡åºï¼ˆåŒæ™‚åˆ» segment æŽ’åœ¨ visit å‰ï¼Œä»£è¡¨ã€Œåœç•™ä¸€é–‹å§‹å°±åœ¨ç§»å‹•ã€ï¼‰ï¼›ä¸€æ¬¡å‰æŽƒè¨˜ä¸‹æ¯å€‹ä½ç½®ã€Œæœ€è¿‘çš„å‰é©… segmentã€ï¼Œä¸€æ¬¡å¾ŒæŽƒè¨˜ä¸‹ã€Œæœ€è¿‘çš„å¾Œç¹¼ segmentã€ã€‚æ¯å€‹ visit å¾— `incoming`/`outgoing`ï¼ˆé¦–å°¾å¯ç¼ºï¼‰ï¼›è·¨åˆå¤œä»¥çµ•å° `startMs` æ­£ç¢ºé…å°ã€‚
+- **æ¯æ®µæä¾›**ï¼š`activityType`ã€`durationMs`ï¼ˆ`endMs-startMs`ï¼Œ**clamp åˆ° range**ï¼Œèˆ‡çµ±è¨ˆ A1 ä¸€è‡´ï¼‰ã€`distanceKm`ï¼ˆæ²¿ `path` çš„ haversineï¼›`path.length > 0 ? path : [start, end]`ï¼Œèˆ‡æ¸²æŸ“å™¨ S3 å£å¾‘ä¸€è‡´â€”â€”å–®é»ž path â†’ 0ï¼‰ã€‚
+- `ChainVisit` å¦å¸¶ `stayDurationMs`ï¼ˆclamp åˆ° rangeï¼‰èˆ‡ `visitIndex`ï¼ˆå‘¼å«ç«¯é™£åˆ—ç´¢å¼•ï¼Œä¾›é¸å–ï¼‰ã€‚
+- æœªæ¶µè“‹ï¼šå…©å€‹ segment ä¹‹é–“æ²’æœ‰ visit çš„æ®µä¸é€²éˆï¼ˆvisit-centricï¼ŒMVP å¯æŽ¥å—ï¼‰ã€‚
 
 **`components/TripChainList.tsx`**
-- 停留行：名稱/座標 + 地址 + `時間 → 時間 · 停留時長`；其下縮排「↓ 移动：方式 · 時長 · 距離」。
-- **去重**：每個移動只渲染一次——若它是前一個停留的 `outgoing` 就不再作為本停留的 `incoming` 重複顯示（`rows` 先算好，避免 render 中可變賦值，通過 `react-hooks/immutability`）。
-- 點停留 → `flyTarget` 飛到該點並清除段選取；點移動行 → 飛到該段 path 中點並以 `highlightedSegments`（單段 Set）高亮（`TripMap.hasSelection` 會淡化其餘幾何）。空狀態 / 超過 `LIST_LIMIT` 沿用既有文案 key。
+- åœç•™è¡Œï¼šåç¨±/åº§æ¨™ + åœ°å€ + `æ™‚é–“ â†’ æ™‚é–“ Â· åœç•™æ™‚é•·`ï¼›å…¶ä¸‹ç¸®æŽ’ã€Œâ†“ ç§»åŠ¨ï¼šæ–¹å¼ Â· æ™‚é•· Â· è·é›¢ã€ã€‚
+- **åŽ»é‡**ï¼šæ¯å€‹ç§»å‹•åªæ¸²æŸ“ä¸€æ¬¡â€”â€”è‹¥å®ƒæ˜¯å‰ä¸€å€‹åœç•™çš„ `outgoing` å°±ä¸å†ä½œç‚ºæœ¬åœç•™çš„ `incoming` é‡è¤‡é¡¯ç¤ºï¼ˆ`rows` å…ˆç®—å¥½ï¼Œé¿å… render ä¸­å¯è®Šè³¦å€¼ï¼Œé€šéŽ `react-hooks/immutability`ï¼‰ã€‚
+- é»žåœç•™ â†’ `flyTarget` é£›åˆ°è©²é»žä¸¦æ¸…é™¤æ®µé¸å–ï¼›é»žç§»å‹•è¡Œ â†’ é£›åˆ°è©²æ®µ path ä¸­é»žä¸¦ä»¥ `highlightedSegments`ï¼ˆå–®æ®µ Setï¼‰é«˜äº®ï¼ˆ`TripMap.hasSelection` æœƒæ·¡åŒ–å…¶é¤˜å¹¾ä½•ï¼‰ã€‚ç©ºç‹€æ…‹ / è¶…éŽ `LIST_LIMIT` æ²¿ç”¨æ—¢æœ‰æ–‡æ¡ˆ keyã€‚
 
-**`pages/TripsPage.tsx`**：`buildTripChain(preparedTrips.visits, preparedTrips.segments, dateRange)` 以 `useMemo` 計算後傳入 `MapPane`；`MapPane` 在 `activityType` 模式渲染 `TripChainList`（取代 `StopList`），新增 `selectedSegmentIndex` state 與 `highlightedSegments` 分支；`StopList` 已不再使用。另把活動類型的 key 對應抽到共用 `lib/i18n/activity.ts`（`activityMessageKey`），`TripChainList` 與圖例共用。
+**`pages/TripsPage.tsx`**ï¼š`buildTripChain(preparedTrips.visits, preparedTrips.segments, dateRange)` ä»¥ `useMemo` è¨ˆç®—å¾Œå‚³å…¥ `MapPane`ï¼›`MapPane` åœ¨ `activityType` æ¨¡å¼æ¸²æŸ“ `TripChainList`ï¼ˆå–ä»£ `StopList`ï¼‰ï¼Œæ–°å¢ž `selectedSegmentIndex` state èˆ‡ `highlightedSegments` åˆ†æ”¯ï¼›`StopList` å·²ä¸å†ä½¿ç”¨ã€‚å¦æŠŠæ´»å‹•é¡žåž‹çš„ key å°æ‡‰æŠ½åˆ°å…±ç”¨ `lib/i18n/activity.ts`ï¼ˆ`activityMessageKey`ï¼‰ï¼Œ`TripChainList` èˆ‡åœ–ä¾‹å…±ç”¨ã€‚
 
-**i18n**：新增 `chain.head` / `chain.empty` / `chain.outgoing` / `chain.incoming`（zh + en），en 無殘留中文。
+**i18n**ï¼šæ–°å¢ž `chain.head` / `chain.empty` / `chain.outgoing` / `chain.incoming`ï¼ˆzh + enï¼‰ï¼Œen ç„¡æ®˜ç•™ä¸­æ–‡ã€‚
 
-**驗證**：
-- 單測 `tripChain.test.ts` **10 條**：正常前後配對、首尾無鄰（各一）、無相鄰段、跨午夜、排序 + `visitIndex` 保留、時長 clamp、距離（path≥2 / path<2 fallback / 單點=0）。
-- 瀏覽器（production build + sample）：
-  - 切「按活动类型」→ 鏈頭 `Trip chain (191)`、191 停留行、229 移動行；首項 `↑ Arrived by: Driving · 20m · 7.6 km` + `↓ Movement: Driving · 20m · 7.3 km`；鏈內 CJK 僅 sample 地名（無 UI 中文）。
-  - 點停留 → `.chain-stay.selected`=1、地圖中心移至該點；點移動行 → `.chain-move.selected`=1、停留選取清除、中心移至該段；0 pageerror。
-  - 切简中 → `行程链（191）`、`↑ 抵达：驾车 · 20分钟 · 7.6 公里`、`↓ 移动：驾车 · 20分钟 · 7.3 公里`。
-  - 收合/展開面板（S1 回歸路徑）在 activityType 下不白屏、鏈仍在、0 pageerror。
+**é©—è­‰**ï¼š
+- å–®æ¸¬ `tripChain.test.ts` **10 æ¢**ï¼šæ­£å¸¸å‰å¾Œé…å°ã€é¦–å°¾ç„¡é„°ï¼ˆå„ä¸€ï¼‰ã€ç„¡ç›¸é„°æ®µã€è·¨åˆå¤œã€æŽ’åº + `visitIndex` ä¿ç•™ã€æ™‚é•· clampã€è·é›¢ï¼ˆpathâ‰¥2 / path<2 fallback / å–®é»ž=0ï¼‰ã€‚
+- ç€è¦½å™¨ï¼ˆproduction build + sampleï¼‰ï¼š
+  - åˆ‡ã€ŒæŒ‰æ´»åŠ¨ç±»åž‹ã€â†’ éˆé ­ `Trip chain (191)`ã€191 åœç•™è¡Œã€229 ç§»å‹•è¡Œï¼›é¦–é … `â†‘ Arrived by: Driving Â· 20m Â· 7.6 km` + `â†“ Movement: Driving Â· 20m Â· 7.3 km`ï¼›éˆå…§ CJK åƒ… sample åœ°åï¼ˆç„¡ UI ä¸­æ–‡ï¼‰ã€‚
+  - é»žåœç•™ â†’ `.chain-stay.selected`=1ã€åœ°åœ–ä¸­å¿ƒç§»è‡³è©²é»žï¼›é»žç§»å‹•è¡Œ â†’ `.chain-move.selected`=1ã€åœç•™é¸å–æ¸…é™¤ã€ä¸­å¿ƒç§»è‡³è©²æ®µï¼›0 pageerrorã€‚
+  - åˆ‡ç®€ä¸­ â†’ `è¡Œç¨‹é“¾ï¼ˆ191ï¼‰`ã€`â†‘ æŠµè¾¾ï¼šé©¾è½¦ Â· 20åˆ†é’Ÿ Â· 7.6 å…¬é‡Œ`ã€`â†“ ç§»åŠ¨ï¼šé©¾è½¦ Â· 20åˆ†é’Ÿ Â· 7.3 å…¬é‡Œ`ã€‚
+  - æ”¶åˆ/å±•é–‹é¢æ¿ï¼ˆS1 å›žæ­¸è·¯å¾‘ï¼‰åœ¨ activityType ä¸‹ä¸ç™½å±ã€éˆä»åœ¨ã€0 pageerrorã€‚
 
-**驗證指令**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **201 passed**（15 檔；191 → +10）。**未 commit、未 push**。
+**é©—è­‰æŒ‡ä»¤**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **201 passed**ï¼ˆ15 æª”ï¼›191 â†’ +10ï¼‰ã€‚**æœª commitã€æœª push**ã€‚
 
-## 2026-09-15 11:40 — Dev 回退 N1「防禦性修正」（引入白屏致命回歸）
+## 2026-09-15 11:40 â€” Dev å›žé€€ N1ã€Œé˜²ç¦¦æ€§ä¿®æ­£ã€ï¼ˆå¼•å…¥ç™½å±è‡´å‘½å›žæ­¸ï¼‰
 
-**誠實記錄**：上一則（11:25）我為 N1 在 `FitController` 的 effect cleanup 加了 `map.stop()`。**這是錯的**——它引入了致命回歸。
+**èª å¯¦è¨˜éŒ„**ï¼šä¸Šä¸€å‰‡ï¼ˆ11:25ï¼‰æˆ‘ç‚º N1 åœ¨ `FitController` çš„ effect cleanup åŠ äº† `map.stop()`ã€‚**é€™æ˜¯éŒ¯çš„**â€”â€”å®ƒå¼•å…¥äº†è‡´å‘½å›žæ­¸ã€‚
 
-**症狀（Reviewer 實測，deterministic）**：載入示例 → 點 Trips 頂欄「收起面板」→ `#root` children = 0、**整頁白屏**；console `TypeError: Cannot read properties of undefined (reading '_leaflet_pos')`，堆疊為 `getCenter → setZoom → stop`（effect cleanup）。
+**ç—‡ç‹€ï¼ˆReviewer å¯¦æ¸¬ï¼Œdeterministicï¼‰**ï¼šè¼‰å…¥ç¤ºä¾‹ â†’ é»ž Trips é ‚æ¬„ã€Œæ”¶èµ·é¢æ¿ã€â†’ `#root` children = 0ã€**æ•´é ç™½å±**ï¼›console `TypeError: Cannot read properties of undefined (reading '_leaflet_pos')`ï¼Œå †ç–Šç‚º `getCenter â†’ setZoom â†’ stop`ï¼ˆeffect cleanupï¼‰ã€‚
 
-**根因**：`sidebarOpen` 切換時 `MapPane` / 直連 `TripMap` 兩棵樹互換 → `FitController` 卸載 → cleanup 執行；此時 react-leaflet 已開始移除 map/pane，`map.stop()` 內部的 `setZoom → getCenter → _getMapPanePos` 讀到**已卸離的 pane** 而 throw，React 樹崩潰 → 白屏。
+**æ ¹å› **ï¼š`sidebarOpen` åˆ‡æ›æ™‚ `MapPane` / ç›´é€£ `TripMap` å…©æ£µæ¨¹äº’æ› â†’ `FitController` å¸è¼‰ â†’ cleanup åŸ·è¡Œï¼›æ­¤æ™‚ react-leaflet å·²é–‹å§‹ç§»é™¤ map/paneï¼Œ`map.stop()` å…§éƒ¨çš„ `setZoom â†’ getCenter â†’ _getMapPanePos` è®€åˆ°**å·²å¸é›¢çš„ pane** è€Œ throwï¼ŒReact æ¨¹å´©æ½° â†’ ç™½å±ã€‚
 
-**處置：直接回退** `map.stop()`，恢復 cleanup 只 `cancelAnimationFrame(raf)`。並在該 cleanup 留註解：**永遠不要在 unmount cleanup 呼叫任何 map 方法**（N1 的消音若要做，只能在非 unmount 時機用 ref 區分，且必須實測；本輪不做）。
+**è™•ç½®ï¼šç›´æŽ¥å›žé€€** `map.stop()`ï¼Œæ¢å¾© cleanup åª `cancelAnimationFrame(raf)`ã€‚ä¸¦åœ¨è©² cleanup ç•™è¨»è§£ï¼š**æ°¸é ä¸è¦åœ¨ unmount cleanup å‘¼å«ä»»ä½• map æ–¹æ³•**ï¼ˆN1 çš„æ¶ˆéŸ³è‹¥è¦åšï¼Œåªèƒ½åœ¨éž unmount æ™‚æ©Ÿç”¨ ref å€åˆ†ï¼Œä¸”å¿…é ˆå¯¦æ¸¬ï¼›æœ¬è¼ªä¸åšï¼‰ã€‚
 
-**N1 狀態**：恢復為**非阻塞已知 console 噪音**（`_leaflet_pos` @ `_onZoomTransitionEnd`，快速離開地圖且動畫未完時偶發），不影響功能，不修。
+**N1 ç‹€æ…‹**ï¼šæ¢å¾©ç‚º**éžé˜»å¡žå·²çŸ¥ console å™ªéŸ³**ï¼ˆ`_leaflet_pos` @ `_onZoomTransitionEnd`ï¼Œå¿«é€Ÿé›¢é–‹åœ°åœ–ä¸”å‹•ç•«æœªå®Œæ™‚å¶ç™¼ï¼‰ï¼Œä¸å½±éŸ¿åŠŸèƒ½ï¼Œä¸ä¿®ã€‚
 
-**實測（production build + Playwright，回退後）**：
-1. 載入示例 → Trips：`#root` children=1
-2. **收起面板 → 展開面板**：collapsed map present=true；expand 後 map present=true、1051×462、children=1 —— **不白屏**
-3. 時間軸 ↔ 按活動類型：children=1
-4. Places → Trips：children=1
-5. Settings 切語言 → Trips：children=1
-全程 **0 個 pageerror**（無 `_leaflet_pos`）。截圖：`.playwright-mcp/gtv-expand-ok.png`。
+**å¯¦æ¸¬ï¼ˆproduction build + Playwrightï¼Œå›žé€€å¾Œï¼‰**ï¼š
+1. è¼‰å…¥ç¤ºä¾‹ â†’ Tripsï¼š`#root` children=1
+2. **æ”¶èµ·é¢æ¿ â†’ å±•é–‹é¢æ¿**ï¼šcollapsed map present=trueï¼›expand å¾Œ map present=trueã€1051Ã—462ã€children=1 â€”â€” **ä¸ç™½å±**
+3. æ™‚é–“è»¸ â†” æŒ‰æ´»å‹•é¡žåž‹ï¼šchildren=1
+4. Places â†’ Tripsï¼šchildren=1
+5. Settings åˆ‡èªžè¨€ â†’ Tripsï¼šchildren=1
+å…¨ç¨‹ **0 å€‹ pageerror**ï¼ˆç„¡ `_leaflet_pos`ï¼‰ã€‚æˆªåœ–ï¼š`.playwright-mcp/gtv-expand-ok.png`ã€‚
 
-**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **191 passed**。**未 commit、未 push**。`stats.ts` 的 S3 修正未動。
+**é©—è­‰**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **191 passed**ã€‚**æœª commitã€æœª push**ã€‚`stats.ts` çš„ S3 ä¿®æ­£æœªå‹•ã€‚
 
-## 2026-09-15 11:25 — Dev 修正 Reviewer S3 最終 + N1 判斷
+## 2026-09-15 11:25 â€” Dev ä¿®æ­£ Reviewer S3 æœ€çµ‚ + N1 åˆ¤æ–·
 
-**S3（`segmentsDistanceKm` fallback 門檻與渲染器不一致）**：`lib/stats.ts` 的 `s.path.length >= 2 ? s.path : [s.start, s.end]` 改為 **`> 0`**。對照渲染器 `TripMap.positions`（`> 0`）、`polylineEndpoints`（`> 0`）、`boundsOf`（`> 0`）——`prepareTrips` 裁切後跨午夜段可能只剩 1 個頂點，地圖只畫 1 點不畫線，距離須為 0；原 `>= 2` 會 fallback 到**未裁切的 `[start,end]`**，把範圍外整條腿的距離算進 activityType 的總距離。**補測試**：`segmentsDistanceKm([單點段]) === 0`，且該段 `start` 與 `path[0]` 不同（證明若走 fallback 會有非零距離）。
+**S3ï¼ˆ`segmentsDistanceKm` fallback é–€æª»èˆ‡æ¸²æŸ“å™¨ä¸ä¸€è‡´ï¼‰**ï¼š`lib/stats.ts` çš„ `s.path.length >= 2 ? s.path : [s.start, s.end]` æ”¹ç‚º **`> 0`**ã€‚å°ç…§æ¸²æŸ“å™¨ `TripMap.positions`ï¼ˆ`> 0`ï¼‰ã€`polylineEndpoints`ï¼ˆ`> 0`ï¼‰ã€`boundsOf`ï¼ˆ`> 0`ï¼‰â€”â€”`prepareTrips` è£åˆ‡å¾Œè·¨åˆå¤œæ®µå¯èƒ½åªå‰© 1 å€‹é ‚é»žï¼Œåœ°åœ–åªç•« 1 é»žä¸ç•«ç·šï¼Œè·é›¢é ˆç‚º 0ï¼›åŽŸ `>= 2` æœƒ fallback åˆ°**æœªè£åˆ‡çš„ `[start,end]`**ï¼ŒæŠŠç¯„åœå¤–æ•´æ¢è…¿çš„è·é›¢ç®—é€² activityType çš„ç¸½è·é›¢ã€‚**è£œæ¸¬è©¦**ï¼š`segmentsDistanceKm([å–®é»žæ®µ]) === 0`ï¼Œä¸”è©²æ®µ `start` èˆ‡ `path[0]` ä¸åŒï¼ˆè­‰æ˜Žè‹¥èµ° fallback æœƒæœ‰éžé›¶è·é›¢ï¼‰ã€‚
 
-**N1（Leaflet `TypeError: ... '_leaflet_pos'` @ `_onZoomTransitionEnd`）— 判斷為既有，非本輪引入**：
-- 觸發：快速離開 `#/app`、地圖於 zoom 動畫期間卸載時，`transitionend` 在 map pane 已被移除後仍觸發 Leaflet `_onZoomTransitionEnd`，讀取已卸離的 `_leaflet_pos` 而拋錯。
-- 為何既有：zoom 動畫由 `FitController` 的 `map.fitBounds(...)`（T5 起）觸發，其生命週期在本輪（T27/T28）**完全未改**；本輪新增的 `TripStatsPanel` 是純 DOM、`stats.ts` 是純函式、i18n 只改文字。故與 T27/T28 無關。
-- 處置：採 Reviewer 允許的**可選低風險收斂**——在 `FitController` 的 effect cleanup 加 `map.stop()`（child cleanup 先於 `MapContainer` 的 `map.remove()` 執行，會取消進行中的動畫，避免 detached pane 上的 `transitionend`）。未做其他改動。
-- 註：headless 環境用多次快速切頁**未能穩定重現**（時序敏感），故上述為根因分析 + 防禦性收斂，非「已驗證修復」。
+**N1ï¼ˆLeaflet `TypeError: ... '_leaflet_pos'` @ `_onZoomTransitionEnd`ï¼‰â€” åˆ¤æ–·ç‚ºæ—¢æœ‰ï¼Œéžæœ¬è¼ªå¼•å…¥**ï¼š
+- è§¸ç™¼ï¼šå¿«é€Ÿé›¢é–‹ `#/app`ã€åœ°åœ–æ–¼ zoom å‹•ç•«æœŸé–“å¸è¼‰æ™‚ï¼Œ`transitionend` åœ¨ map pane å·²è¢«ç§»é™¤å¾Œä»è§¸ç™¼ Leaflet `_onZoomTransitionEnd`ï¼Œè®€å–å·²å¸é›¢çš„ `_leaflet_pos` è€Œæ‹‹éŒ¯ã€‚
+- ç‚ºä½•æ—¢æœ‰ï¼šzoom å‹•ç•«ç”± `FitController` çš„ `map.fitBounds(...)`ï¼ˆT5 èµ·ï¼‰è§¸ç™¼ï¼Œå…¶ç”Ÿå‘½é€±æœŸåœ¨æœ¬è¼ªï¼ˆT27/T28ï¼‰**å®Œå…¨æœªæ”¹**ï¼›æœ¬è¼ªæ–°å¢žçš„ `TripStatsPanel` æ˜¯ç´” DOMã€`stats.ts` æ˜¯ç´”å‡½å¼ã€i18n åªæ”¹æ–‡å­—ã€‚æ•…èˆ‡ T27/T28 ç„¡é—œã€‚
+- è™•ç½®ï¼šæŽ¡ Reviewer å…è¨±çš„**å¯é¸ä½Žé¢¨éšªæ”¶æ–‚**â€”â€”åœ¨ `FitController` çš„ effect cleanup åŠ  `map.stop()`ï¼ˆchild cleanup å…ˆæ–¼ `MapContainer` çš„ `map.remove()` åŸ·è¡Œï¼Œæœƒå–æ¶ˆé€²è¡Œä¸­çš„å‹•ç•«ï¼Œé¿å… detached pane ä¸Šçš„ `transitionend`ï¼‰ã€‚æœªåšå…¶ä»–æ”¹å‹•ã€‚
+- è¨»ï¼šheadless ç’°å¢ƒç”¨å¤šæ¬¡å¿«é€Ÿåˆ‡é **æœªèƒ½ç©©å®šé‡ç¾**ï¼ˆæ™‚åºæ•æ„Ÿï¼‰ï¼Œæ•…ä¸Šè¿°ç‚ºæ ¹å› åˆ†æž + é˜²ç¦¦æ€§æ”¶æ–‚ï¼Œéžã€Œå·²é©—è­‰ä¿®å¾©ã€ã€‚
 
-**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **191 passed**（14 檔；190 → +1 S3 測試）。**未 commit、未 push**。
+**é©—è­‰**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **191 passed**ï¼ˆ14 æª”ï¼›190 â†’ +1 S3 æ¸¬è©¦ï¼‰ã€‚**æœª commitã€æœª push**ã€‚
 
-## 2026-09-15 11:10 — Dev 修正 Reviewer T27/T28（S3 + A1/A2/A3）
+## 2026-09-15 11:10 â€” Dev ä¿®æ­£ Reviewer T27/T28ï¼ˆS3 + A1/A2/A3ï¼‰
 
-**背景**：Reviewer 對 T27/T28 判 PASS-WITH-CONDITIONS（S3 必修、A1/A2/A3 必修、A4/A5/N 記錄）。
+**èƒŒæ™¯**ï¼šReviewer å° T27/T28 åˆ¤ PASS-WITH-CONDITIONSï¼ˆS3 å¿…ä¿®ã€A1/A2/A3 å¿…ä¿®ã€A4/A5/N è¨˜éŒ„ï¼‰ã€‚
 
-**S3（store 內已解析字串不隨語言切換）**：store 不再存放任何已翻譯字串。
-- `dataLabel` 只存**首個檔名**，另加 `dataFileCount`；sample 以 `dataSource==='sample'` 推導；`DataBar` 顯示時才組合（sample → `t('data.sample')`；多檔 → `${name} ${t('data.filesSuffix',{count})}`）。
-- 自訂瓦片名改用中性 sentinel `CUSTOM_TILE_NAME='custom'`（`lib/tiles.ts`），`SettingsPage` 由 `isDefault` 推導顯示 `OpenStreetMap` 或 `t('settings.customTileName')`。
-- **實測**：設简中 → 載入示例 → DataBar「模拟数据」；切 English → DataBar「Sample data」（無 CJK）；Settings 自訂瓦片名 en「Custom」/ zh「自定义」。
+**S3ï¼ˆstore å…§å·²è§£æžå­—ä¸²ä¸éš¨èªžè¨€åˆ‡æ›ï¼‰**ï¼šstore ä¸å†å­˜æ”¾ä»»ä½•å·²ç¿»è­¯å­—ä¸²ã€‚
+- `dataLabel` åªå­˜**é¦–å€‹æª”å**ï¼Œå¦åŠ  `dataFileCount`ï¼›sample ä»¥ `dataSource==='sample'` æŽ¨å°Žï¼›`DataBar` é¡¯ç¤ºæ™‚æ‰çµ„åˆï¼ˆsample â†’ `t('data.sample')`ï¼›å¤šæª” â†’ `${name} ${t('data.filesSuffix',{count})}`ï¼‰ã€‚
+- è‡ªè¨‚ç“¦ç‰‡åæ”¹ç”¨ä¸­æ€§ sentinel `CUSTOM_TILE_NAME='custom'`ï¼ˆ`lib/tiles.ts`ï¼‰ï¼Œ`SettingsPage` ç”± `isDefault` æŽ¨å°Žé¡¯ç¤º `OpenStreetMap` æˆ– `t('settings.customTileName')`ã€‚
+- **å¯¦æ¸¬**ï¼šè¨­ç®€ä¸­ â†’ è¼‰å…¥ç¤ºä¾‹ â†’ DataBarã€Œæ¨¡æ‹Ÿæ•°æ®ã€ï¼›åˆ‡ English â†’ DataBarã€ŒSample dataã€ï¼ˆç„¡ CJKï¼‰ï¼›Settings è‡ªè¨‚ç“¦ç‰‡å enã€ŒCustomã€/ zhã€Œè‡ªå®šä¹‰ã€ã€‚
 
-**A1（活躍天數/日均停留未裁到範圍）**：`computeTripStats` 新增 `range`，對段與停留的 interval 及停留時長做 `clampInterval`（range 邊為 null 不裁）。跨午夜記錄不再把範圍外那天計入活躍日，`totalStayMs` 只含範圍內部分。補測試：單日範圍 + 跨午夜段/停留 → 活躍天數 = 1、時長 = 範圍內部分；open range 不裁。
+**A1ï¼ˆæ´»èºå¤©æ•¸/æ—¥å‡åœç•™æœªè£åˆ°ç¯„åœï¼‰**ï¼š`computeTripStats` æ–°å¢ž `range`ï¼Œå°æ®µèˆ‡åœç•™çš„ interval åŠåœç•™æ™‚é•·åš `clampInterval`ï¼ˆrange é‚Šç‚º null ä¸è£ï¼‰ã€‚è·¨åˆå¤œè¨˜éŒ„ä¸å†æŠŠç¯„åœå¤–é‚£å¤©è¨ˆå…¥æ´»èºæ—¥ï¼Œ`totalStayMs` åªå«ç¯„åœå…§éƒ¨åˆ†ã€‚è£œæ¸¬è©¦ï¼šå–®æ—¥ç¯„åœ + è·¨åˆå¤œæ®µ/åœç•™ â†’ æ´»èºå¤©æ•¸ = 1ã€æ™‚é•· = ç¯„åœå…§éƒ¨åˆ†ï¼›open range ä¸è£ã€‚
 
-**A2（距離口徑隨模式）**：新增 `segmentsDistanceKm`（逐段 path 或 start→end 的 haversine 和）；`computeTripStats` 加 `distanceSource: 'route' | 'segments'`，`TripStatsPanel` 依 `mode`（timeline→route、activityType→segments）傳入，確保與地圖繪製口徑一致。**實測 sample「全部」**：timeline **8236 km** vs activityType **8124 km**（兩者確實不同，符合兩模式畫的幾何不同）。未採更複雜的「統一幾何」方案，因 Reviewer 明確要求「與地圖口徑一致」，而兩模式地圖本就畫不同幾何。
+**A2ï¼ˆè·é›¢å£å¾‘éš¨æ¨¡å¼ï¼‰**ï¼šæ–°å¢ž `segmentsDistanceKm`ï¼ˆé€æ®µ path æˆ– startâ†’end çš„ haversine å’Œï¼‰ï¼›`computeTripStats` åŠ  `distanceSource: 'route' | 'segments'`ï¼Œ`TripStatsPanel` ä¾ `mode`ï¼ˆtimelineâ†’routeã€activityTypeâ†’segmentsï¼‰å‚³å…¥ï¼Œç¢ºä¿èˆ‡åœ°åœ–ç¹ªè£½å£å¾‘ä¸€è‡´ã€‚**å¯¦æ¸¬ sampleã€Œå…¨éƒ¨ã€**ï¼štimeline **8236 km** vs activityType **8124 km**ï¼ˆå…©è€…ç¢ºå¯¦ä¸åŒï¼Œç¬¦åˆå…©æ¨¡å¼ç•«çš„å¹¾ä½•ä¸åŒï¼‰ã€‚æœªæŽ¡æ›´è¤‡é›œçš„ã€Œçµ±ä¸€å¹¾ä½•ã€æ–¹æ¡ˆï¼Œå›  Reviewer æ˜Žç¢ºè¦æ±‚ã€Œèˆ‡åœ°åœ–å£å¾‘ä¸€è‡´ã€ï¼Œè€Œå…©æ¨¡å¼åœ°åœ–æœ¬å°±ç•«ä¸åŒå¹¾ä½•ã€‚
 
-**A3（截斷警告單位錯 100×）**：`MAX_RAW_POINTS=2_000_000` 原以 `/1_000_000` 標「万」→ 顯示「2 万」（實為 20k）。改除數為 `10_000` →「200 万」；`localizeWarning` en 規則同步做 万→M 換算（200万 → 2M）。補/改測試：parse 測試斷言含 `200 万`；i18n 測試斷言 `累计 raw points 超过 200 万` → `Cumulative raw points exceeded 2M`。
+**A3ï¼ˆæˆªæ–·è­¦å‘Šå–®ä½éŒ¯ 100Ã—ï¼‰**ï¼š`MAX_RAW_POINTS=2_000_000` åŽŸä»¥ `/1_000_000` æ¨™ã€Œä¸‡ã€â†’ é¡¯ç¤ºã€Œ2 ä¸‡ã€ï¼ˆå¯¦ç‚º 20kï¼‰ã€‚æ”¹é™¤æ•¸ç‚º `10_000` â†’ã€Œ200 ä¸‡ã€ï¼›`localizeWarning` en è¦å‰‡åŒæ­¥åš ä¸‡â†’M æ›ç®—ï¼ˆ200ä¸‡ â†’ 2Mï¼‰ã€‚è£œ/æ”¹æ¸¬è©¦ï¼šparse æ¸¬è©¦æ–·è¨€å« `200 ä¸‡`ï¼›i18n æ¸¬è©¦æ–·è¨€ `ç´¯è®¡ raw points è¶…è¿‡ 200 ä¸‡` â†’ `Cumulative raw points exceeded 2M`ã€‚
 
-**A4/A5/N1（記錄，不修）**：
-- **A4**：地點聚合沿用 `name → address → 粗座標`，**同名不同地會被合併**——已在 `lib/stats.ts` 檔頭註明。
-- **A5**：Web Worker 的**未知**解析 warning 模板 `localizeWarning` 不匹配時原樣輸出，英文 UI 可能殘留中文（diagnostic，正常檔案不顯示）——已記。
-- **N1**：死碼 `SAMPLE_LABEL` / `COORDS_PRIVACY_NOTE` / `trips.ts` 舊 zh 格式化 helper **暫不刪**（待 CEO 決定）。
+**A4/A5/N1ï¼ˆè¨˜éŒ„ï¼Œä¸ä¿®ï¼‰**ï¼š
+- **A4**ï¼šåœ°é»žèšåˆæ²¿ç”¨ `name â†’ address â†’ ç²—åº§æ¨™`ï¼Œ**åŒåä¸åŒåœ°æœƒè¢«åˆä½µ**â€”â€”å·²åœ¨ `lib/stats.ts` æª”é ­è¨»æ˜Žã€‚
+- **A5**ï¼šWeb Worker çš„**æœªçŸ¥**è§£æž warning æ¨¡æ¿ `localizeWarning` ä¸åŒ¹é…æ™‚åŽŸæ¨£è¼¸å‡ºï¼Œè‹±æ–‡ UI å¯èƒ½æ®˜ç•™ä¸­æ–‡ï¼ˆdiagnosticï¼Œæ­£å¸¸æª”æ¡ˆä¸é¡¯ç¤ºï¼‰â€”â€”å·²è¨˜ã€‚
+- **N1**ï¼šæ­»ç¢¼ `SAMPLE_LABEL` / `COORDS_PRIVACY_NOTE` / `trips.ts` èˆŠ zh æ ¼å¼åŒ– helper **æš«ä¸åˆª**ï¼ˆå¾… CEO æ±ºå®šï¼‰ã€‚
 
-**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **190 passed**（14 檔；186 → +4：A1 裁切、A2 segmentsDistance、open-range、A3 單位）。**未 commit、未 push**。
+**é©—è­‰**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **190 passed**ï¼ˆ14 æª”ï¼›186 â†’ +4ï¼šA1 è£åˆ‡ã€A2 segmentsDistanceã€open-rangeã€A3 å–®ä½ï¼‰ã€‚**æœª commitã€æœª push**ã€‚
 
-## 2026-09-15 10:55 — Dev T27 行程統計報表 + T28 多語言（EN/简中）
+## 2026-09-15 10:55 â€” Dev T27 è¡Œç¨‹çµ±è¨ˆå ±è¡¨ + T28 å¤šèªžè¨€ï¼ˆEN/ç®€ä¸­ï¼‰
 
-**T27（功能 11）**：新增 `lib/stats.ts`（`routeDistanceKm` / `computeTripStats`）+ `components/TripStatsPanel.tsx`。
-- **面板位置**：Trips 左側欄，DataBar → DateRangePicker → **TripStatsPanel** → 時間線/停留列表。理由：與日期範圍同區、隨篩選即時更新、時間軸與活動類型兩種模式都可見、不佔用頂欄也不遮地圖；移動端抽屜內同樣可讀。
-- **口徑**：總距離 = timeline route 連續頂點 haversine 累加；活躍天數 = 段與停留 `[start,end]` 覆蓋的本地日聯集（用 `setDate` 逐日步進，DST 安全，並對病態長跨度設 20000 天上限）；日均距離 = 總距離/活躍天數；日均停留 = Σ(visit 時長)/活躍天數；地點頻次 = `groupVisitsByLocation` 聚合後按次數（同次數比時長）排序取 Top 5。
-- **效率**：全部 O(n) 掃描，`useMemo` 綁定 `[route, segments, visits]`，不在 render 做 O(n²)。
-- **sample 實測（全部）**：總距離 **8236 km**、活躍 **55 天**、日均 **150 km/天**、日均停留 **16h 11m**；Top 5：家（模拟）78 次 · 339h30m、公司（模拟）37 · 375h25m、Bella 咖啡館 32 · 36h20m、大安森林公園 10 · 15h、南門市場 10 · 7h30m。
-- 單測 `stats.test.ts`（距離、跨日活躍天數、日均、Top N cap、零活動）。
+**T27ï¼ˆåŠŸèƒ½ 11ï¼‰**ï¼šæ–°å¢ž `lib/stats.ts`ï¼ˆ`routeDistanceKm` / `computeTripStats`ï¼‰+ `components/TripStatsPanel.tsx`ã€‚
+- **é¢æ¿ä½ç½®**ï¼šTrips å·¦å´æ¬„ï¼ŒDataBar â†’ DateRangePicker â†’ **TripStatsPanel** â†’ æ™‚é–“ç·š/åœç•™åˆ—è¡¨ã€‚ç†ç”±ï¼šèˆ‡æ—¥æœŸç¯„åœåŒå€ã€éš¨ç¯©é¸å³æ™‚æ›´æ–°ã€æ™‚é–“è»¸èˆ‡æ´»å‹•é¡žåž‹å…©ç¨®æ¨¡å¼éƒ½å¯è¦‹ã€ä¸ä½”ç”¨é ‚æ¬„ä¹Ÿä¸é®åœ°åœ–ï¼›ç§»å‹•ç«¯æŠ½å±œå…§åŒæ¨£å¯è®€ã€‚
+- **å£å¾‘**ï¼šç¸½è·é›¢ = timeline route é€£çºŒé ‚é»ž haversine ç´¯åŠ ï¼›æ´»èºå¤©æ•¸ = æ®µèˆ‡åœç•™ `[start,end]` è¦†è“‹çš„æœ¬åœ°æ—¥è¯é›†ï¼ˆç”¨ `setDate` é€æ—¥æ­¥é€²ï¼ŒDST å®‰å…¨ï¼Œä¸¦å°ç—…æ…‹é•·è·¨åº¦è¨­ 20000 å¤©ä¸Šé™ï¼‰ï¼›æ—¥å‡è·é›¢ = ç¸½è·é›¢/æ´»èºå¤©æ•¸ï¼›æ—¥å‡åœç•™ = Î£(visit æ™‚é•·)/æ´»èºå¤©æ•¸ï¼›åœ°é»žé »æ¬¡ = `groupVisitsByLocation` èšåˆå¾ŒæŒ‰æ¬¡æ•¸ï¼ˆåŒæ¬¡æ•¸æ¯”æ™‚é•·ï¼‰æŽ’åºå– Top 5ã€‚
+- **æ•ˆçŽ‡**ï¼šå…¨éƒ¨ O(n) æŽƒæï¼Œ`useMemo` ç¶å®š `[route, segments, visits]`ï¼Œä¸åœ¨ render åš O(nÂ²)ã€‚
+- **sample å¯¦æ¸¬ï¼ˆå…¨éƒ¨ï¼‰**ï¼šç¸½è·é›¢ **8236 km**ã€æ´»èº **55 å¤©**ã€æ—¥å‡ **150 km/å¤©**ã€æ—¥å‡åœç•™ **16h 11m**ï¼›Top 5ï¼šå®¶ï¼ˆæ¨¡æ‹Ÿï¼‰78 æ¬¡ Â· 339h30mã€å…¬å¸ï¼ˆæ¨¡æ‹Ÿï¼‰37 Â· 375h25mã€Bella å’–å•¡é¤¨ 32 Â· 36h20mã€å¤§å®‰æ£®æž—å…¬åœ’ 10 Â· 15hã€å—é–€å¸‚å ´ 10 Â· 7h30mã€‚
+- å–®æ¸¬ `stats.test.ts`ï¼ˆè·é›¢ã€è·¨æ—¥æ´»èºå¤©æ•¸ã€æ—¥å‡ã€Top N capã€é›¶æ´»å‹•ï¼‰ã€‚
 
-**T28（功能 12）**：自建輕量 i18n，**無新增依賴**。
-- 架構：`src/lib/i18n/zh.ts`（key 的 source of truth）+ `en.ts`（`satisfies Record<MessageKey,string>`，缺/多 key 即型別錯誤）+ `index.tsx`（`I18nProvider` / `useI18n()` / `detectLang` / `translate` / 格式化）+ `warnings.ts`（解析 warning 的英文模板映射）。
-- **預設語言**：`navigator.language` 以 `zh` 開頭 → 简中，其餘 → English。**設置頁手動切換**（English / 简体中文）。**不持久化**——刷新回瀏覽器語言（已實測）。
-- **格式化隨語言**：日期 `2026-09-15` vs `Sep 15, 2026`、時間 `14:05`、時長 `9小时5分` vs `9h 5m`、千分位（`Intl.NumberFormat`）、距離 `公里`/`km`、月標題、週首字母。
-- **覆蓋範圍**：Header/Footer、Landing、EmptyState、ImportPanel、DataBar、DateRangePicker、Trips（summary/legend/toggle/empty/downsampled）、TripStatsPanel、TimelineList、StopList、TripMap（tooltip + 點擊 popup）、Places、VisitHistoryPanel、Help（含步驟/FAQ/格式表）、Settings、ExportButton、tiles 驗證訊息、store（大檔確認/未識別/範例標籤/自訂瓦片名）、`document.title` 與 `<html lang>`。
-- **未覆蓋 / 限制（誠實列出）**：①Web Worker 的解析 warning 以 `localizeWarning` 對已知模板做 best-effort 英譯；**未匹配的新模板會原樣輸出**。②`import.workerFailed` 等 worker 端錯誤訊息在產生時用 `detectLang()`（瀏覽器語言），不隨手動切換；③多檔 `dataLabel` 在導入當下以當時語言生成（切語言後不重算）；④`sample/SAMPLE_LABEL`、`coords/COORDS_PRIVACY_NOTE`、`trips.ts` 的 zh 格式化 helper 保留但已不在 UI 使用（供舊測試/相容）。
-- **驗證**：production build + Playwright（瀏覽器 en-US）**逐頁掃描 CJK**：Landing / Trips / Places（含查詢結果）/ Help / Settings / 匯出彈窗 → **無 UI 中文殘留**（僅 sample 資料地名與語言選項「简体中文」為刻意保留）；切換简中後 summary/stats/日曆標題均正確；**刷新後回英文**（無持久化）。單測 `i18n.test.ts`（key 集合一致、en catalog 無 CJK、detectLang、formatters、localizeWarning）。
+**T28ï¼ˆåŠŸèƒ½ 12ï¼‰**ï¼šè‡ªå»ºè¼•é‡ i18nï¼Œ**ç„¡æ–°å¢žä¾è³´**ã€‚
+- æž¶æ§‹ï¼š`src/lib/i18n/zh.ts`ï¼ˆkey çš„ source of truthï¼‰+ `en.ts`ï¼ˆ`satisfies Record<MessageKey,string>`ï¼Œç¼º/å¤š key å³åž‹åˆ¥éŒ¯èª¤ï¼‰+ `index.tsx`ï¼ˆ`I18nProvider` / `useI18n()` / `detectLang` / `translate` / æ ¼å¼åŒ–ï¼‰+ `warnings.ts`ï¼ˆè§£æž warning çš„è‹±æ–‡æ¨¡æ¿æ˜ å°„ï¼‰ã€‚
+- **é è¨­èªžè¨€**ï¼š`navigator.language` ä»¥ `zh` é–‹é ­ â†’ ç®€ä¸­ï¼Œå…¶é¤˜ â†’ Englishã€‚**è¨­ç½®é æ‰‹å‹•åˆ‡æ›**ï¼ˆEnglish / ç®€ä½“ä¸­æ–‡ï¼‰ã€‚**ä¸æŒä¹…åŒ–**â€”â€”åˆ·æ–°å›žç€è¦½å™¨èªžè¨€ï¼ˆå·²å¯¦æ¸¬ï¼‰ã€‚
+- **æ ¼å¼åŒ–éš¨èªžè¨€**ï¼šæ—¥æœŸ `2026-09-15` vs `Sep 15, 2026`ã€æ™‚é–“ `14:05`ã€æ™‚é•· `9å°æ—¶5åˆ†` vs `9h 5m`ã€åƒåˆ†ä½ï¼ˆ`Intl.NumberFormat`ï¼‰ã€è·é›¢ `å…¬é‡Œ`/`km`ã€æœˆæ¨™é¡Œã€é€±é¦–å­—æ¯ã€‚
+- **è¦†è“‹ç¯„åœ**ï¼šHeader/Footerã€Landingã€EmptyStateã€ImportPanelã€DataBarã€DateRangePickerã€Tripsï¼ˆsummary/legend/toggle/empty/downsampledï¼‰ã€TripStatsPanelã€TimelineListã€StopListã€TripMapï¼ˆtooltip + é»žæ“Š popupï¼‰ã€Placesã€VisitHistoryPanelã€Helpï¼ˆå«æ­¥é©Ÿ/FAQ/æ ¼å¼è¡¨ï¼‰ã€Settingsã€ExportButtonã€tiles é©—è­‰è¨Šæ¯ã€storeï¼ˆå¤§æª”ç¢ºèª/æœªè­˜åˆ¥/ç¯„ä¾‹æ¨™ç±¤/è‡ªè¨‚ç“¦ç‰‡åï¼‰ã€`document.title` èˆ‡ `<html lang>`ã€‚
+- **æœªè¦†è“‹ / é™åˆ¶ï¼ˆèª å¯¦åˆ—å‡ºï¼‰**ï¼šâ‘ Web Worker çš„è§£æž warning ä»¥ `localizeWarning` å°å·²çŸ¥æ¨¡æ¿åš best-effort è‹±è­¯ï¼›**æœªåŒ¹é…çš„æ–°æ¨¡æ¿æœƒåŽŸæ¨£è¼¸å‡º**ã€‚â‘¡`import.workerFailed` ç­‰ worker ç«¯éŒ¯èª¤è¨Šæ¯åœ¨ç”¢ç”Ÿæ™‚ç”¨ `detectLang()`ï¼ˆç€è¦½å™¨èªžè¨€ï¼‰ï¼Œä¸éš¨æ‰‹å‹•åˆ‡æ›ï¼›â‘¢å¤šæª” `dataLabel` åœ¨å°Žå…¥ç•¶ä¸‹ä»¥ç•¶æ™‚èªžè¨€ç”Ÿæˆï¼ˆåˆ‡èªžè¨€å¾Œä¸é‡ç®—ï¼‰ï¼›â‘£`sample/SAMPLE_LABEL`ã€`coords/COORDS_PRIVACY_NOTE`ã€`trips.ts` çš„ zh æ ¼å¼åŒ– helper ä¿ç•™ä½†å·²ä¸åœ¨ UI ä½¿ç”¨ï¼ˆä¾›èˆŠæ¸¬è©¦/ç›¸å®¹ï¼‰ã€‚
+- **é©—è­‰**ï¼šproduction build + Playwrightï¼ˆç€è¦½å™¨ en-USï¼‰**é€é æŽƒæ CJK**ï¼šLanding / Trips / Placesï¼ˆå«æŸ¥è©¢çµæžœï¼‰/ Help / Settings / åŒ¯å‡ºå½ˆçª— â†’ **ç„¡ UI ä¸­æ–‡æ®˜ç•™**ï¼ˆåƒ… sample è³‡æ–™åœ°åèˆ‡èªžè¨€é¸é …ã€Œç®€ä½“ä¸­æ–‡ã€ç‚ºåˆ»æ„ä¿ç•™ï¼‰ï¼›åˆ‡æ›ç®€ä¸­å¾Œ summary/stats/æ—¥æ›†æ¨™é¡Œå‡æ­£ç¢ºï¼›**åˆ·æ–°å¾Œå›žè‹±æ–‡**ï¼ˆç„¡æŒä¹…åŒ–ï¼‰ã€‚å–®æ¸¬ `i18n.test.ts`ï¼ˆkey é›†åˆä¸€è‡´ã€en catalog ç„¡ CJKã€detectLangã€formattersã€localizeWarningï¼‰ã€‚
 
-**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **186 passed**（14 檔；167 → +19：stats 8 + i18n 8 + localizeWarning 3）。**未 commit、未 push**。
+**é©—è­‰**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **186 passed**ï¼ˆ14 æª”ï¼›167 â†’ +19ï¼šstats 8 + i18n 8 + localizeWarning 3ï¼‰ã€‚**æœª commitã€æœª push**ã€‚
 
-## 2026-09-15 10:55 — Dev 更新 OPC 3.0 連結（改指作者網站）
+## 2026-09-15 10:55 â€” Dev æ›´æ–° OPC 3.0 é€£çµï¼ˆæ”¹æŒ‡ä½œè€…ç¶²ç«™ï¼‰
 
-**CEO 新決定**：OPC 3.0 連結改指向使用者的個人網站 **`https://coderkk.net`**（原本指向私有 repo `coderkk/opc-3.0`，公開訪客會 404）。
-- `src/src/lib/site.ts`：`OPC_3_LINK` → `'https://coderkk.net'`；註解更新為「指向作者網站；OPC 3.0 repo 私有，公開連結會 404」。
-- `README.md`：`[OPC 3.0](https://github.com/coderkk/opc-3.0)` → `https://coderkk.net`。
-- 全庫 grep：`src/`、`README.md` 已無 `github.com/*/opc-3.0` 殘留；唯一殘留在本 `docs/NOTES.md` 的**歷史條目（10:40）**——屬已發生事實的日誌，**刻意不改寫**，僅於該條目加「已被本條取代」標記。**不再有 404 問題**。
+**CEO æ–°æ±ºå®š**ï¼šOPC 3.0 é€£çµæ”¹æŒ‡å‘ä½¿ç”¨è€…çš„å€‹äººç¶²ç«™ **`https://coderkk.net`**ï¼ˆåŽŸæœ¬æŒ‡å‘ç§æœ‰ repo `coderkk/opc-3.0`ï¼Œå…¬é–‹è¨ªå®¢æœƒ 404ï¼‰ã€‚
+- `src/src/lib/site.ts`ï¼š`OPC_3_LINK` â†’ `'https://coderkk.net'`ï¼›è¨»è§£æ›´æ–°ç‚ºã€ŒæŒ‡å‘ä½œè€…ç¶²ç«™ï¼›OPC 3.0 repo ç§æœ‰ï¼Œå…¬é–‹é€£çµæœƒ 404ã€ã€‚
+- `README.md`ï¼š`[OPC 3.0](https://github.com/coderkk/opc-3.0)` â†’ `https://coderkk.net`ã€‚
+- å…¨åº« grepï¼š`src/`ã€`README.md` å·²ç„¡ `github.com/*/opc-3.0` æ®˜ç•™ï¼›å”¯ä¸€æ®˜ç•™åœ¨æœ¬ `docs/NOTES.md` çš„**æ­·å²æ¢ç›®ï¼ˆ10:40ï¼‰**â€”â€”å±¬å·²ç™¼ç”Ÿäº‹å¯¦çš„æ—¥èªŒï¼Œ**åˆ»æ„ä¸æ”¹å¯«**ï¼Œåƒ…æ–¼è©²æ¢ç›®åŠ ã€Œå·²è¢«æœ¬æ¢å–ä»£ã€æ¨™è¨˜ã€‚**ä¸å†æœ‰ 404 å•é¡Œ**ã€‚
 
-**驗證**：production build + Playwright 讀 Landing「了解更多 →」→ `href = "https://coderkk.net"`；`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**。**未 commit、未 push**（CEO 統一提交）。
+**é©—è­‰**ï¼šproduction build + Playwright è®€ Landingã€Œäº†è§£æ›´å¤š â†’ã€â†’ `href = "https://coderkk.net"`ï¼›`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **167 passed**ã€‚**æœª commitã€æœª push**ï¼ˆCEO çµ±ä¸€æäº¤ï¼‰ã€‚
 
-## 2026-09-15 10:40 — Dev 設定 OPC 3.0 連結（Reviewer T26 S3）
+## 2026-09-15 10:40 â€” Dev è¨­å®š OPC 3.0 é€£çµï¼ˆReviewer T26 S3ï¼‰
 
-> **註：本條 URL 已由 10:55 條目取代**（原指私有 repo `github.com/coderkk/opc-3.0`；因公開訪客 404，CEO 改指 `https://coderkk.net`）。以下為當時的事實記錄。
+> **è¨»ï¼šæœ¬æ¢ URL å·²ç”± 10:55 æ¢ç›®å–ä»£**ï¼ˆåŽŸæŒ‡ç§æœ‰ repo `github.com/coderkk/opc-3.0`ï¼›å› å…¬é–‹è¨ªå®¢ 404ï¼ŒCEO æ”¹æŒ‡ `https://coderkk.net`ï¼‰ã€‚ä»¥ä¸‹ç‚ºç•¶æ™‚çš„äº‹å¯¦è¨˜éŒ„ã€‚
 
-**CEO 拍板 URL** `https://github.com/coderkk/opc-3.0`：
-- `README.md`：`[OPC 3.0](https://github.com/opencode/opc-3.0)` → `https://github.com/coderkk/opc-3.0`。
-- `src/src/lib/site.ts`：`OPC_3_LINK` 由 `'#'` → `'https://github.com/coderkk/opc-3.0'`；順手移除過時註解「Placeholder replaced at T10 deployment…」，改註明私有 repo 的已知取捨。
-- 檢查殘留：全庫 grep `href="#"` / `OPC_3_LINK`，僅 `site.ts` 定義與 `Landing.tsx:112` 使用；`Footer.tsx` 是站內 `<Link to="/#built-with-opc">`（非外鏈），不動。
+**CEO æ‹æ¿ URL** `https://github.com/coderkk/opc-3.0`ï¼š
+- `README.md`ï¼š`[OPC 3.0](https://github.com/opencode/opc-3.0)` â†’ `https://github.com/coderkk/opc-3.0`ã€‚
+- `src/src/lib/site.ts`ï¼š`OPC_3_LINK` ç”± `'#'` â†’ `'https://github.com/coderkk/opc-3.0'`ï¼›é †æ‰‹ç§»é™¤éŽæ™‚è¨»è§£ã€ŒPlaceholder replaced at T10 deploymentâ€¦ã€ï¼Œæ”¹è¨»æ˜Žç§æœ‰ repo çš„å·²çŸ¥å–æ¨ã€‚
+- æª¢æŸ¥æ®˜ç•™ï¼šå…¨åº« grep `href="#"` / `OPC_3_LINK`ï¼Œåƒ… `site.ts` å®šç¾©èˆ‡ `Landing.tsx:112` ä½¿ç”¨ï¼›`Footer.tsx` æ˜¯ç«™å…§ `<Link to="/#built-with-opc">`ï¼ˆéžå¤–éˆï¼‰ï¼Œä¸å‹•ã€‚
 
-**驗證**：production build + Playwright 讀 Landing 的「了解更多 →」→ `href = "https://github.com/coderkk/opc-3.0"`；Footer「Created by OPC 3.0」= `#/#built-with-opc`（站內，正確）。`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**。
+**é©—è­‰**ï¼šproduction build + Playwright è®€ Landing çš„ã€Œäº†è§£æ›´å¤š â†’ã€â†’ `href = "https://github.com/coderkk/opc-3.0"`ï¼›Footerã€ŒCreated by OPC 3.0ã€= `#/#built-with-opc`ï¼ˆç«™å…§ï¼Œæ­£ç¢ºï¼‰ã€‚`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **167 passed**ã€‚
 
-**已知取捨（CEO 已知悉）**：該 OPC 3.0 repo **維持私有** → 公開 portfolio 訪客點此連結**會得到 404**。CEO 接受此取捨，明確要求**不移除連結、不改指向別處**。若日後要避免 404，需改為公開或移除連結。
+**å·²çŸ¥å–æ¨ï¼ˆCEO å·²çŸ¥æ‚‰ï¼‰**ï¼šè©² OPC 3.0 repo **ç¶­æŒç§æœ‰** â†’ å…¬é–‹ portfolio è¨ªå®¢é»žæ­¤é€£çµ**æœƒå¾—åˆ° 404**ã€‚CEO æŽ¥å—æ­¤å–æ¨ï¼Œæ˜Žç¢ºè¦æ±‚**ä¸ç§»é™¤é€£çµã€ä¸æ”¹æŒ‡å‘åˆ¥è™•**ã€‚è‹¥æ—¥å¾Œè¦é¿å… 404ï¼Œéœ€æ”¹ç‚ºå…¬é–‹æˆ–ç§»é™¤é€£çµã€‚
 
-**未 commit、未 push**（CEO 統一提交）。
+**æœª commitã€æœª push**ï¼ˆCEO çµ±ä¸€æäº¤ï¼‰ã€‚
 
-## 2026-09-15 10:25 — Dev 修正 Reviewer T26 複審（S2 + A1/A2）
+## 2026-09-15 10:25 â€” Dev ä¿®æ­£ Reviewer T26 è¤‡å¯©ï¼ˆS2 + A1/A2ï¼‰
 
-**背景**：Reviewer 對 T26 判 PASS-WITH-CONDITIONS。
+**èƒŒæ™¯**ï¼šReviewer å° T26 åˆ¤ PASS-WITH-CONDITIONSã€‚
 
-**S2（阻塞，README 隱私聲明缺外鏈例外）**：原絕對句「你的坐标永远不出你的设备」只列瓦片例外，與同檔 What's new 及 App Landing 矛盾。已改為「**除下列外部请求外，你的坐标不出你的设备**」，並補一條與 Landing/設置頁對齊的說明：地圖點彈窗預設「複製坐標」（純本機、不聯網）；只有主動點「在 Google Maps 開啟」才把坐標 + IP 送給 Google；瓦片請求同理。
+**S2ï¼ˆé˜»å¡žï¼ŒREADME éš±ç§è²æ˜Žç¼ºå¤–éˆä¾‹å¤–ï¼‰**ï¼šåŽŸçµ•å°å¥ã€Œä½ çš„åæ ‡æ°¸è¿œä¸å‡ºä½ çš„è®¾å¤‡ã€åªåˆ—ç“¦ç‰‡ä¾‹å¤–ï¼Œèˆ‡åŒæª” What's new åŠ App Landing çŸ›ç›¾ã€‚å·²æ”¹ç‚ºã€Œ**é™¤ä¸‹åˆ—å¤–éƒ¨è¯·æ±‚å¤–ï¼Œä½ çš„åæ ‡ä¸å‡ºä½ çš„è®¾å¤‡**ã€ï¼Œä¸¦è£œä¸€æ¢èˆ‡ Landing/è¨­ç½®é å°é½Šçš„èªªæ˜Žï¼šåœ°åœ–é»žå½ˆçª—é è¨­ã€Œè¤‡è£½åæ¨™ã€ï¼ˆç´”æœ¬æ©Ÿã€ä¸è¯ç¶²ï¼‰ï¼›åªæœ‰ä¸»å‹•é»žã€Œåœ¨ Google Maps é–‹å•Ÿã€æ‰æŠŠåæ¨™ + IP é€çµ¦ Googleï¼›ç“¦ç‰‡è«‹æ±‚åŒç†ã€‚
 
-**A1（CHANGELOG 遺漏）**：補齊缺漏里程碑——`T10.1`（Pages 部署 workflow）/`T10.2`（中文 README）/`T10.3`（正式部署上線）併入 09-13 節；`T12`（改名 Timeline Map + Theme + 半徑檔位 + marker 顏色）與 `T12.6` 併入 09-13；`T13.6`（rawSignals 接入）/`T13.7`（時區修復）併入 09-14；另加 T26 的 `Docs / Portfolio` 條目（README/截圖/LICENSE/CHANGELOG）。
+**A1ï¼ˆCHANGELOG éºæ¼ï¼‰**ï¼šè£œé½Šç¼ºæ¼é‡Œç¨‹ç¢‘â€”â€”`T10.1`ï¼ˆPages éƒ¨ç½² workflowï¼‰/`T10.2`ï¼ˆä¸­æ–‡ READMEï¼‰/`T10.3`ï¼ˆæ­£å¼éƒ¨ç½²ä¸Šç·šï¼‰ä½µå…¥ 09-13 ç¯€ï¼›`T12`ï¼ˆæ”¹å Timeline Map + Theme + åŠå¾‘æª”ä½ + marker é¡è‰²ï¼‰èˆ‡ `T12.6` ä½µå…¥ 09-13ï¼›`T13.6`ï¼ˆrawSignals æŽ¥å…¥ï¼‰/`T13.7`ï¼ˆæ™‚å€ä¿®å¾©ï¼‰ä½µå…¥ 09-14ï¼›å¦åŠ  T26 çš„ `Docs / Portfolio` æ¢ç›®ï¼ˆREADME/æˆªåœ–/LICENSE/CHANGELOGï¼‰ã€‚
 
-**A2（settings.png 未含外鏈披露）**：以 production build 重截 `settings.png`（1440×900，滾動至「数据生命周期」），現完整入鏡 5 條含「外部链接例外：…若你主动点『在 Google Maps 開啟』，该坐标与你的 IP 会发送给 Google」。
+**A2ï¼ˆsettings.png æœªå«å¤–éˆæŠ«éœ²ï¼‰**ï¼šä»¥ production build é‡æˆª `settings.png`ï¼ˆ1440Ã—900ï¼Œæ»¾å‹•è‡³ã€Œæ•°æ®ç”Ÿå‘½å‘¨æœŸã€ï¼‰ï¼Œç¾å®Œæ•´å…¥é¡ 5 æ¢å«ã€Œå¤–éƒ¨é“¾æŽ¥ä¾‹å¤–ï¼šâ€¦è‹¥ä½ ä¸»åŠ¨ç‚¹ã€Žåœ¨ Google Maps é–‹å•Ÿã€ï¼Œè¯¥åæ ‡ä¸Žä½ çš„ IP ä¼šå‘é€ç»™ Googleã€ã€‚
 
-**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**（僅動文件與截圖）。**未 commit、未 push**。**未觸碰** README 的 OPC 3.0 連結與 `site.ts` 的 `OPC_3_LINK`（待 CEO 給 URL）。
+**é©—è­‰**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **167 passed**ï¼ˆåƒ…å‹•æ–‡ä»¶èˆ‡æˆªåœ–ï¼‰ã€‚**æœª commitã€æœª push**ã€‚**æœªè§¸ç¢°** README çš„ OPC 3.0 é€£çµèˆ‡ `site.ts` çš„ `OPC_3_LINK`ï¼ˆå¾… CEO çµ¦ URLï¼‰ã€‚
 
-## 2026-09-15 10:05 — Dev T26（README / portfolio 修复）
+## 2026-09-15 10:05 â€” Dev T26ï¼ˆREADME / portfolio ä¿®å¤ï¼‰
 
-**來源**：Writer 於 2026-09-15 brainstorm 提的發現。僅動文件與截圖，未動程式。
+**ä¾†æº**ï¼šWriter æ–¼ 2026-09-15 brainstorm æçš„ç™¼ç¾ã€‚åƒ…å‹•æ–‡ä»¶èˆ‡æˆªåœ–ï¼Œæœªå‹•ç¨‹å¼ã€‚
 
-**修復項**：
-1. **README 圖片路徑全裂**：原本引用裸檔名（`landing-full.png` 等），實際在 `docs/screenshots/` → 全部改為 `docs/screenshots/…`。
-2. **重拍截圖（10 張，sample data）**：用 production build + 「立即體驗」載入模擬資料，避免真實位置資料。清單：
-   - `landing-full.png`（全頁）、`landing-hero.png`（Hero）、`landing-builtwith.png`（Built with OPC 區塊）
-   - `trips.png`（時間軸模式 + 左側時間線 + 雙月曆 + 更換資料）
-   - `trips-activity.png`（按活動類型 + 交通方式圖例 + 銜接）
-   - `places.png`（地圖點擊查詢 98 停留）
-   - `export.png`（行程匯出彈窗 + 隱私護欄）
-   - `mobile.png`（390px 移動端抽屜版面）
-   - `help.png`、`settings.png`
-3. **重複圖**：`landing-hero.png` 與 `landing-builtwith.png` 原 md5 完全相同（其一錯）→ 兩張都重拍為各自內容，現 md5 相異（`716f6e…` vs `c9a03b…`）。
-4. **LICENSE**：新增 `LICENSE`（MIT，Copyright (c) 2026 coderkk）。
-5. **佔位符**：`https://github.com/<user>/…` 與 demo `<user>` → `coderkk`；badge `(#)` → LICENSE / GitHub Actions / live demo 真實連結。
-6. **What's new / 近期更新**：README 新增段落（時間軸模式、逐點真實時間、雙月曆、左側時間線、更換資料、匯出、移動端、跨午夜）。
-7. **CHANGELOG.md**：新增，記 T1–T25 里程碑（Keep a Changelog 風格，**未打 git tag**，交 CEO 決定）。
-8. 順修：Places 半徑文案 `10–5000KM` → `1–100 KM`（與功能/實作一致）。
+**ä¿®å¾©é …**ï¼š
+1. **README åœ–ç‰‡è·¯å¾‘å…¨è£‚**ï¼šåŽŸæœ¬å¼•ç”¨è£¸æª”åï¼ˆ`landing-full.png` ç­‰ï¼‰ï¼Œå¯¦éš›åœ¨ `docs/screenshots/` â†’ å…¨éƒ¨æ”¹ç‚º `docs/screenshots/â€¦`ã€‚
+2. **é‡æ‹æˆªåœ–ï¼ˆ10 å¼µï¼Œsample dataï¼‰**ï¼šç”¨ production build + ã€Œç«‹å³é«”é©—ã€è¼‰å…¥æ¨¡æ“¬è³‡æ–™ï¼Œé¿å…çœŸå¯¦ä½ç½®è³‡æ–™ã€‚æ¸…å–®ï¼š
+   - `landing-full.png`ï¼ˆå…¨é ï¼‰ã€`landing-hero.png`ï¼ˆHeroï¼‰ã€`landing-builtwith.png`ï¼ˆBuilt with OPC å€å¡Šï¼‰
+   - `trips.png`ï¼ˆæ™‚é–“è»¸æ¨¡å¼ + å·¦å´æ™‚é–“ç·š + é›™æœˆæ›† + æ›´æ›è³‡æ–™ï¼‰
+   - `trips-activity.png`ï¼ˆæŒ‰æ´»å‹•é¡žåž‹ + äº¤é€šæ–¹å¼åœ–ä¾‹ + éŠœæŽ¥ï¼‰
+   - `places.png`ï¼ˆåœ°åœ–é»žæ“ŠæŸ¥è©¢ 98 åœç•™ï¼‰
+   - `export.png`ï¼ˆè¡Œç¨‹åŒ¯å‡ºå½ˆçª— + éš±ç§è­·æ¬„ï¼‰
+   - `mobile.png`ï¼ˆ390px ç§»å‹•ç«¯æŠ½å±œç‰ˆé¢ï¼‰
+   - `help.png`ã€`settings.png`
+3. **é‡è¤‡åœ–**ï¼š`landing-hero.png` èˆ‡ `landing-builtwith.png` åŽŸ md5 å®Œå…¨ç›¸åŒï¼ˆå…¶ä¸€éŒ¯ï¼‰â†’ å…©å¼µéƒ½é‡æ‹ç‚ºå„è‡ªå…§å®¹ï¼Œç¾ md5 ç›¸ç•°ï¼ˆ`716f6eâ€¦` vs `c9a03bâ€¦`ï¼‰ã€‚
+4. **LICENSE**ï¼šæ–°å¢ž `LICENSE`ï¼ˆMITï¼ŒCopyright (c) 2026 coderkkï¼‰ã€‚
+5. **ä½”ä½ç¬¦**ï¼š`https://github.com/<user>/â€¦` èˆ‡ demo `<user>` â†’ `coderkk`ï¼›badge `(#)` â†’ LICENSE / GitHub Actions / live demo çœŸå¯¦é€£çµã€‚
+6. **What's new / è¿‘æœŸæ›´æ–°**ï¼šREADME æ–°å¢žæ®µè½ï¼ˆæ™‚é–“è»¸æ¨¡å¼ã€é€é»žçœŸå¯¦æ™‚é–“ã€é›™æœˆæ›†ã€å·¦å´æ™‚é–“ç·šã€æ›´æ›è³‡æ–™ã€åŒ¯å‡ºã€ç§»å‹•ç«¯ã€è·¨åˆå¤œï¼‰ã€‚
+7. **CHANGELOG.md**ï¼šæ–°å¢žï¼Œè¨˜ T1â€“T25 é‡Œç¨‹ç¢‘ï¼ˆKeep a Changelog é¢¨æ ¼ï¼Œ**æœªæ‰“ git tag**ï¼Œäº¤ CEO æ±ºå®šï¼‰ã€‚
+8. é †ä¿®ï¼šPlaces åŠå¾‘æ–‡æ¡ˆ `10â€“5000KM` â†’ `1â€“100 KM`ï¼ˆèˆ‡åŠŸèƒ½/å¯¦ä½œä¸€è‡´ï¼‰ã€‚
 
-**驗證**：以腳本抽取 README 全部相對連結/圖片目標（12 個，含 `CHANGELOG.md`/`LICENSE`）逐一 `os.path.exists` → **全部存在、0 缺失**；`<user>`、`](#)` 佔位符 0 殘留；`docs/screenshots/` 10 檔全部被引用、無多餘。`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**（未動程式）。**未 commit、未 push**。
+**é©—è­‰**ï¼šä»¥è…³æœ¬æŠ½å– README å…¨éƒ¨ç›¸å°é€£çµ/åœ–ç‰‡ç›®æ¨™ï¼ˆ12 å€‹ï¼Œå« `CHANGELOG.md`/`LICENSE`ï¼‰é€ä¸€ `os.path.exists` â†’ **å…¨éƒ¨å­˜åœ¨ã€0 ç¼ºå¤±**ï¼›`<user>`ã€`](#)` ä½”ä½ç¬¦ 0 æ®˜ç•™ï¼›`docs/screenshots/` 10 æª”å…¨éƒ¨è¢«å¼•ç”¨ã€ç„¡å¤šé¤˜ã€‚`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **167 passed**ï¼ˆæœªå‹•ç¨‹å¼ï¼‰ã€‚**æœª commitã€æœª push**ã€‚
 
-**未完成 / 待辦**：CHANGELOG 版本號與 git tag 留待 CEO 發布決策；截圖為 headless Chromium 產生，若需更精緻的宣傳圖可日後人工重拍。
+**æœªå®Œæˆ / å¾…è¾¦**ï¼šCHANGELOG ç‰ˆæœ¬è™Ÿèˆ‡ git tag ç•™å¾… CEO ç™¼å¸ƒæ±ºç­–ï¼›æˆªåœ–ç‚º headless Chromium ç”¢ç”Ÿï¼Œè‹¥éœ€æ›´ç²¾ç·»çš„å®£å‚³åœ–å¯æ—¥å¾Œäººå·¥é‡æ‹ã€‚
 
-## 2026-09-15 09:45 — Dev 修正 Reviewer S2 複審（裁切被 fallback 抵銷）
+## 2026-09-15 09:45 â€” Dev ä¿®æ­£ Reviewer S2 è¤‡å¯©ï¼ˆè£åˆ‡è¢« fallback æŠµéŠ·ï¼‰
 
-**背景**：Reviewer 複審判 FAIL——S3 的裁切被下游 `path.length >= 2` fallback 用**未裁的 `segment.start/end`** 抵銷；跨午夜段裁到剩 1 點時 activityType 仍畫 01-29 的點/線/bounds。
+**èƒŒæ™¯**ï¼šReviewer è¤‡å¯©åˆ¤ FAILâ€”â€”S3 çš„è£åˆ‡è¢«ä¸‹æ¸¸ `path.length >= 2` fallback ç”¨**æœªè£çš„ `segment.start/end`** æŠµéŠ·ï¼›è·¨åˆå¤œæ®µè£åˆ°å‰© 1 é»žæ™‚ activityType ä»ç•« 01-29 çš„é»ž/ç·š/boundsã€‚
 
-**修法（三處 `>= 2 → > 0`，有 path 就以 path 為準）**：
-1. `TripMap.tsx` `positions`：`segment.path.length > 0 ? segment.path : [start, end]`（單點 Leaflet 安全）。
-2. `trips.ts` `polylineEndpoints`：`> 0` 用 path 首末，否則 `start`/`end`。
-3. `trips.ts` `boundsOf`：`path.length > 0` 只 grow path；否則 fallback `start`/`end`（path-less 段保留既有 fallback）。
-4. 未動 `segmentVertices` 的 `>= 2`：`buildTimelineRoute` 對每個頂點另按 `sortMs` 過濾，時間軸模式本就不會被未裁端點畫出，維持原狀以縮小影響面。
+**ä¿®æ³•ï¼ˆä¸‰è™• `>= 2 â†’ > 0`ï¼Œæœ‰ path å°±ä»¥ path ç‚ºæº–ï¼‰**ï¼š
+1. `TripMap.tsx` `positions`ï¼š`segment.path.length > 0 ? segment.path : [start, end]`ï¼ˆå–®é»ž Leaflet å®‰å…¨ï¼‰ã€‚
+2. `trips.ts` `polylineEndpoints`ï¼š`> 0` ç”¨ path é¦–æœ«ï¼Œå¦å‰‡ `start`/`end`ã€‚
+3. `trips.ts` `boundsOf`ï¼š`path.length > 0` åª grow pathï¼›å¦å‰‡ fallback `start`/`end`ï¼ˆpath-less æ®µä¿ç•™æ—¢æœ‰ fallbackï¼‰ã€‚
+4. æœªå‹• `segmentVertices` çš„ `>= 2`ï¼š`buildTimelineRoute` å°æ¯å€‹é ‚é»žå¦æŒ‰ `sortMs` éŽæ¿¾ï¼Œæ™‚é–“è»¸æ¨¡å¼æœ¬å°±ä¸æœƒè¢«æœªè£ç«¯é»žç•«å‡ºï¼Œç¶­æŒåŽŸç‹€ä»¥ç¸®å°å½±éŸ¿é¢ã€‚
 
-**回歸測試（+3，共 167）**：①`boundsOf(prepareTrips(跨午夜段, range).segments, [])` = 僅 `{9,9}`（不含 01-29 的 `(1,1)`）；②path-less 段 `boundsOf` 仍 fallback `start/end`；③`bridgeLines` 對裁到 1 點的段，`from` = 該點 `(9,9)` 而非未裁 `start (1,1)`。
+**å›žæ­¸æ¸¬è©¦ï¼ˆ+3ï¼Œå…± 167ï¼‰**ï¼šâ‘ `boundsOf(prepareTrips(è·¨åˆå¤œæ®µ, range).segments, [])` = åƒ… `{9,9}`ï¼ˆä¸å« 01-29 çš„ `(1,1)`ï¼‰ï¼›â‘¡path-less æ®µ `boundsOf` ä» fallback `start/end`ï¼›â‘¢`bridgeLines` å°è£åˆ° 1 é»žçš„æ®µï¼Œ`from` = è©²é»ž `(9,9)` è€Œéžæœªè£ `start (1,1)`ã€‚
 
-**`>= 2 → > 0` 影響確認**：現有 `boundsOf` 測試的 path 端點 = start/end（不受影響）；`bridgeLines` 測試的 path 皆 ≥2 點（`>0` 不觸發差異）；新測試覆蓋 1 點情境。無測試被破壞。
+**`>= 2 â†’ > 0` å½±éŸ¿ç¢ºèª**ï¼šç¾æœ‰ `boundsOf` æ¸¬è©¦çš„ path ç«¯é»ž = start/endï¼ˆä¸å—å½±éŸ¿ï¼‰ï¼›`bridgeLines` æ¸¬è©¦çš„ path çš† â‰¥2 é»žï¼ˆ`>0` ä¸è§¸ç™¼å·®ç•°ï¼‰ï¼›æ–°æ¸¬è©¦è¦†è“‹ 1 é»žæƒ…å¢ƒã€‚ç„¡æ¸¬è©¦è¢«ç ´å£žã€‚
 
-**A（重繪）**：`TripMap` 的 `handleZoom` 改為**只在 `zoom >= DOT_MIN_ZOOM` 布林值翻轉時**才呼叫 `onZoomChange`（`lastDotsAvailable` ref），不再每次 `zoomend` 都上報 → `TripsPage` 不再每個 zoom 級別重繪整個 `TripsView`。
+**Aï¼ˆé‡ç¹ªï¼‰**ï¼š`TripMap` çš„ `handleZoom` æ”¹ç‚º**åªåœ¨ `zoom >= DOT_MIN_ZOOM` å¸ƒæž—å€¼ç¿»è½‰æ™‚**æ‰å‘¼å« `onZoomChange`ï¼ˆ`lastDotsAvailable` refï¼‰ï¼Œä¸å†æ¯æ¬¡ `zoomend` éƒ½ä¸Šå ± â†’ `TripsPage` ä¸å†æ¯å€‹ zoom ç´šåˆ¥é‡ç¹ªæ•´å€‹ `TripsView`ã€‚
 
-**N（文件訂正）**：①上則 09:30 S3 條目「`prepareTrips`（→ `positions`/`routePoints`/`boundsOf`）共用裁切」與事實不符（首輪 `boundsOf` 未裁），已就地加訂正說明；②上則 interactive tooltip 敘述「不再於 mouseout 自動關閉」錯誤——Leaflet 在 `!permanent` 時**仍**綁 `mouseout: closeTooltip`，已訂正為「`interactive` 只讓 tooltip 內容可互動；可靠入口是左欄選停留的 permanent tooltip，hover tooltip 在觸屏不保證穩定」。③`clipSegmentPath` 註解 + `DATA-FINDINGS §8.5` 明示「path-less 且跨午夜的段仍以未裁 `[start,end]` 畫線，屬既有 fallback 固有限制」。
+**Nï¼ˆæ–‡ä»¶è¨‚æ­£ï¼‰**ï¼šâ‘ ä¸Šå‰‡ 09:30 S3 æ¢ç›®ã€Œ`prepareTrips`ï¼ˆâ†’ `positions`/`routePoints`/`boundsOf`ï¼‰å…±ç”¨è£åˆ‡ã€èˆ‡äº‹å¯¦ä¸ç¬¦ï¼ˆé¦–è¼ª `boundsOf` æœªè£ï¼‰ï¼Œå·²å°±åœ°åŠ è¨‚æ­£èªªæ˜Žï¼›â‘¡ä¸Šå‰‡ interactive tooltip æ•˜è¿°ã€Œä¸å†æ–¼ mouseout è‡ªå‹•é—œé–‰ã€éŒ¯èª¤â€”â€”Leaflet åœ¨ `!permanent` æ™‚**ä»**ç¶ `mouseout: closeTooltip`ï¼Œå·²è¨‚æ­£ç‚ºã€Œ`interactive` åªè®“ tooltip å…§å®¹å¯äº’å‹•ï¼›å¯é å…¥å£æ˜¯å·¦æ¬„é¸åœç•™çš„ permanent tooltipï¼Œhover tooltip åœ¨è§¸å±ä¸ä¿è­‰ç©©å®šã€ã€‚â‘¢`clipSegmentPath` è¨»è§£ + `DATA-FINDINGS Â§8.5` æ˜Žç¤ºã€Œpath-less ä¸”è·¨åˆå¤œçš„æ®µä»ä»¥æœªè£ `[start,end]` ç•«ç·šï¼Œå±¬æ—¢æœ‰ fallback å›ºæœ‰é™åˆ¶ã€ã€‚
 
-**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **167 passed**（12 檔）。**未 commit、未 push**。
+**é©—è­‰**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **167 passed**ï¼ˆ12 æª”ï¼‰ã€‚**æœª commitã€æœª push**ã€‚
 
-## 2026-09-15 09:30 — Dev 修正 Reviewer S2/S3 + A/N（T20–T25）
+## 2026-09-15 09:30 â€” Dev ä¿®æ­£ Reviewer S2/S3 + A/Nï¼ˆT20â€“T25ï¼‰
 
-**背景**：Reviewer 對 T20–T25 判 PASS-WITH-CONDITIONS（2 阻塞 + A/N）。CEO 拍板處置，以下逐條。
+**èƒŒæ™¯**ï¼šReviewer å° T20â€“T25 åˆ¤ PASS-WITH-CONDITIONSï¼ˆ2 é˜»å¡ž + A/Nï¼‰ã€‚CEO æ‹æ¿è™•ç½®ï¼Œä»¥ä¸‹é€æ¢ã€‚
 
-**S2-a（T23 與 PRD 功能 3 衝突）**：採「改 PRD 不改實作」。`PRD.md` 功能 3 補「轨迹点在 **zoom ≥ 6** 显示为圆点；低 zoom 全景视图（< 6）仅绘制折线以保证性能（折线完整不省略）」，並加修訂記錄 **v1.17**（引用 T23 / `DATA-FINDINGS §8`）；`DATA-FINDINGS §8.4` 反向連回該 PRD 條款，並註明 `DOT_MIN_ZOOM` 即其閾值。
+**S2-aï¼ˆT23 èˆ‡ PRD åŠŸèƒ½ 3 è¡çªï¼‰**ï¼šæŽ¡ã€Œæ”¹ PRD ä¸æ”¹å¯¦ä½œã€ã€‚`PRD.md` åŠŸèƒ½ 3 è£œã€Œè½¨è¿¹ç‚¹åœ¨ **zoom â‰¥ 6** æ˜¾ç¤ºä¸ºåœ†ç‚¹ï¼›ä½Ž zoom å…¨æ™¯è§†å›¾ï¼ˆ< 6ï¼‰ä»…ç»˜åˆ¶æŠ˜çº¿ä»¥ä¿è¯æ€§èƒ½ï¼ˆæŠ˜çº¿å®Œæ•´ä¸çœç•¥ï¼‰ã€ï¼Œä¸¦åŠ ä¿®è¨‚è¨˜éŒ„ **v1.17**ï¼ˆå¼•ç”¨ T23 / `DATA-FINDINGS Â§8`ï¼‰ï¼›`DATA-FINDINGS Â§8.4` åå‘é€£å›žè©² PRD æ¢æ¬¾ï¼Œä¸¦è¨»æ˜Ž `DOT_MIN_ZOOM` å³å…¶é–¾å€¼ã€‚
 
-**S2-b（低 zoom 開關靜默空操作）**：採建議①。`TripMap` 匯出 `DOT_MIN_ZOOM`、新增 `onZoomChange` prop（`ZoomWatcher` 於 mount + `zoomend` 回報）；`TripsPage` 上提 `mapZoom` state，軌跡點開關在 `zoom < 6` 時 `disabled`，外層 `<span class="trips-toggle-wrap">` 承載 `title`（disabled button 收不到 pointer 事件，自身 title 不會顯示）。CSS 加 `.trips-toggle:disabled` 樣式。
+**S2-bï¼ˆä½Ž zoom é–‹é—œéœé»˜ç©ºæ“ä½œï¼‰**ï¼šæŽ¡å»ºè­°â‘ ã€‚`TripMap` åŒ¯å‡º `DOT_MIN_ZOOM`ã€æ–°å¢ž `onZoomChange` propï¼ˆ`ZoomWatcher` æ–¼ mount + `zoomend` å›žå ±ï¼‰ï¼›`TripsPage` ä¸Šæ `mapZoom` stateï¼Œè»Œè·¡é»žé–‹é—œåœ¨ `zoom < 6` æ™‚ `disabled`ï¼Œå¤–å±¤ `<span class="trips-toggle-wrap">` æ‰¿è¼‰ `title`ï¼ˆdisabled button æ”¶ä¸åˆ° pointer äº‹ä»¶ï¼Œè‡ªèº« title ä¸æœƒé¡¯ç¤ºï¼‰ã€‚CSS åŠ  `.trips-toggle:disabled` æ¨£å¼ã€‚
 
-**S3（activityType 未裁跨午夜）**：抽 `segmentVertices(segment)`（含無 `timestampMs` 的插值排序鍵）為單一真相，`clipSegmentPath(segment, range)` 依時間裁頂點，`buildTimelineRoute` 與 `prepareTrips` 共用。**取捨**：`clipSegmentPath` 對 `path.length < 2` 的段原樣返回，不展開 start/end fallback，以免改變所有無路徑段的 `totalPathPoints` 語義。補單測：`clipSegmentPath` 跨午夜裁點、open range 全保留、插值判定、path-less 不展開、`prepareTrips` 實際裁掉（= activityType 渲染輸入）。
-> **訂正（S2 複審後）**：本條首輪敘述為「`prepareTrips`（→ `positions`/`routePoints`/`boundsOf`）共用裁切」——**與事實不符**：首輪只裁了 `segment.path`，`boundsOf` 仍 grow 未裁的 `start`/`end`，且下游 `path.length >= 2` fallback 會用未裁端點畫線，導致裁到 1 點時仍重現 01-29 幾何。S2 複審已將 `boundsOf` 與三處 `>= 2 → > 0` fallback 一併修正（見頂部 09:45 條目），此句現才成立。
+**S3ï¼ˆactivityType æœªè£è·¨åˆå¤œï¼‰**ï¼šæŠ½ `segmentVertices(segment)`ï¼ˆå«ç„¡ `timestampMs` çš„æ’å€¼æŽ’åºéµï¼‰ç‚ºå–®ä¸€çœŸç›¸ï¼Œ`clipSegmentPath(segment, range)` ä¾æ™‚é–“è£é ‚é»žï¼Œ`buildTimelineRoute` èˆ‡ `prepareTrips` å…±ç”¨ã€‚**å–æ¨**ï¼š`clipSegmentPath` å° `path.length < 2` çš„æ®µåŽŸæ¨£è¿”å›žï¼Œä¸å±•é–‹ start/end fallbackï¼Œä»¥å…æ”¹è®Šæ‰€æœ‰ç„¡è·¯å¾‘æ®µçš„ `totalPathPoints` èªžç¾©ã€‚è£œå–®æ¸¬ï¼š`clipSegmentPath` è·¨åˆå¤œè£é»žã€open range å…¨ä¿ç•™ã€æ’å€¼åˆ¤å®šã€path-less ä¸å±•é–‹ã€`prepareTrips` å¯¦éš›è£æŽ‰ï¼ˆ= activityType æ¸²æŸ“è¼¸å…¥ï¼‰ã€‚
+> **è¨‚æ­£ï¼ˆS2 è¤‡å¯©å¾Œï¼‰**ï¼šæœ¬æ¢é¦–è¼ªæ•˜è¿°ç‚ºã€Œ`prepareTrips`ï¼ˆâ†’ `positions`/`routePoints`/`boundsOf`ï¼‰å…±ç”¨è£åˆ‡ã€â€”â€”**èˆ‡äº‹å¯¦ä¸ç¬¦**ï¼šé¦–è¼ªåªè£äº† `segment.path`ï¼Œ`boundsOf` ä» grow æœªè£çš„ `start`/`end`ï¼Œä¸”ä¸‹æ¸¸ `path.length >= 2` fallback æœƒç”¨æœªè£ç«¯é»žç•«ç·šï¼Œå°Žè‡´è£åˆ° 1 é»žæ™‚ä»é‡ç¾ 01-29 å¹¾ä½•ã€‚S2 è¤‡å¯©å·²å°‡ `boundsOf` èˆ‡ä¸‰è™• `>= 2 â†’ > 0` fallback ä¸€ä½µä¿®æ­£ï¼ˆè¦‹é ‚éƒ¨ 09:45 æ¢ç›®ï¼‰ï¼Œæ­¤å¥ç¾æ‰æˆç«‹ã€‚
 
-**A 級**：
-- `ExportButton.tsx`：`URL.revokeObjectURL` 改 `setTimeout(..., 1000)`（避免 Firefox/舊 Safari 取消下載）；加 Esc 關閉 + 開啟後 focus 進對話框 + 關閉還焦 trigger（focus trap 未做，範圍外）。
-- `CopyCoordsButton.tsx`：加 `aria-live="polite"`。
-- `TripMap.tsx` / `PlacesMap.tsx` 的停留 `<Tooltip>` 加 `interactive`（讓 tooltip 自身內容 `pointer-events:auto`，觸屏可點到內含按鈕）。
-> **訂正（S2 複審後）**：首輪寫「interactive tooltip 不再於 mouseout 自動關閉」——**錯誤**。Leaflet 在 `!permanent` 時仍綁 `mouseout: closeTooltip`；`interactive` 只讓 tooltip 內容可互動，hover tooltip 仍可能因 mouseout 關閉。因此**可靠入口是「左欄選停留 → permanent（selected）tooltip」**，hover 觸發的複製按鈕在觸屏上不保證可穩定點擊（本輪接受此限制，不硬解）。仍成立的副作用：tooltip 區域 `pointer-events:auto` 會小範圍攔截地圖拖拽。
-- 補單測：`coords.test.ts`（clipboard guard reject / 成功寫入 / URL / note）、`±5min` 邊界（恰好 = 覆蓋、略超 = 保留）、`cap → downsampled` 傳播（`prepareTimeline` route cap、`prepareTrips` combined path cap）。另 `coords.ts` 加 `typeof navigator` 守衛以便在 node 測試環境不炸。
+**A ç´š**ï¼š
+- `ExportButton.tsx`ï¼š`URL.revokeObjectURL` æ”¹ `setTimeout(..., 1000)`ï¼ˆé¿å… Firefox/èˆŠ Safari å–æ¶ˆä¸‹è¼‰ï¼‰ï¼›åŠ  Esc é—œé–‰ + é–‹å•Ÿå¾Œ focus é€²å°è©±æ¡† + é—œé–‰é‚„ç„¦ triggerï¼ˆfocus trap æœªåšï¼Œç¯„åœå¤–ï¼‰ã€‚
+- `CopyCoordsButton.tsx`ï¼šåŠ  `aria-live="polite"`ã€‚
+- `TripMap.tsx` / `PlacesMap.tsx` çš„åœç•™ `<Tooltip>` åŠ  `interactive`ï¼ˆè®“ tooltip è‡ªèº«å…§å®¹ `pointer-events:auto`ï¼Œè§¸å±å¯é»žåˆ°å…§å«æŒ‰éˆ•ï¼‰ã€‚
+> **è¨‚æ­£ï¼ˆS2 è¤‡å¯©å¾Œï¼‰**ï¼šé¦–è¼ªå¯«ã€Œinteractive tooltip ä¸å†æ–¼ mouseout è‡ªå‹•é—œé–‰ã€â€”â€”**éŒ¯èª¤**ã€‚Leaflet åœ¨ `!permanent` æ™‚ä»ç¶ `mouseout: closeTooltip`ï¼›`interactive` åªè®“ tooltip å…§å®¹å¯äº’å‹•ï¼Œhover tooltip ä»å¯èƒ½å›  mouseout é—œé–‰ã€‚å› æ­¤**å¯é å…¥å£æ˜¯ã€Œå·¦æ¬„é¸åœç•™ â†’ permanentï¼ˆselectedï¼‰tooltipã€**ï¼Œhover è§¸ç™¼çš„è¤‡è£½æŒ‰éˆ•åœ¨è§¸å±ä¸Šä¸ä¿è­‰å¯ç©©å®šé»žæ“Šï¼ˆæœ¬è¼ªæŽ¥å—æ­¤é™åˆ¶ï¼Œä¸ç¡¬è§£ï¼‰ã€‚ä»æˆç«‹çš„å‰¯ä½œç”¨ï¼štooltip å€åŸŸ `pointer-events:auto` æœƒå°ç¯„åœæ””æˆªåœ°åœ–æ‹–æ‹½ã€‚
+- è£œå–®æ¸¬ï¼š`coords.test.ts`ï¼ˆclipboard guard reject / æˆåŠŸå¯«å…¥ / URL / noteï¼‰ã€`Â±5min` é‚Šç•Œï¼ˆæ°å¥½ = è¦†è“‹ã€ç•¥è¶… = ä¿ç•™ï¼‰ã€`cap â†’ downsampled` å‚³æ’­ï¼ˆ`prepareTimeline` route capã€`prepareTrips` combined path capï¼‰ã€‚å¦ `coords.ts` åŠ  `typeof navigator` å®ˆè¡›ä»¥ä¾¿åœ¨ node æ¸¬è©¦ç’°å¢ƒä¸ç‚¸ã€‚
 
-**N 級**：`.trip-tip-actions .trip-tip-link { margin-top: 0 }`（與複製按鈕對齊）；NOTES T25 條目 `ExportDialog.tsx → ExportButton.tsx`；PRD 功能 10 移到功能 9 之後。
+**N ç´š**ï¼š`.trip-tip-actions .trip-tip-link { margin-top: 0 }`ï¼ˆèˆ‡è¤‡è£½æŒ‰éˆ•å°é½Šï¼‰ï¼›NOTES T25 æ¢ç›® `ExportDialog.tsx â†’ ExportButton.tsx`ï¼›PRD åŠŸèƒ½ 10 ç§»åˆ°åŠŸèƒ½ 9 ä¹‹å¾Œã€‚
 
-**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **164 passed**（12 檔；+13：coords 4 + clipSegmentPath 5 + ±5min 2 + cap 傳播 2）。**未 commit、未 push**。
+**é©—è­‰**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **164 passed**ï¼ˆ12 æª”ï¼›+13ï¼šcoords 4 + clipSegmentPath 5 + Â±5min 2 + cap å‚³æ’­ 2ï¼‰ã€‚**æœª commitã€æœª push**ã€‚
 
-## 2026-09-15 09:05 — Dev（覆核 T20–T22 + T23/T24/T25）
+## 2026-09-15 09:05 â€” Devï¼ˆè¦†æ ¸ T20â€“T22 + T23/T24/T25ï¼‰
 
-**覆核 T20–T22（CEO 直接實作、未提交）**：讀 diff 逐項核對 PRD 驗收 → **T21/T22 正確**（按頂點覆蓋 ±5min、跨午夜按 `sortMs` 裁到 range，單測已覆蓋）；**T20 發現缺口**：Security 點名的 `PlacesMap.tsx` 外鏈仍是裸的 `<a>Open in Google Maps</a>`，無隱私標注、無複製坐標。已修：
-- 抽出 `lib/coords.ts`（`writeCoordsToClipboard` + `COORDS_PRIVACY_NOTE` + `googleMapsUrl`）與 `components/CopyCoordsButton.tsx`，TripMap/PlacesMap 共用。
-- `PlacesMap` 的停留 marker 改用 `<Tooltip>`（座標 + 複製坐標 + Google Maps 連結 + 外鏈警示），與 TripMap 一致。
-- 順手加固：`navigator.clipboard` 在非安全上下文可能不存在 → 回傳 rejected promise（不再同步 throw），UI 顯示「複製失敗」。
-- 驗證（sample，Places）：setView 台北 → 169 停留；hover marker → tooltip 含「複製坐標 / 在 Google Maps 開啟 / 外部链接会把坐标与你的 IP 发送给 Google」，href 正確。
+**è¦†æ ¸ T20â€“T22ï¼ˆCEO ç›´æŽ¥å¯¦ä½œã€æœªæäº¤ï¼‰**ï¼šè®€ diff é€é …æ ¸å° PRD é©—æ”¶ â†’ **T21/T22 æ­£ç¢º**ï¼ˆæŒ‰é ‚é»žè¦†è“‹ Â±5minã€è·¨åˆå¤œæŒ‰ `sortMs` è£åˆ° rangeï¼Œå–®æ¸¬å·²è¦†è“‹ï¼‰ï¼›**T20 ç™¼ç¾ç¼ºå£**ï¼šSecurity é»žåçš„ `PlacesMap.tsx` å¤–éˆä»æ˜¯è£¸çš„ `<a>Open in Google Maps</a>`ï¼Œç„¡éš±ç§æ¨™æ³¨ã€ç„¡è¤‡è£½åæ¨™ã€‚å·²ä¿®ï¼š
+- æŠ½å‡º `lib/coords.ts`ï¼ˆ`writeCoordsToClipboard` + `COORDS_PRIVACY_NOTE` + `googleMapsUrl`ï¼‰èˆ‡ `components/CopyCoordsButton.tsx`ï¼ŒTripMap/PlacesMap å…±ç”¨ã€‚
+- `PlacesMap` çš„åœç•™ marker æ”¹ç”¨ `<Tooltip>`ï¼ˆåº§æ¨™ + è¤‡è£½åæ¨™ + Google Maps é€£çµ + å¤–éˆè­¦ç¤ºï¼‰ï¼Œèˆ‡ TripMap ä¸€è‡´ã€‚
+- é †æ‰‹åŠ å›ºï¼š`navigator.clipboard` åœ¨éžå®‰å…¨ä¸Šä¸‹æ–‡å¯èƒ½ä¸å­˜åœ¨ â†’ å›žå‚³ rejected promiseï¼ˆä¸å†åŒæ­¥ throwï¼‰ï¼ŒUI é¡¯ç¤ºã€Œè¤‡è£½å¤±æ•—ã€ã€‚
+- é©—è­‰ï¼ˆsampleï¼ŒPlacesï¼‰ï¼šsetView å°åŒ— â†’ 169 åœç•™ï¼›hover marker â†’ tooltip å«ã€Œè¤‡è£½åæ¨™ / åœ¨ Google Maps é–‹å•Ÿ / å¤–éƒ¨é“¾æŽ¥ä¼šæŠŠåæ ‡ä¸Žä½ çš„ IP å‘é€ç»™ Googleã€ï¼Œhref æ­£ç¢ºã€‚
 
-**T23 渲染效能壓測**：production build + 真實 123.4MB `Timeline-20260820.json`（route 30k 點）。基線縮放 p95 461ms、longtask max 1796ms（明顯卡頓）。處置：①`TripMap` 低 zoom（<6）只畫折線不畫點（`DOT_MIN_ZOOM` + `ZoomWatcher`）②`GLOBAL_PATH_POINT_CAP 30000→12000`、`RAW_POINT_CAP 20000→12000`。結果：平移 ~34fps、縮放 277–538ms、秒級凍結消除。完整數據 `DATA-FINDINGS.md §8`。
+**T23 æ¸²æŸ“æ•ˆèƒ½å£“æ¸¬**ï¼šproduction build + çœŸå¯¦ 123.4MB `Timeline-20260820.json`ï¼ˆroute 30k é»žï¼‰ã€‚åŸºç·šç¸®æ”¾ p95 461msã€longtask max 1796msï¼ˆæ˜Žé¡¯å¡é “ï¼‰ã€‚è™•ç½®ï¼šâ‘ `TripMap` ä½Ž zoomï¼ˆ<6ï¼‰åªç•«æŠ˜ç·šä¸ç•«é»žï¼ˆ`DOT_MIN_ZOOM` + `ZoomWatcher`ï¼‰â‘¡`GLOBAL_PATH_POINT_CAP 30000â†’12000`ã€`RAW_POINT_CAP 20000â†’12000`ã€‚çµæžœï¼šå¹³ç§» ~34fpsã€ç¸®æ”¾ 277â€“538msã€ç§’ç´šå‡çµæ¶ˆé™¤ã€‚å®Œæ•´æ•¸æ“š `DATA-FINDINGS.md Â§8`ã€‚
 
-**T24 移動端**：CSS `@media (max-width:768px)`：單月曆、Trips/Places 抽屜 overlay（地圖全高）、頂欄收拢、觸控 ≥44px、Header nav 橫向滾動。375×667 實測（sample）：單月、地圖 471px 全高、抽屜 280px、可見地圖 191px、全按鈕 44px、無橫向溢出。
+**T24 ç§»å‹•ç«¯**ï¼šCSS `@media (max-width:768px)`ï¼šå–®æœˆæ›†ã€Trips/Places æŠ½å±œ overlayï¼ˆåœ°åœ–å…¨é«˜ï¼‰ã€é ‚æ¬„æ”¶æ‹¢ã€è§¸æŽ§ â‰¥44pxã€Header nav æ©«å‘æ»¾å‹•ã€‚375Ã—667 å¯¦æ¸¬ï¼ˆsampleï¼‰ï¼šå–®æœˆã€åœ°åœ– 471px å…¨é«˜ã€æŠ½å±œ 280pxã€å¯è¦‹åœ°åœ– 191pxã€å…¨æŒ‰éˆ• 44pxã€ç„¡æ©«å‘æº¢å‡ºã€‚
 
-**T25 行程導出**：`lib/export.ts` + `ExportButton.tsx`（DataBar 入口）。GeoJSON/KML，導出當前篩選範圍軌跡 + 停留；確認彈窗 + 隱私護欄（剝離 metadata、不自動上傳、本地 Blob）。實測 GeoJSON 1 LineString+191 Point、KML 192 Placemark、0 網絡請求、無檔名泄漏。
+**T25 è¡Œç¨‹å°Žå‡º**ï¼š`lib/export.ts` + `ExportButton.tsx`ï¼ˆDataBar å…¥å£ï¼‰ã€‚GeoJSON/KMLï¼Œå°Žå‡ºç•¶å‰ç¯©é¸ç¯„åœè»Œè·¡ + åœç•™ï¼›ç¢ºèªå½ˆçª— + éš±ç§è­·æ¬„ï¼ˆå‰é›¢ metadataã€ä¸è‡ªå‹•ä¸Šå‚³ã€æœ¬åœ° Blobï¼‰ã€‚å¯¦æ¸¬ GeoJSON 1 LineString+191 Pointã€KML 192 Placemarkã€0 ç¶²çµ¡è«‹æ±‚ã€ç„¡æª”åæ³„æ¼ã€‚
 
-**驗證**：`npx tsc --noEmit` / `npm run lint` / `npm run build` 全綠；`npm run test` **151 passed**（+8 export 單測；T20–T22 基線 143）。**未 commit、未 push**，待 Reviewer。
+**é©—è­‰**ï¼š`npx tsc --noEmit` / `npm run lint` / `npm run build` å…¨ç¶ ï¼›`npm run test` **151 passed**ï¼ˆ+8 export å–®æ¸¬ï¼›T20â€“T22 åŸºç·š 143ï¼‰ã€‚**æœª commitã€æœª push**ï¼Œå¾… Reviewerã€‚
 
-**已知問題 / 待決**：①低 zoom 隱藏點層後「顯示/隱藏軌跡點」按鈕在 zoom<6 無視覺效果（語義仍在，PRD 功能 3「每個頂點都顯示為圓點」在低 zoom 有偏差，已記 DATA-FINDINGS §8）②點層首次掛載（z6）仍有 ~250ms 尖峰，徹底解法是改用非 React 批量圖層（本次未做）③效能數據為 headless 環境，絕對值有噪聲。
+**å·²çŸ¥å•é¡Œ / å¾…æ±º**ï¼šâ‘ ä½Ž zoom éš±è—é»žå±¤å¾Œã€Œé¡¯ç¤º/éš±è—è»Œè·¡é»žã€æŒ‰éˆ•åœ¨ zoom<6 ç„¡è¦–è¦ºæ•ˆæžœï¼ˆèªžç¾©ä»åœ¨ï¼ŒPRD åŠŸèƒ½ 3ã€Œæ¯å€‹é ‚é»žéƒ½é¡¯ç¤ºç‚ºåœ“é»žã€åœ¨ä½Ž zoom æœ‰åå·®ï¼Œå·²è¨˜ DATA-FINDINGS Â§8ï¼‰â‘¡é»žå±¤é¦–æ¬¡æŽ›è¼‰ï¼ˆz6ï¼‰ä»æœ‰ ~250ms å°–å³°ï¼Œå¾¹åº•è§£æ³•æ˜¯æ”¹ç”¨éž React æ‰¹é‡åœ–å±¤ï¼ˆæœ¬æ¬¡æœªåšï¼‰â‘¢æ•ˆèƒ½æ•¸æ“šç‚º headless ç’°å¢ƒï¼Œçµ•å°å€¼æœ‰å™ªè²ã€‚
 
-## 2026-09-15 08:30 — Dev T22（跨午夜：标注 + 路径裁剪）
+## 2026-09-15 08:30 â€” Dev T22ï¼ˆè·¨åˆå¤œï¼šæ ‡æ³¨ + è·¯å¾„è£å‰ªï¼‰
 
-**用户困惑**：选 2025-01-30 出现 2025-01-29。根因 = overlap 语义纳入**跨午夜记录**（visit 01-29 16:58→01-30 08:47；timelinePath 01-29 22:00→01-30 00:00），且段的路径点整段带入。CEO 建议 A+C、团队共识：记录保留并标注，路径点裁剪。
+**ç”¨æˆ·å›°æƒ‘**ï¼šé€‰ 2025-01-30 å‡ºçŽ° 2025-01-29ã€‚æ ¹å›  = overlap è¯­ä¹‰çº³å…¥**è·¨åˆå¤œè®°å½•**ï¼ˆvisit 01-29 16:58â†’01-30 08:47ï¼›timelinePath 01-29 22:00â†’01-30 00:00ï¼‰ï¼Œä¸”æ®µçš„è·¯å¾„ç‚¹æ•´æ®µå¸¦å…¥ã€‚CEO å»ºè®® A+Cã€å›¢é˜Ÿå…±è¯†ï¼šè®°å½•ä¿ç•™å¹¶æ ‡æ³¨ï¼Œè·¯å¾„ç‚¹è£å‰ªã€‚
 
-**实现**：
-- `buildTimelineRoute`：在 `candidates.sort` 后、去重前，按顶点 `sortMs` 裁到 `range`（`startMs`/`endMs` 非 null 时）。跨午夜段不再把前一天的点画到地图。
-- `TimelineList`：读 store `dateRange.startMs`，对 `visit.startMs < rangeStartMs` 的停留加 badge「跨夜 · 自 MM-DD」。
-- `TripMap`：新增 `rangeStartMs` prop；停留 tooltip 加同款标注；`TripsPage` 两处（MapPane / 直连）传入。
-- CSS：`.timeline-badge` / `.trip-tip-overnight`（琥珀虚线胶囊）。
+**å®žçŽ°**ï¼š
+- `buildTimelineRoute`ï¼šåœ¨ `candidates.sort` åŽã€åŽ»é‡å‰ï¼ŒæŒ‰é¡¶ç‚¹ `sortMs` è£åˆ° `range`ï¼ˆ`startMs`/`endMs` éž null æ—¶ï¼‰ã€‚è·¨åˆå¤œæ®µä¸å†æŠŠå‰ä¸€å¤©çš„ç‚¹ç”»åˆ°åœ°å›¾ã€‚
+- `TimelineList`ï¼šè¯» store `dateRange.startMs`ï¼Œå¯¹ `visit.startMs < rangeStartMs` çš„åœç•™åŠ  badgeã€Œè·¨å¤œ Â· è‡ª MM-DDã€ã€‚
+- `TripMap`ï¼šæ–°å¢ž `rangeStartMs` propï¼›åœç•™ tooltip åŠ åŒæ¬¾æ ‡æ³¨ï¼›`TripsPage` ä¸¤å¤„ï¼ˆMapPane / ç›´è¿žï¼‰ä¼ å…¥ã€‚
+- CSSï¼š`.timeline-badge` / `.trip-tip-overnight`ï¼ˆç¥ç€è™šçº¿èƒ¶å›Šï¼‰ã€‚
 
-**测试**（143，+1）：新增「clips an overlapping segment's vertices to the selected range (T22)」——段跨 range，仅中间顶点保留。
+**æµ‹è¯•**ï¼ˆ143ï¼Œ+1ï¼‰ï¼šæ–°å¢žã€Œclips an overlapping segment's vertices to the selected range (T22)ã€â€”â€”æ®µè·¨ rangeï¼Œä»…ä¸­é—´é¡¶ç‚¹ä¿ç•™ã€‚
 
-**验证**（sample data）：选 2026-07-21 → 过夜停留显示 badge「跨夜 · 自 07-20」；时间线列表的轨迹点只有 07-21 的（07-20 的已被裁掉）。143 单测 + build + lint 全绿。
+**éªŒè¯**ï¼ˆsample dataï¼‰ï¼šé€‰ 2026-07-21 â†’ è¿‡å¤œåœç•™æ˜¾ç¤º badgeã€Œè·¨å¤œ Â· è‡ª 07-20ã€ï¼›æ—¶é—´çº¿åˆ—è¡¨çš„è½¨è¿¹ç‚¹åªæœ‰ 07-21 çš„ï¼ˆ07-20 çš„å·²è¢«è£æŽ‰ï¼‰ã€‚143 å•æµ‹ + build + lint å…¨ç»¿ã€‚
 
-**流程备注**：本任务由 CEO 直接执行（用户指示「先做 T22」）；**T23–T25 + README 应交 Dev 执行、Reviewer 审查**。T20/T21/T22 目前均未提交。
+**æµç¨‹å¤‡æ³¨**ï¼šæœ¬ä»»åŠ¡ç”± CEO ç›´æŽ¥æ‰§è¡Œï¼ˆç”¨æˆ·æŒ‡ç¤ºã€Œå…ˆåš T22ã€ï¼‰ï¼›**T23â€“T25 + README åº”äº¤ Dev æ‰§è¡Œã€Reviewer å®¡æŸ¥**ã€‚T20/T21/T22 ç›®å‰å‡æœªæäº¤ã€‚
 
-## 2026-09-15 07:15 — Dev T20 + T21（外链隐私 + 覆盖判定修正）
+## 2026-09-15 07:15 â€” Dev T20 + T21ï¼ˆå¤–é“¾éšç§ + è¦†ç›–åˆ¤å®šä¿®æ­£ï¼‰
 
-**来源**：2026-09-15 brainstorm 团队讨论（Security Engineer 提阻塞项、Reviewer 提正确性风险）。先改 PRD（功能 5 外链例外、功能 2 跨午夜、v1.15）再开 T20/T21。
+**æ¥æº**ï¼š2026-09-15 brainstorm å›¢é˜Ÿè®¨è®ºï¼ˆSecurity Engineer æé˜»å¡žé¡¹ã€Reviewer ææ­£ç¡®æ€§é£Žé™©ï¼‰ã€‚å…ˆæ”¹ PRDï¼ˆåŠŸèƒ½ 5 å¤–é“¾ä¾‹å¤–ã€åŠŸèƒ½ 2 è·¨åˆå¤œã€v1.15ï¼‰å†å¼€ T20/T21ã€‚
 
-**T20 外链隐私（Security 阻塞项）**：`googleMapsUrl()` 把精确坐标放进 URL 送 google.com，点击还泄漏 IP/Referer，与「数据不出设备」矛盾。改：
-- 地图点弹窗默认动作 = **「复制坐标」**（`navigator.clipboard.writeText`，纯本机）；Google Maps 外链保留但加注「外部链接会把坐标与你的 IP 发送给 Google」。
-- 停留 tooltip 同样加复制按钮 + 注明；CSS `.trip-popup-copy` / `.trip-tip-copy`（tooltip 内需 `pointer-events:auto`）。
-- Landing 隐私承诺 + 设置页「数据生命周期」补「外链例外」。
-- 验证：点弹窗含复制+链接+提示；点「复制坐标」→「已复制」，`performance.getEntriesByType('resource')` 过滤 google/maps **为空**（默认路径零外送）；左栏选停留 → tooltip 齐全。
+**T20 å¤–é“¾éšç§ï¼ˆSecurity é˜»å¡žé¡¹ï¼‰**ï¼š`googleMapsUrl()` æŠŠç²¾ç¡®åæ ‡æ”¾è¿› URL é€ google.comï¼Œç‚¹å‡»è¿˜æ³„æ¼ IP/Refererï¼Œä¸Žã€Œæ•°æ®ä¸å‡ºè®¾å¤‡ã€çŸ›ç›¾ã€‚æ”¹ï¼š
+- åœ°å›¾ç‚¹å¼¹çª—é»˜è®¤åŠ¨ä½œ = **ã€Œå¤åˆ¶åæ ‡ã€**ï¼ˆ`navigator.clipboard.writeText`ï¼Œçº¯æœ¬æœºï¼‰ï¼›Google Maps å¤–é“¾ä¿ç•™ä½†åŠ æ³¨ã€Œå¤–éƒ¨é“¾æŽ¥ä¼šæŠŠåæ ‡ä¸Žä½ çš„ IP å‘é€ç»™ Googleã€ã€‚
+- åœç•™ tooltip åŒæ ·åŠ å¤åˆ¶æŒ‰é’® + æ³¨æ˜Žï¼›CSS `.trip-popup-copy` / `.trip-tip-copy`ï¼ˆtooltip å†…éœ€ `pointer-events:auto`ï¼‰ã€‚
+- Landing éšç§æ‰¿è¯º + è®¾ç½®é¡µã€Œæ•°æ®ç”Ÿå‘½å‘¨æœŸã€è¡¥ã€Œå¤–é“¾ä¾‹å¤–ã€ã€‚
+- éªŒè¯ï¼šç‚¹å¼¹çª—å«å¤åˆ¶+é“¾æŽ¥+æç¤ºï¼›ç‚¹ã€Œå¤åˆ¶åæ ‡ã€â†’ã€Œå·²å¤åˆ¶ã€ï¼Œ`performance.getEntriesByType('resource')` è¿‡æ»¤ google/maps **ä¸ºç©º**ï¼ˆé»˜è®¤è·¯å¾„é›¶å¤–é€ï¼‰ï¼›å·¦æ é€‰åœç•™ â†’ tooltip é½å…¨ã€‚
 
-**T21 coveredByRaw 边界修正（Reviewer 提的正确性风险）**：原逻辑「段跨度内命中一个 raw 点 → 整段丢弃语义路径」。30 天保留窗边界、或 raw 有缺口时，长段会被误判「已覆盖」→ 路线空洞。改为**按顶点**判定：顶点时间 ±5min 内有 raw 点才丢弃，否则保留。跨边界/跨缺口的段仍贡献未覆盖顶点。
+**T21 coveredByRaw è¾¹ç•Œä¿®æ­£ï¼ˆReviewer æçš„æ­£ç¡®æ€§é£Žé™©ï¼‰**ï¼šåŽŸé€»è¾‘ã€Œæ®µè·¨åº¦å†…å‘½ä¸­ä¸€ä¸ª raw ç‚¹ â†’ æ•´æ®µä¸¢å¼ƒè¯­ä¹‰è·¯å¾„ã€ã€‚30 å¤©ä¿ç•™çª—è¾¹ç•Œã€æˆ– raw æœ‰ç¼ºå£æ—¶ï¼Œé•¿æ®µä¼šè¢«è¯¯åˆ¤ã€Œå·²è¦†ç›–ã€â†’ è·¯çº¿ç©ºæ´žã€‚æ”¹ä¸º**æŒ‰é¡¶ç‚¹**åˆ¤å®šï¼šé¡¶ç‚¹æ—¶é—´ Â±5min å†…æœ‰ raw ç‚¹æ‰ä¸¢å¼ƒï¼Œå¦åˆ™ä¿ç•™ã€‚è·¨è¾¹ç•Œ/è·¨ç¼ºå£çš„æ®µä»è´¡çŒ®æœªè¦†ç›–é¡¶ç‚¹ã€‚
 
-**测试**（142，+1 净）：新增「边界不留洞」用例（raw 只覆盖段前 30min → 段末端顶点保留、source=mixed）；改写「已被 raw 覆盖」用例（顶点级覆盖）。`npm run test` 142 / build / lint 全绿。
+**æµ‹è¯•**ï¼ˆ142ï¼Œ+1 å‡€ï¼‰ï¼šæ–°å¢žã€Œè¾¹ç•Œä¸ç•™æ´žã€ç”¨ä¾‹ï¼ˆraw åªè¦†ç›–æ®µå‰ 30min â†’ æ®µæœ«ç«¯é¡¶ç‚¹ä¿ç•™ã€source=mixedï¼‰ï¼›æ”¹å†™ã€Œå·²è¢« raw è¦†ç›–ã€ç”¨ä¾‹ï¼ˆé¡¶ç‚¹çº§è¦†ç›–ï¼‰ã€‚`npm run test` 142 / build / lint å…¨ç»¿ã€‚
 
-**待办**：T22（A1 跨午夜标注+裁剪）、T23（性能压测）、T24（移动端）、T25（导出）；README 修复排最后（等 UI 定稿）。
+**å¾…åŠž**ï¼šT22ï¼ˆA1 è·¨åˆå¤œæ ‡æ³¨+è£å‰ªï¼‰ã€T23ï¼ˆæ€§èƒ½åŽ‹æµ‹ï¼‰ã€T24ï¼ˆç§»åŠ¨ç«¯ï¼‰ã€T25ï¼ˆå¯¼å‡ºï¼‰ï¼›README ä¿®å¤æŽ’æœ€åŽï¼ˆç­‰ UI å®šç¨¿ï¼‰ã€‚
 
-## 2026-09-14 21:10 — Dev T18 + T19（双月历日期选择 + 更换数据）
+## 2026-09-14 21:10 â€” Dev T18 + T19ï¼ˆåŒæœˆåŽ†æ—¥æœŸé€‰æ‹© + æ›´æ¢æ•°æ®ï¼‰
 
-**需求来源**：用户三条——①DatePicker 难用（选 A：双月历范围选择器）②选 2025-01-30 却出现 2025-01-29（**用户暂缓决定**，见下）③选了 JSON 后能否换（→ 放日期范围上方：按钮 + 文件名）。
+**éœ€æ±‚æ¥æº**ï¼šç”¨æˆ·ä¸‰æ¡â€”â€”â‘ DatePicker éš¾ç”¨ï¼ˆé€‰ Aï¼šåŒæœˆåŽ†èŒƒå›´é€‰æ‹©å™¨ï¼‰â‘¡é€‰ 2025-01-30 å´å‡ºçŽ° 2025-01-29ï¼ˆ**ç”¨æˆ·æš‚ç¼“å†³å®š**ï¼Œè§ä¸‹ï¼‰â‘¢é€‰äº† JSON åŽèƒ½å¦æ¢ï¼ˆâ†’ æ”¾æ—¥æœŸèŒƒå›´ä¸Šæ–¹ï¼šæŒ‰é’® + æ–‡ä»¶åï¼‰ã€‚
 
-**流程**：按新规则先写 PRD（功能 2 修订 + 新增功能 9、v1.14）再拆 T18/T19，再动手。
+**æµç¨‹**ï¼šæŒ‰æ–°è§„åˆ™å…ˆå†™ PRDï¼ˆåŠŸèƒ½ 2 ä¿®è®¢ + æ–°å¢žåŠŸèƒ½ 9ã€v1.14ï¼‰å†æ‹† T18/T19ï¼Œå†åŠ¨æ‰‹ã€‚
 
-**实现**：
-- **T18 `DateRangePicker` 重写**：双月历（当前月 + 下月并排），点起始日 → 点结束日；区间高亮（`is-start`/`is-end`/`in-range`）、标今日、前后翻月（‹ ›）与翻年（« »）；保留 全部/近 30 天/近 1 年 快捷（应用时同步把视图跳到该月）；底部「起始 → 结束」文字 + 「清除」；单边 = 只点一天即从该日起。CSS 以 `.drp-cal-*` 取代旧 `.drp-fields/.drp-field`。
-- **T19 `dataLabel` + `DataBar`**：store 增 `dataLabel`（`importFiles` 记文件名/多档「X 等 N 个文件」、`loadSample` 记「模拟数据」、`clearData` 置 null）；新增 `DataBar` 组件（「当前数据」+ 文件名 + 「更换数据」按钮 → `clearData`），放在日期范围**上方**（Trips 与 Places 共用）。`clearData` 此前从未被任何 UI 调用，本次首次接线。
+**å®žçŽ°**ï¼š
+- **T18 `DateRangePicker` é‡å†™**ï¼šåŒæœˆåŽ†ï¼ˆå½“å‰æœˆ + ä¸‹æœˆå¹¶æŽ’ï¼‰ï¼Œç‚¹èµ·å§‹æ—¥ â†’ ç‚¹ç»“æŸæ—¥ï¼›åŒºé—´é«˜äº®ï¼ˆ`is-start`/`is-end`/`in-range`ï¼‰ã€æ ‡ä»Šæ—¥ã€å‰åŽç¿»æœˆï¼ˆâ€¹ â€ºï¼‰ä¸Žç¿»å¹´ï¼ˆÂ« Â»ï¼‰ï¼›ä¿ç•™ å…¨éƒ¨/è¿‘ 30 å¤©/è¿‘ 1 å¹´ å¿«æ·ï¼ˆåº”ç”¨æ—¶åŒæ­¥æŠŠè§†å›¾è·³åˆ°è¯¥æœˆï¼‰ï¼›åº•éƒ¨ã€Œèµ·å§‹ â†’ ç»“æŸã€æ–‡å­— + ã€Œæ¸…é™¤ã€ï¼›å•è¾¹ = åªç‚¹ä¸€å¤©å³ä»Žè¯¥æ—¥èµ·ã€‚CSS ä»¥ `.drp-cal-*` å–ä»£æ—§ `.drp-fields/.drp-field`ã€‚
+- **T19 `dataLabel` + `DataBar`**ï¼šstore å¢ž `dataLabel`ï¼ˆ`importFiles` è®°æ–‡ä»¶å/å¤šæ¡£ã€ŒX ç­‰ N ä¸ªæ–‡ä»¶ã€ã€`loadSample` è®°ã€Œæ¨¡æ‹Ÿæ•°æ®ã€ã€`clearData` ç½® nullï¼‰ï¼›æ–°å¢ž `DataBar` ç»„ä»¶ï¼ˆã€Œå½“å‰æ•°æ®ã€+ æ–‡ä»¶å + ã€Œæ›´æ¢æ•°æ®ã€æŒ‰é’® â†’ `clearData`ï¼‰ï¼Œæ”¾åœ¨æ—¥æœŸèŒƒå›´**ä¸Šæ–¹**ï¼ˆTrips ä¸Ž Places å…±ç”¨ï¼‰ã€‚`clearData` æ­¤å‰ä»Žæœªè¢«ä»»ä½• UI è°ƒç”¨ï¼Œæœ¬æ¬¡é¦–æ¬¡æŽ¥çº¿ã€‚
 
-**验证**（用 sample data，秒级——遵守新规则「UI 用 sample」）：DataBar 显示「模拟数据」；双月历点 09-10 → 09-14，标签「2026-09-10 → 2026-09-14」、start/end 高亮 + 3 个 in-range、地图过滤为「68 轨迹点 · 8 停留」；点「更换数据」→ 回空状态（导入按钮出现、DataBar 消失）；Places 侧栏同样有 DataBar + 双月历。141 单测 + build + lint 全绿。
+**éªŒè¯**ï¼ˆç”¨ sample dataï¼Œç§’çº§â€”â€”éµå®ˆæ–°è§„åˆ™ã€ŒUI ç”¨ sampleã€ï¼‰ï¼šDataBar æ˜¾ç¤ºã€Œæ¨¡æ‹Ÿæ•°æ®ã€ï¼›åŒæœˆåŽ†ç‚¹ 09-10 â†’ 09-14ï¼Œæ ‡ç­¾ã€Œ2026-09-10 â†’ 2026-09-14ã€ã€start/end é«˜äº® + 3 ä¸ª in-rangeã€åœ°å›¾è¿‡æ»¤ä¸ºã€Œ68 è½¨è¿¹ç‚¹ Â· 8 åœç•™ã€ï¼›ç‚¹ã€Œæ›´æ¢æ•°æ®ã€â†’ å›žç©ºçŠ¶æ€ï¼ˆå¯¼å…¥æŒ‰é’®å‡ºçŽ°ã€DataBar æ¶ˆå¤±ï¼‰ï¼›Places ä¾§æ åŒæ ·æœ‰ DataBar + åŒæœˆåŽ†ã€‚141 å•æµ‹ + build + lint å…¨ç»¿ã€‚
 
-**暂缓（待用户决定）**：选 2025-01-30 出现 2025-01-29，根因是**跨午夜记录**（visit 01-29 16:58→01-30 08:47、timelinePath 01-29 22:00→01-30 00:00）被 overlap 语义纳入，且段的路径点整段带入。已提供 A/B/C 方案，用户表示「再想想」。
+**æš‚ç¼“ï¼ˆå¾…ç”¨æˆ·å†³å®šï¼‰**ï¼šé€‰ 2025-01-30 å‡ºçŽ° 2025-01-29ï¼Œæ ¹å› æ˜¯**è·¨åˆå¤œè®°å½•**ï¼ˆvisit 01-29 16:58â†’01-30 08:47ã€timelinePath 01-29 22:00â†’01-30 00:00ï¼‰è¢« overlap è¯­ä¹‰çº³å…¥ï¼Œä¸”æ®µçš„è·¯å¾„ç‚¹æ•´æ®µå¸¦å…¥ã€‚å·²æä¾› A/B/C æ–¹æ¡ˆï¼Œç”¨æˆ·è¡¨ç¤ºã€Œå†æƒ³æƒ³ã€ã€‚
 
-## 2026-09-14 20:05 — CEO T16–T17 验收通过 + 已部署
-用户确认「現在我可以回想我旅行的時間和路線」。提交 `b4ed89b`（14 files, +947/−72）并 push `origin/main`，GitHub Actions 部署成功：线上 `assets/index-CBgmSybv.js`（本地构建 hash 一致），bundle 含「在 Google Maps 開啟 / 时间线（ / 行程段轨迹 / 轨迹点（行程段）」。线上冒烟：Landing 正常 →「立即体验」载入示例数据 → Trips 时间轴 `1,335 轨迹点（GPS+行程段）· 191 停留`、左側「时间线（621）」。https://coderkk.github.io/google-timeline-viewer/
+## 2026-09-14 20:05 â€” CEO T16â€“T17 éªŒæ”¶é€šè¿‡ + å·²éƒ¨ç½²
+ç”¨æˆ·ç¡®è®¤ã€Œç¾åœ¨æˆ‘å¯ä»¥å›žæƒ³æˆ‘æ—…è¡Œçš„æ™‚é–“å’Œè·¯ç·šã€ã€‚æäº¤ `b4ed89b`ï¼ˆ14 files, +947/âˆ’72ï¼‰å¹¶ push `origin/main`ï¼ŒGitHub Actions éƒ¨ç½²æˆåŠŸï¼šçº¿ä¸Š `assets/index-CBgmSybv.js`ï¼ˆæœ¬åœ°æž„å»º hash ä¸€è‡´ï¼‰ï¼Œbundle å«ã€Œåœ¨ Google Maps é–‹å•Ÿ / æ—¶é—´çº¿ï¼ˆ / è¡Œç¨‹æ®µè½¨è¿¹ / è½¨è¿¹ç‚¹ï¼ˆè¡Œç¨‹æ®µï¼‰ã€ã€‚çº¿ä¸Šå†’çƒŸï¼šLanding æ­£å¸¸ â†’ã€Œç«‹å³ä½“éªŒã€è½½å…¥ç¤ºä¾‹æ•°æ® â†’ Trips æ—¶é—´è½´ `1,335 è½¨è¿¹ç‚¹ï¼ˆGPS+è¡Œç¨‹æ®µï¼‰Â· 191 åœç•™`ã€å·¦å´ã€Œæ—¶é—´çº¿ï¼ˆ621ï¼‰ã€ã€‚https://coderkk.github.io/google-timeline-viewer/
 
-## 2026-09-14 19:20 — Dev T17 路径点时间 + 去重 + 大 marker + 左侧时间线
+## 2026-09-14 19:20 â€” Dev T17 è·¯å¾„ç‚¹æ—¶é—´ + åŽ»é‡ + å¤§ marker + å·¦ä¾§æ—¶é—´çº¿
 
-**用户反馈**：①「行程段轨迹」要顯示時間，才知道幾點經過那地方；②marker 大一點；③「感覺連接的線還是很多」；④左邊要顯示時間線，不是只有 13 個停留點。
+**ç”¨æˆ·åé¦ˆ**ï¼šâ‘ ã€Œè¡Œç¨‹æ®µè½¨è¿¹ã€è¦é¡¯ç¤ºæ™‚é–“ï¼Œæ‰çŸ¥é“å¹¾é»žç¶“éŽé‚£åœ°æ–¹ï¼›â‘¡marker å¤§ä¸€é»žï¼›â‘¢ã€Œæ„Ÿè¦ºé€£æŽ¥çš„ç·šé‚„æ˜¯å¾ˆå¤šã€ï¼›â‘£å·¦é‚Šè¦é¡¯ç¤ºæ™‚é–“ç·šï¼Œä¸æ˜¯åªæœ‰ 13 å€‹åœç•™é»žã€‚
 
-**根因**：`semanticSegments[].timelinePath` 每個點其實都有 `time`（真實 GPS 時間），但解析器 `pointFromPathElement` 只取座標、丟掉時間 → 時間軸只能顯示「行程段軌跡」。而「線很多」是因為 T13.2 縫合把 timelinePath trace 複製進無 path 的 activity 段，兩者時間+座標完全相同，舊 route 逐段拼接 → 同一條軌跡畫兩次。
+**æ ¹å› **ï¼š`semanticSegments[].timelinePath` æ¯å€‹é»žå…¶å¯¦éƒ½æœ‰ `time`ï¼ˆçœŸå¯¦ GPS æ™‚é–“ï¼‰ï¼Œä½†è§£æžå™¨ `pointFromPathElement` åªå–åº§æ¨™ã€ä¸ŸæŽ‰æ™‚é–“ â†’ æ™‚é–“è»¸åªèƒ½é¡¯ç¤ºã€Œè¡Œç¨‹æ®µè»Œè·¡ã€ã€‚è€Œã€Œç·šå¾ˆå¤šã€æ˜¯å› ç‚º T13.2 ç¸«åˆæŠŠ timelinePath trace è¤‡è£½é€²ç„¡ path çš„ activity æ®µï¼Œå…©è€…æ™‚é–“+åº§æ¨™å®Œå…¨ç›¸åŒï¼ŒèˆŠ route é€æ®µæ‹¼æŽ¥ â†’ åŒä¸€æ¢è»Œè·¡ç•«å…©æ¬¡ã€‚
 
-**实现**：
-1. **`src/lib/types.ts`**：新增 `PathPoint extends Point { timestampMs?: number }`；`Segment.path` 改 `PathPoint[]`。
-2. **`src/lib/parse/common.ts`**：`pointFromPathElement` 讀 `time`/`timestampMs`/`timestamp`（`timelinePath` 的 `time` 為 ISO）→ 路徑點帶真實時間；`pathToPoints`/`firstPath`/`TimelinePathCandidate` 改 `PathPoint[]`。
-3. **`src/lib/trips.ts` `buildTimelineRoute` 重写**：不再按日分桶拼接，而是把 raw 點 + 語義段路徑點合成**一條按時間排序的軌跡**：
-   - 段的路徑點帶自身時間；無時間者用段內插值作**排序鍵**（僅排序，不顯示）。
-   - **已被 raw 覆蓋的段跳過**（段 span 內有 raw 點 → 用更精細的 raw），避免同一段路畫兩次；raw 視窗外才用語義段。
-   - 連續重複點（同位置 ~1m 且同時 ±1s）折疊 → 消除縫合重複。
-   - `source` 依實際來源給 raw/segments/mixed。
-4. **`TripMap.tsx`**：路線點半徑 2.5→4、停留 marker 6/9→8/12；popup 顯示真實時間（有時間時），無時間才標「行程段軌跡」；`flyTarget` 型別放寬為 `Point`。
-5. **新增 `TimelineList.tsx` + CSS**：左側時間線——把路線點（有時間者）與停留點合併按時間排序、按本地日分組；每列 `HH:mm` + 座標 / 停留時段+時長；點擊飛到該點。timeline 模式用 TimelineList，activityType 模式保留 StopList。
+**å®žçŽ°**ï¼š
+1. **`src/lib/types.ts`**ï¼šæ–°å¢ž `PathPoint extends Point { timestampMs?: number }`ï¼›`Segment.path` æ”¹ `PathPoint[]`ã€‚
+2. **`src/lib/parse/common.ts`**ï¼š`pointFromPathElement` è®€ `time`/`timestampMs`/`timestamp`ï¼ˆ`timelinePath` çš„ `time` ç‚º ISOï¼‰â†’ è·¯å¾‘é»žå¸¶çœŸå¯¦æ™‚é–“ï¼›`pathToPoints`/`firstPath`/`TimelinePathCandidate` æ”¹ `PathPoint[]`ã€‚
+3. **`src/lib/trips.ts` `buildTimelineRoute` é‡å†™**ï¼šä¸å†æŒ‰æ—¥åˆ†æ¡¶æ‹¼æŽ¥ï¼Œè€Œæ˜¯æŠŠ raw é»ž + èªžç¾©æ®µè·¯å¾‘é»žåˆæˆ**ä¸€æ¢æŒ‰æ™‚é–“æŽ’åºçš„è»Œè·¡**ï¼š
+   - æ®µçš„è·¯å¾‘é»žå¸¶è‡ªèº«æ™‚é–“ï¼›ç„¡æ™‚é–“è€…ç”¨æ®µå…§æ’å€¼ä½œ**æŽ’åºéµ**ï¼ˆåƒ…æŽ’åºï¼Œä¸é¡¯ç¤ºï¼‰ã€‚
+   - **å·²è¢« raw è¦†è“‹çš„æ®µè·³éŽ**ï¼ˆæ®µ span å…§æœ‰ raw é»ž â†’ ç”¨æ›´ç²¾ç´°çš„ rawï¼‰ï¼Œé¿å…åŒä¸€æ®µè·¯ç•«å…©æ¬¡ï¼›raw è¦–çª—å¤–æ‰ç”¨èªžç¾©æ®µã€‚
+   - é€£çºŒé‡è¤‡é»žï¼ˆåŒä½ç½® ~1m ä¸”åŒæ™‚ Â±1sï¼‰æŠ˜ç–Š â†’ æ¶ˆé™¤ç¸«åˆé‡è¤‡ã€‚
+   - `source` ä¾å¯¦éš›ä¾†æºçµ¦ raw/segments/mixedã€‚
+4. **`TripMap.tsx`**ï¼šè·¯ç·šé»žåŠå¾‘ 2.5â†’4ã€åœç•™ marker 6/9â†’8/12ï¼›popup é¡¯ç¤ºçœŸå¯¦æ™‚é–“ï¼ˆæœ‰æ™‚é–“æ™‚ï¼‰ï¼Œç„¡æ™‚é–“æ‰æ¨™ã€Œè¡Œç¨‹æ®µè»Œè·¡ã€ï¼›`flyTarget` åž‹åˆ¥æ”¾å¯¬ç‚º `Point`ã€‚
+5. **æ–°å¢ž `TimelineList.tsx` + CSS**ï¼šå·¦å´æ™‚é–“ç·šâ€”â€”æŠŠè·¯ç·šé»žï¼ˆæœ‰æ™‚é–“è€…ï¼‰èˆ‡åœç•™é»žåˆä½µæŒ‰æ™‚é–“æŽ’åºã€æŒ‰æœ¬åœ°æ—¥åˆ†çµ„ï¼›æ¯åˆ— `HH:mm` + åº§æ¨™ / åœç•™æ™‚æ®µ+æ™‚é•·ï¼›é»žæ“Šé£›åˆ°è©²é»žã€‚timeline æ¨¡å¼ç”¨ TimelineListï¼ŒactivityType æ¨¡å¼ä¿ç•™ StopListã€‚
 
-**测试**（`trips.test.ts` 等，139 → **141**）：更新縫合/解析用例納入 `timestampMs`；新增「帶 timelinePath 逐點時間」「raw 覆蓋的段被跳過（不重畫）」；cap 用例點距改 >1e-5 避免被去重。buildTimelineRoute describe 更名 T16/T17。
+**æµ‹è¯•**ï¼ˆ`trips.test.ts` ç­‰ï¼Œ139 â†’ **141**ï¼‰ï¼šæ›´æ–°ç¸«åˆ/è§£æžç”¨ä¾‹ç´å…¥ `timestampMs`ï¼›æ–°å¢žã€Œå¸¶ timelinePath é€é»žæ™‚é–“ã€ã€Œraw è¦†è“‹çš„æ®µè¢«è·³éŽï¼ˆä¸é‡ç•«ï¼‰ã€ï¼›cap ç”¨ä¾‹é»žè·æ”¹ >1e-5 é¿å…è¢«åŽ»é‡ã€‚buildTimelineRoute describe æ›´å T16/T17ã€‚
 
-**验证**（浏览器，clean reload + 真实 123.4MB 文件）：
-- 2025-01-30：summary 由 172 → **115 轨迹点**（去重掉縫合重複）；左側「时间线（122）」= 109 有時間的點 + 13 停留；點地圖藍點 popup 顯示真實時間「35.45121, 138.81386 / **2025-01-30 11:10** / 在 Google Maps 開啟」；canvas 藍 3344px、紅（大 marker）873px。
-- 2026-08-01（raw 窗口）：523 原始點 → 537 軌跡點（523 raw + 14 個未被 raw 覆蓋段的補點），label 誠實為「GPS+行程段」。
-- 141 單測 + build + lint 全綠。未 commit、未部署。
+**éªŒè¯**ï¼ˆæµè§ˆå™¨ï¼Œclean reload + çœŸå®ž 123.4MB æ–‡ä»¶ï¼‰ï¼š
+- 2025-01-30ï¼šsummary ç”± 172 â†’ **115 è½¨è¿¹ç‚¹**ï¼ˆåŽ»é‡æŽ‰ç¸«åˆé‡è¤‡ï¼‰ï¼›å·¦å´ã€Œæ—¶é—´çº¿ï¼ˆ122ï¼‰ã€= 109 æœ‰æ™‚é–“çš„é»ž + 13 åœç•™ï¼›é»žåœ°åœ–è—é»ž popup é¡¯ç¤ºçœŸå¯¦æ™‚é–“ã€Œ35.45121, 138.81386 / **2025-01-30 11:10** / åœ¨ Google Maps é–‹å•Ÿã€ï¼›canvas è— 3344pxã€ç´…ï¼ˆå¤§ markerï¼‰873pxã€‚
+- 2026-08-01ï¼ˆraw çª—å£ï¼‰ï¼š523 åŽŸå§‹é»ž â†’ 537 è»Œè·¡é»žï¼ˆ523 raw + 14 å€‹æœªè¢« raw è¦†è“‹æ®µçš„è£œé»žï¼‰ï¼Œlabel èª å¯¦ç‚ºã€ŒGPS+è¡Œç¨‹æ®µã€ã€‚
+- 141 å–®æ¸¬ + build + lint å…¨ç¶ ã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-14 18:40 — Dev T16.2 停留点配色 + 点选 GPS 弹窗（Google Maps 链接）
+## 2026-09-14 18:40 â€” Dev T16.2 åœç•™ç‚¹é…è‰² + ç‚¹é€‰ GPS å¼¹çª—ï¼ˆGoogle Maps é“¾æŽ¥ï¼‰
 
-**用户反馈**：①13 個停留點不用連（確認：visits 本就不在 route 折線內，屬獨立 marker）；②停留點 marker 換顏色（原本和路線同藍色 #3b82f6，難分辨）；③172 軌跡點連線正確；④每個點（marker）可點擊看 GPS，並附連結開 Google Maps。
+**ç”¨æˆ·åé¦ˆ**ï¼šâ‘ 13 å€‹åœç•™é»žä¸ç”¨é€£ï¼ˆç¢ºèªï¼švisits æœ¬å°±ä¸åœ¨ route æŠ˜ç·šå…§ï¼Œå±¬ç¨ç«‹ markerï¼‰ï¼›â‘¡åœç•™é»ž marker æ›é¡è‰²ï¼ˆåŽŸæœ¬å’Œè·¯ç·šåŒè—è‰² #3b82f6ï¼Œé›£åˆ†è¾¨ï¼‰ï¼›â‘¢172 è»Œè·¡é»žé€£ç·šæ­£ç¢ºï¼›â‘£æ¯å€‹é»žï¼ˆmarkerï¼‰å¯é»žæ“Šçœ‹ GPSï¼Œä¸¦é™„é€£çµé–‹ Google Mapsã€‚
 
-**实现**（`src/components/TripMap.tsx` + `src/index.css`）：
-- **停留 marker 配色**：`fillColor` 由 `selected ? #f87171 : #3b82f6` 改為 `selected ? #f59e0b : #ef4444`（琥珀/紅），與路線藍明確區分；停留點本就不參與折線，維持不連。
-- **點擊看 GPS + Google Maps 連結**：
-  - 路線頂點：移除只在 hover 生效（canvas 圓點不觸發 DOM hover，實際無效）的 `<Tooltip>`，改為 `click` → `map.openPopup(...)`。新增模組級 `pointPopupContent()` 用 **真實 DOM**（非 HTML 字串，座標不可能被當 markup）建構 popup：座標 + 時間（語義段頂點顯示「行程段軌跡」）+ `<a>` Google Maps 連結（`target=_blank rel=noopener`）。用 `MapContainer ref` 取得 map 後 `openPopup(content, latlng)`，**單一共享 popup**，避免為每個頂點掛一個 `<Popup>`（路線可達數萬點）。
-  - 停留 marker：tooltip 增座標 + Google Maps 連結；CSS `.trip-tip-link { pointer-events: auto }` 讓 Leaflet 預設 `pointer-events:none` 的 tooltip 內連結仍可點。
-  - 座標去重：popup/tooltip 僅在有「名稱」時才另起一行顯示座標（路線頂點標題即座標，不重複）。
+**å®žçŽ°**ï¼ˆ`src/components/TripMap.tsx` + `src/index.css`ï¼‰ï¼š
+- **åœç•™ marker é…è‰²**ï¼š`fillColor` ç”± `selected ? #f87171 : #3b82f6` æ”¹ç‚º `selected ? #f59e0b : #ef4444`ï¼ˆç¥ç€/ç´…ï¼‰ï¼Œèˆ‡è·¯ç·šè—æ˜Žç¢ºå€åˆ†ï¼›åœç•™é»žæœ¬å°±ä¸åƒèˆ‡æŠ˜ç·šï¼Œç¶­æŒä¸é€£ã€‚
+- **é»žæ“Šçœ‹ GPS + Google Maps é€£çµ**ï¼š
+  - è·¯ç·šé ‚é»žï¼šç§»é™¤åªåœ¨ hover ç”Ÿæ•ˆï¼ˆcanvas åœ“é»žä¸è§¸ç™¼ DOM hoverï¼Œå¯¦éš›ç„¡æ•ˆï¼‰çš„ `<Tooltip>`ï¼Œæ”¹ç‚º `click` â†’ `map.openPopup(...)`ã€‚æ–°å¢žæ¨¡çµ„ç´š `pointPopupContent()` ç”¨ **çœŸå¯¦ DOM**ï¼ˆéž HTML å­—ä¸²ï¼Œåº§æ¨™ä¸å¯èƒ½è¢«ç•¶ markupï¼‰å»ºæ§‹ popupï¼šåº§æ¨™ + æ™‚é–“ï¼ˆèªžç¾©æ®µé ‚é»žé¡¯ç¤ºã€Œè¡Œç¨‹æ®µè»Œè·¡ã€ï¼‰+ `<a>` Google Maps é€£çµï¼ˆ`target=_blank rel=noopener`ï¼‰ã€‚ç”¨ `MapContainer ref` å–å¾— map å¾Œ `openPopup(content, latlng)`ï¼Œ**å–®ä¸€å…±äº« popup**ï¼Œé¿å…ç‚ºæ¯å€‹é ‚é»žæŽ›ä¸€å€‹ `<Popup>`ï¼ˆè·¯ç·šå¯é”æ•¸è¬é»žï¼‰ã€‚
+  - åœç•™ markerï¼štooltip å¢žåº§æ¨™ + Google Maps é€£çµï¼›CSS `.trip-tip-link { pointer-events: auto }` è®“ Leaflet é è¨­ `pointer-events:none` çš„ tooltip å…§é€£çµä»å¯é»žã€‚
+  - åº§æ¨™åŽ»é‡ï¼špopup/tooltip åƒ…åœ¨æœ‰ã€Œåç¨±ã€æ™‚æ‰å¦èµ·ä¸€è¡Œé¡¯ç¤ºåº§æ¨™ï¼ˆè·¯ç·šé ‚é»žæ¨™é¡Œå³åº§æ¨™ï¼Œä¸é‡è¤‡ï¼‰ã€‚
 
-**验证**（浏览器，clean reload + 真实 123.4MB 文件，2025-01-30 时间轴）：
-- 停留 marker 紅色：canvas 檢出 482 個紅色像素（#ef4444）；路線藍 4786。
-- 點路線點 → `.leaflet-popup` 內容「35.46409, 138.80301 / 行程段軌跡 / 在 Google Maps 開啟」，href `https://www.google.com/maps?q=35.4640884,138.8030056`、target `_blank` ✅
-- 點停留點 → tooltip「35.03430, 137.22202 / 2025-01-30 15:00 · 15m / 在 Google Maps 開啟」，link `pointer-events: auto`、實際點擊開啟新分頁 ✅
-- 139 單測 + build + lint 全綠。未 commit、未部署。
+**éªŒè¯**ï¼ˆæµè§ˆå™¨ï¼Œclean reload + çœŸå®ž 123.4MB æ–‡ä»¶ï¼Œ2025-01-30 æ—¶é—´è½´ï¼‰ï¼š
+- åœç•™ marker ç´…è‰²ï¼šcanvas æª¢å‡º 482 å€‹ç´…è‰²åƒç´ ï¼ˆ#ef4444ï¼‰ï¼›è·¯ç·šè— 4786ã€‚
+- é»žè·¯ç·šé»ž â†’ `.leaflet-popup` å…§å®¹ã€Œ35.46409, 138.80301 / è¡Œç¨‹æ®µè»Œè·¡ / åœ¨ Google Maps é–‹å•Ÿã€ï¼Œhref `https://www.google.com/maps?q=35.4640884,138.8030056`ã€target `_blank` âœ…
+- é»žåœç•™é»ž â†’ tooltipã€Œ35.03430, 137.22202 / 2025-01-30 15:00 Â· 15m / åœ¨ Google Maps é–‹å•Ÿã€ï¼Œlink `pointer-events: auto`ã€å¯¦éš›é»žæ“Šé–‹å•Ÿæ–°åˆ†é  âœ…
+- 139 å–®æ¸¬ + build + lint å…¨ç¶ ã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-14 18:10 — Dev T16.1 时间轴轨迹点跟随路线（每个路径点都显示）
+## 2026-09-14 18:10 â€” Dev T16.1 æ—¶é—´è½´è½¨è¿¹ç‚¹è·Ÿéšè·¯çº¿ï¼ˆæ¯ä¸ªè·¯å¾„ç‚¹éƒ½æ˜¾ç¤ºï¼‰
 
-**用户反馈**：2025-01-30 时间轴只看到 13 个点（停留 marker），但「按活动类型」有 165 个路径点。用户要求：时间轴要把**全部**走过的点放出来、按时间排、再连起来——「每個點都是走過的痕跡」。
+**ç”¨æˆ·åé¦ˆ**ï¼š2025-01-30 æ—¶é—´è½´åªçœ‹åˆ° 13 ä¸ªç‚¹ï¼ˆåœç•™ markerï¼‰ï¼Œä½†ã€ŒæŒ‰æ´»åŠ¨ç±»åž‹ã€æœ‰ 165 ä¸ªè·¯å¾„ç‚¹ã€‚ç”¨æˆ·è¦æ±‚ï¼šæ—¶é—´è½´è¦æŠŠ**å…¨éƒ¨**èµ°è¿‡çš„ç‚¹æ”¾å‡ºæ¥ã€æŒ‰æ—¶é—´æŽ’ã€å†è¿žèµ·æ¥â€”â€”ã€Œæ¯å€‹é»žéƒ½æ˜¯èµ°éŽçš„ç—•è·¡ã€ã€‚
 
-**根因**：T16 把语义段轨迹接进了 `route` 折线，但 TripMap 的圆点仍只遍历 `rawPoints`（2025-01-30 为 0），所以只有 13 个 visit marker。折线画了、点没画。
+**æ ¹å› **ï¼šT16 æŠŠè¯­ä¹‰æ®µè½¨è¿¹æŽ¥è¿›äº† `route` æŠ˜çº¿ï¼Œä½† TripMap çš„åœ†ç‚¹ä»åªéåŽ† `rawPoints`ï¼ˆ2025-01-30 ä¸º 0ï¼‰ï¼Œæ‰€ä»¥åªæœ‰ 13 ä¸ª visit markerã€‚æŠ˜çº¿ç”»äº†ã€ç‚¹æ²¡ç”»ã€‚
 
-**实现**：
-- `TimelinePayload.route` 类型由 `Point[]` 改为 `TimelineVertex[]`（`TimelineVertex extends Point { timestampMs?: number }`，新增导出；注意与既有 `RoutePoint`（budgetRoutePoints 用，带 `color`）区分，避免命名冲突）。`buildTimelineRoute` 的 raw 顶点带 `timestampMs`，语义段顶点不带（导出无逐点时间，不伪造）。
-- `TripMap` timeline 模式圆点改为遍历 `timelineRoute`（`route` 或回退 `rawPoints`），每个顶点一个圆点；tooltip 有 `timestampMs` 显示时间，否则显示「行程段轨迹」。
-- `TripsPage.showPointsToggle` 修正：timeline 模式只要 `route.length > 0` 就显示开关（T16 曾误判为「无 raw 点即无点可切」而隐藏；现在点跟随路线，开关有效）。
+**å®žçŽ°**ï¼š
+- `TimelinePayload.route` ç±»åž‹ç”± `Point[]` æ”¹ä¸º `TimelineVertex[]`ï¼ˆ`TimelineVertex extends Point { timestampMs?: number }`ï¼Œæ–°å¢žå¯¼å‡ºï¼›æ³¨æ„ä¸Žæ—¢æœ‰ `RoutePoint`ï¼ˆbudgetRoutePoints ç”¨ï¼Œå¸¦ `color`ï¼‰åŒºåˆ†ï¼Œé¿å…å‘½åå†²çªï¼‰ã€‚`buildTimelineRoute` çš„ raw é¡¶ç‚¹å¸¦ `timestampMs`ï¼Œè¯­ä¹‰æ®µé¡¶ç‚¹ä¸å¸¦ï¼ˆå¯¼å‡ºæ— é€ç‚¹æ—¶é—´ï¼Œä¸ä¼ªé€ ï¼‰ã€‚
+- `TripMap` timeline æ¨¡å¼åœ†ç‚¹æ”¹ä¸ºéåŽ† `timelineRoute`ï¼ˆ`route` æˆ–å›žé€€ `rawPoints`ï¼‰ï¼Œæ¯ä¸ªé¡¶ç‚¹ä¸€ä¸ªåœ†ç‚¹ï¼›tooltip æœ‰ `timestampMs` æ˜¾ç¤ºæ—¶é—´ï¼Œå¦åˆ™æ˜¾ç¤ºã€Œè¡Œç¨‹æ®µè½¨è¿¹ã€ã€‚
+- `TripsPage.showPointsToggle` ä¿®æ­£ï¼štimeline æ¨¡å¼åªè¦ `route.length > 0` å°±æ˜¾ç¤ºå¼€å…³ï¼ˆT16 æ›¾è¯¯åˆ¤ä¸ºã€Œæ—  raw ç‚¹å³æ— ç‚¹å¯åˆ‡ã€è€Œéšè—ï¼›çŽ°åœ¨ç‚¹è·Ÿéšè·¯çº¿ï¼Œå¼€å…³æœ‰æ•ˆï¼‰ã€‚
 
-**验证**（浏览器，clean reload + 真实 123.4MB 文件）：
-- 2025-01-30 时间轴 → summary「172 轨迹点（行程段）· 13 停留」；overlay canvas 单实例；开点蓝像素 5302、关点 4634（差 668 = 172 个路线圆点，密集处重叠；折线 4634 保留）→ 证明圆点随路线绘制且开关有效。
-- 2026-08-01（raw 窗口）→「523 原始点」不变。
-- 139 单测 + build + lint 全绿。未 commit、未部署。
+**éªŒè¯**ï¼ˆæµè§ˆå™¨ï¼Œclean reload + çœŸå®ž 123.4MB æ–‡ä»¶ï¼‰ï¼š
+- 2025-01-30 æ—¶é—´è½´ â†’ summaryã€Œ172 è½¨è¿¹ç‚¹ï¼ˆè¡Œç¨‹æ®µï¼‰Â· 13 åœç•™ã€ï¼›overlay canvas å•å®žä¾‹ï¼›å¼€ç‚¹è“åƒç´  5302ã€å…³ç‚¹ 4634ï¼ˆå·® 668 = 172 ä¸ªè·¯çº¿åœ†ç‚¹ï¼Œå¯†é›†å¤„é‡å ï¼›æŠ˜çº¿ 4634 ä¿ç•™ï¼‰â†’ è¯æ˜Žåœ†ç‚¹éšè·¯çº¿ç»˜åˆ¶ä¸”å¼€å…³æœ‰æ•ˆã€‚
+- 2026-08-01ï¼ˆraw çª—å£ï¼‰â†’ã€Œ523 åŽŸå§‹ç‚¹ã€ä¸å˜ã€‚
+- 139 å•æµ‹ + build + lint å…¨ç»¿ã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-14 17:40 — Reviewer + Dev T16 复审轮（PASS-WITH-CONDITIONS）
+## 2026-09-14 17:40 â€” Reviewer + Dev T16 å¤å®¡è½®ï¼ˆPASS-WITH-CONDITIONSï¼‰
 
-**Reviewer 结论**：PASS-WITH-CONDITIONS，无 S1/S2 阻塞。确认：本地日分桶与筛选器同时区（`dayKeyOf`=本地）、范围过滤、`[start,end]` 回退、全局 cap + downsampled、`prepareTimeline` 第 4 参向后兼容（3 参调用全过）、`route` 四组合渲染正确、`fitBounds` 依赖数组无 stale closure、summary 三源诚实、无 O(n²)；139/139 单测 + build + lint 全绿。
+**Reviewer ç»“è®º**ï¼šPASS-WITH-CONDITIONSï¼Œæ—  S1/S2 é˜»å¡žã€‚ç¡®è®¤ï¼šæœ¬åœ°æ—¥åˆ†æ¡¶ä¸Žç­›é€‰å™¨åŒæ—¶åŒºï¼ˆ`dayKeyOf`=æœ¬åœ°ï¼‰ã€èŒƒå›´è¿‡æ»¤ã€`[start,end]` å›žé€€ã€å…¨å±€ cap + downsampledã€`prepareTimeline` ç¬¬ 4 å‚å‘åŽå…¼å®¹ï¼ˆ3 å‚è°ƒç”¨å…¨è¿‡ï¼‰ã€`route` å››ç»„åˆæ¸²æŸ“æ­£ç¡®ã€`fitBounds` ä¾èµ–æ•°ç»„æ—  stale closureã€summary ä¸‰æºè¯šå®žã€æ—  O(nÂ²)ï¼›139/139 å•æµ‹ + build + lint å…¨ç»¿ã€‚
 
-**已修（本轮）**：
-- **A1** `buildTimelineRoute` 契约不对称 → 函数内自行 `filterRawPoints` + 按 `timestampMs` 排序（调用方仍可传全量流）；docstring 明确。
-- **A2** `DateRangePicker.tsx` 混入无关改动（行为等价的重构 + 描述不存在的 bug 的注释）→ **整文件 revert 到 HEAD**，T16 diff 只含相关文件。
-- **A4** 措辞纠正：NOTES/DECISIONS 原称「分桶规避段间时间重叠导致的乱序」不准确——分桶只解决**跨日 source 选择**；日内重叠段仍按 `startMs` 顺序全部拼接，这与 T14.3「跟時間連」一致（粗/细双记录照连、不去重），已在 docstring 写明。
-- **N1** `trips.test.ts` 补文件末尾换行。
-- **N3** 时间轴模式下无 raw 点时「轨迹点」开关无可见效果 → 该模式下无 raw 点则**隐藏**开关（`showPointsToggle`）。
+**å·²ä¿®ï¼ˆæœ¬è½®ï¼‰**ï¼š
+- **A1** `buildTimelineRoute` å¥‘çº¦ä¸å¯¹ç§° â†’ å‡½æ•°å†…è‡ªè¡Œ `filterRawPoints` + æŒ‰ `timestampMs` æŽ’åºï¼ˆè°ƒç”¨æ–¹ä»å¯ä¼ å…¨é‡æµï¼‰ï¼›docstring æ˜Žç¡®ã€‚
+- **A2** `DateRangePicker.tsx` æ··å…¥æ— å…³æ”¹åŠ¨ï¼ˆè¡Œä¸ºç­‰ä»·çš„é‡æž„ + æè¿°ä¸å­˜åœ¨çš„ bug çš„æ³¨é‡Šï¼‰â†’ **æ•´æ–‡ä»¶ revert åˆ° HEAD**ï¼ŒT16 diff åªå«ç›¸å…³æ–‡ä»¶ã€‚
+- **A4** æŽªè¾žçº æ­£ï¼šNOTES/DECISIONS åŽŸç§°ã€Œåˆ†æ¡¶è§„é¿æ®µé—´æ—¶é—´é‡å å¯¼è‡´çš„ä¹±åºã€ä¸å‡†ç¡®â€”â€”åˆ†æ¡¶åªè§£å†³**è·¨æ—¥ source é€‰æ‹©**ï¼›æ—¥å†…é‡å æ®µä»æŒ‰ `startMs` é¡ºåºå…¨éƒ¨æ‹¼æŽ¥ï¼Œè¿™ä¸Ž T14.3ã€Œè·Ÿæ™‚é–“é€£ã€ä¸€è‡´ï¼ˆç²—/ç»†åŒè®°å½•ç…§è¿žã€ä¸åŽ»é‡ï¼‰ï¼Œå·²åœ¨ docstring å†™æ˜Žã€‚
+- **N1** `trips.test.ts` è¡¥æ–‡ä»¶æœ«å°¾æ¢è¡Œã€‚
+- **N3** æ—¶é—´è½´æ¨¡å¼ä¸‹æ—  raw ç‚¹æ—¶ã€Œè½¨è¿¹ç‚¹ã€å¼€å…³æ— å¯è§æ•ˆæžœ â†’ è¯¥æ¨¡å¼ä¸‹æ—  raw ç‚¹åˆ™**éšè—**å¼€å…³ï¼ˆ`showPointsToggle`ï¼‰ã€‚
 
-**记录不修（advisory）**：A3（`preparedTimeline` 在 activityType 模式下也重算 route，线性但可懒算）、A5（测试缺口：单点 raw 无段分支、route cap→downsampled 传播、跨零点排序、DST 日界——DST 为既有问题）。均记入 Backlog 待发布前评估。
+**è®°å½•ä¸ä¿®ï¼ˆadvisoryï¼‰**ï¼šA3ï¼ˆ`preparedTimeline` åœ¨ activityType æ¨¡å¼ä¸‹ä¹Ÿé‡ç®— routeï¼Œçº¿æ€§ä½†å¯æ‡’ç®—ï¼‰ã€A5ï¼ˆæµ‹è¯•ç¼ºå£ï¼šå•ç‚¹ raw æ— æ®µåˆ†æ”¯ã€route capâ†’downsampled ä¼ æ’­ã€è·¨é›¶ç‚¹æŽ’åºã€DST æ—¥ç•Œâ€”â€”DST ä¸ºæ—¢æœ‰é—®é¢˜ï¼‰ã€‚å‡è®°å…¥ Backlog å¾…å‘å¸ƒå‰è¯„ä¼°ã€‚
 
-**浏览器复验（reload 后）**：2025-01-30 时间轴 → 「172 轨迹点（行程段）· 13 停留」、开关隐藏、canvas 4634 蓝像素（路线在）；切「按活动类型」→「20 段 · 165 点 · 13 停留 · 17 处衔接」、开关恢复；2026-08-01 时间轴 →「523 原始点 · 18 停留」（raw 窗口无回归）。未 commit、未部署。
+**æµè§ˆå™¨å¤éªŒï¼ˆreload åŽï¼‰**ï¼š2025-01-30 æ—¶é—´è½´ â†’ ã€Œ172 è½¨è¿¹ç‚¹ï¼ˆè¡Œç¨‹æ®µï¼‰Â· 13 åœç•™ã€ã€å¼€å…³éšè—ã€canvas 4634 è“åƒç´ ï¼ˆè·¯çº¿åœ¨ï¼‰ï¼›åˆ‡ã€ŒæŒ‰æ´»åŠ¨ç±»åž‹ã€â†’ã€Œ20 æ®µ Â· 165 ç‚¹ Â· 13 åœç•™ Â· 17 å¤„è¡”æŽ¥ã€ã€å¼€å…³æ¢å¤ï¼›2026-08-01 æ—¶é—´è½´ â†’ã€Œ523 åŽŸå§‹ç‚¹ Â· 18 åœç•™ã€ï¼ˆraw çª—å£æ— å›žå½’ï¼‰ã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-14 17:10 — Dev T16 时间轴路线回退语义段（raw 仅存 ~30 天）
+## 2026-09-14 17:10 â€” Dev T16 æ—¶é—´è½´è·¯çº¿å›žé€€è¯­ä¹‰æ®µï¼ˆraw ä»…å­˜ ~30 å¤©ï¼‰
 
-**用户反馈**：Google Timeline 的用法就是选一段时间、看那段时间去过哪、路径怎么走。rawSignals 只保留 ~30 天，所以旧日期本来就没有 raw 点；不能因此让地图空着。实测 `Timeline-20260820.json` 的 2025-01-30。
+**ç”¨æˆ·åé¦ˆ**ï¼šGoogle Timeline çš„ç”¨æ³•å°±æ˜¯é€‰ä¸€æ®µæ—¶é—´ã€çœ‹é‚£æ®µæ—¶é—´åŽ»è¿‡å“ªã€è·¯å¾„æ€Žä¹ˆèµ°ã€‚rawSignals åªä¿ç•™ ~30 å¤©ï¼Œæ‰€ä»¥æ—§æ—¥æœŸæœ¬æ¥å°±æ²¡æœ‰ raw ç‚¹ï¼›ä¸èƒ½å› æ­¤è®©åœ°å›¾ç©ºç€ã€‚å®žæµ‹ `Timeline-20260820.json` çš„ 2025-01-30ã€‚
 
-**根因**：T15 的时间轴模式把路线**只**绑定到 `rawSignals`（`TripMap` 里 `timelinePath = rawPoints.map(...)`）。2025-01-30 的 raw 点为 0 → 无 polyline，summary 显示「0 原始点」，地图只剩 13 个 visit marker。但该日 `semanticSegments` 有 33 段（其中多段带 `timelinePath`），解析后 `segment.path` 已有完整行程轨迹——数据在，只是时间轴模式没用。
+**æ ¹å› **ï¼šT15 çš„æ—¶é—´è½´æ¨¡å¼æŠŠè·¯çº¿**åª**ç»‘å®šåˆ° `rawSignals`ï¼ˆ`TripMap` é‡Œ `timelinePath = rawPoints.map(...)`ï¼‰ã€‚2025-01-30 çš„ raw ç‚¹ä¸º 0 â†’ æ—  polylineï¼Œsummary æ˜¾ç¤ºã€Œ0 åŽŸå§‹ç‚¹ã€ï¼Œåœ°å›¾åªå‰© 13 ä¸ª visit markerã€‚ä½†è¯¥æ—¥ `semanticSegments` æœ‰ 33 æ®µï¼ˆå…¶ä¸­å¤šæ®µå¸¦ `timelinePath`ï¼‰ï¼Œè§£æžåŽ `segment.path` å·²æœ‰å®Œæ•´è¡Œç¨‹è½¨è¿¹â€”â€”æ•°æ®åœ¨ï¼Œåªæ˜¯æ—¶é—´è½´æ¨¡å¼æ²¡ç”¨ã€‚
 
-**实现**：
+**å®žçŽ°**ï¼š
 
-1. **`src/lib/trips.ts`**：
-   - `TimelinePayload` 增 `route: Point[]`（折线顶点，时间序）与 `routeSource: 'raw' | 'segments' | 'mixed'`。
-   - 新增 `buildTimelineRoute(rawPoints, segments, range)`：按**本地日**分桶——当日 raw ≥2 用 raw（保留 ~30 天窗口内的原始观感与精度）；否则用该日语义段 `path`（`<2` 回退 `[start,end]`）按 `startMs` 时间序拼接；跨天自然形成时间线。全局 30000 点预算（`GLOBAL_PATH_POINT_CAP`，超限 `strideTake` 保两端并置 `downsampled`）。分桶避免了段间时间重叠（同程粗细双记录）导致的乱序/重复。
-   - `prepareTimeline(visits, range, points, segments = [])` 增第 4 参（向后兼容：既有 3 参调用 segments 为空 → route 回退 raw/空）。
-   - `boundsIncludeRawPoints` 入参放宽为 `readonly Point[]`（route 是 `Point[]`）。
+1. **`src/lib/trips.ts`**ï¼š
+   - `TimelinePayload` å¢ž `route: Point[]`ï¼ˆæŠ˜çº¿é¡¶ç‚¹ï¼Œæ—¶é—´åºï¼‰ä¸Ž `routeSource: 'raw' | 'segments' | 'mixed'`ã€‚
+   - æ–°å¢ž `buildTimelineRoute(rawPoints, segments, range)`ï¼šæŒ‰**æœ¬åœ°æ—¥**åˆ†æ¡¶â€”â€”å½“æ—¥ raw â‰¥2 ç”¨ rawï¼ˆä¿ç•™ ~30 å¤©çª—å£å†…çš„åŽŸå§‹è§‚æ„Ÿä¸Žç²¾åº¦ï¼‰ï¼›å¦åˆ™ç”¨è¯¥æ—¥è¯­ä¹‰æ®µ `path`ï¼ˆ`<2` å›žé€€ `[start,end]`ï¼‰æŒ‰ `startMs` æ—¶é—´åºæ‹¼æŽ¥ï¼›è·¨å¤©è‡ªç„¶å½¢æˆæ—¶é—´çº¿ã€‚å…¨å±€ 30000 ç‚¹é¢„ç®—ï¼ˆ`GLOBAL_PATH_POINT_CAP`ï¼Œè¶…é™ `strideTake` ä¿ä¸¤ç«¯å¹¶ç½® `downsampled`ï¼‰ã€‚åˆ†æ¡¶é¿å…äº†æ®µé—´æ—¶é—´é‡å ï¼ˆåŒç¨‹ç²—ç»†åŒè®°å½•ï¼‰å¯¼è‡´çš„ä¹±åº/é‡å¤ã€‚
+   - `prepareTimeline(visits, range, points, segments = [])` å¢žç¬¬ 4 å‚ï¼ˆå‘åŽå…¼å®¹ï¼šæ—¢æœ‰ 3 å‚è°ƒç”¨ segments ä¸ºç©º â†’ route å›žé€€ raw/ç©ºï¼‰ã€‚
+   - `boundsIncludeRawPoints` å…¥å‚æ”¾å®½ä¸º `readonly Point[]`ï¼ˆroute æ˜¯ `Point[]`ï¼‰ã€‚
 
-2. **`src/components/TripMap.tsx`**：新增 `route?: readonly Point[]` prop；timeline 折线改用 `route`（缺省回退 `rawPoints`）；折线**不再受** `showRoutePoints` 门控——该开关只控逐点圆点（「轨迹点」语义），路线本身始终绘制。
+2. **`src/components/TripMap.tsx`**ï¼šæ–°å¢ž `route?: readonly Point[]` propï¼›timeline æŠ˜çº¿æ”¹ç”¨ `route`ï¼ˆç¼ºçœå›žé€€ `rawPoints`ï¼‰ï¼›æŠ˜çº¿**ä¸å†å—** `showRoutePoints` é—¨æŽ§â€”â€”è¯¥å¼€å…³åªæŽ§é€ç‚¹åœ†ç‚¹ï¼ˆã€Œè½¨è¿¹ç‚¹ã€è¯­ä¹‰ï¼‰ï¼Œè·¯çº¿æœ¬èº«å§‹ç»ˆç»˜åˆ¶ã€‚
 
-3. **`src/pages/TripsPage.tsx`**：`prepareTimeline(...)` 传入 `data.segments`；`fitBounds` 与 summary 改用 `route`；summary 诚实标注来源（`原始点` / `轨迹点（行程段）` / `轨迹点（GPS+行程段）`）；`MapPane`/直连两处 `TripMap` 传 `route`。
+3. **`src/pages/TripsPage.tsx`**ï¼š`prepareTimeline(...)` ä¼ å…¥ `data.segments`ï¼›`fitBounds` ä¸Ž summary æ”¹ç”¨ `route`ï¼›summary è¯šå®žæ ‡æ³¨æ¥æºï¼ˆ`åŽŸå§‹ç‚¹` / `è½¨è¿¹ç‚¹ï¼ˆè¡Œç¨‹æ®µï¼‰` / `è½¨è¿¹ç‚¹ï¼ˆGPS+è¡Œç¨‹æ®µï¼‰`ï¼‰ï¼›`MapPane`/ç›´è¿žä¸¤å¤„ `TripMap` ä¼  `route`ã€‚
 
-**测试**（`trips.test.ts`，131 → **139**，+8）：
-- `prepareTimeline`：无 raw 时回退语义段路径（route 非空、source='segments'）；同日优先 raw。
-- `buildTimelineRoute`：语义段按时间序拼接、跨天 mixed 源、范围筛选、空 path 回退 `[start,end]`、超预算 cap 保两端 + downsampled、无几何时 source='raw' 且 route 空。
+**æµ‹è¯•**ï¼ˆ`trips.test.ts`ï¼Œ131 â†’ **139**ï¼Œ+8ï¼‰ï¼š
+- `prepareTimeline`ï¼šæ—  raw æ—¶å›žé€€è¯­ä¹‰æ®µè·¯å¾„ï¼ˆroute éžç©ºã€source='segments'ï¼‰ï¼›åŒæ—¥ä¼˜å…ˆ rawã€‚
+- `buildTimelineRoute`ï¼šè¯­ä¹‰æ®µæŒ‰æ—¶é—´åºæ‹¼æŽ¥ã€è·¨å¤© mixed æºã€èŒƒå›´ç­›é€‰ã€ç©º path å›žé€€ `[start,end]`ã€è¶…é¢„ç®— cap ä¿ä¸¤ç«¯ + downsampledã€æ— å‡ ä½•æ—¶ source='raw' ä¸” route ç©ºã€‚
 
-**验证**：
-- `npm run test` trips 56 passed（其余 parse 用例 22 passed 隔离复跑通过；全量并发下 `parse.test.ts` 一条 2M 点 cap 用例超 5s 为既有 flaky，非本次改动）。
-- `npm run build`（tsc+vite）✅ / `npm run lint` 0 error ✅。
-- livedata 浏览器实测（`Timeline-20260820.json` 123.4MB）：
-  - 2025-01-30 时间轴模式 → summary「172 轨迹点（行程段） · 13 停留」，overlay canvas 检出 4634 个 #3b82f6 蓝色像素（路线已绘）；旧行为为「0 原始点」+ 0 蓝。
-  - 2026-08-01（raw 窗口内）→「523 原始点 · 18 停留」，与文件 rawSignals 精确计数一致（无回归）。
-  - 「轨迹点」开关关闭 → 蓝像素 5525→4474（圆点消失、路线保留）。
-  - 「按活动类型」模式不受影响（19 段 · 149 点 · 18 停留 · 523 原始点 · 18 处衔接）。
-- 未 commit、未部署。
+**éªŒè¯**ï¼š
+- `npm run test` trips 56 passedï¼ˆå…¶ä½™ parse ç”¨ä¾‹ 22 passed éš”ç¦»å¤è·‘é€šè¿‡ï¼›å…¨é‡å¹¶å‘ä¸‹ `parse.test.ts` ä¸€æ¡ 2M ç‚¹ cap ç”¨ä¾‹è¶… 5s ä¸ºæ—¢æœ‰ flakyï¼Œéžæœ¬æ¬¡æ”¹åŠ¨ï¼‰ã€‚
+- `npm run build`ï¼ˆtsc+viteï¼‰âœ… / `npm run lint` 0 error âœ…ã€‚
+- livedata æµè§ˆå™¨å®žæµ‹ï¼ˆ`Timeline-20260820.json` 123.4MBï¼‰ï¼š
+  - 2025-01-30 æ—¶é—´è½´æ¨¡å¼ â†’ summaryã€Œ172 è½¨è¿¹ç‚¹ï¼ˆè¡Œç¨‹æ®µï¼‰ Â· 13 åœç•™ã€ï¼Œoverlay canvas æ£€å‡º 4634 ä¸ª #3b82f6 è“è‰²åƒç´ ï¼ˆè·¯çº¿å·²ç»˜ï¼‰ï¼›æ—§è¡Œä¸ºä¸ºã€Œ0 åŽŸå§‹ç‚¹ã€+ 0 è“ã€‚
+  - 2026-08-01ï¼ˆraw çª—å£å†…ï¼‰â†’ã€Œ523 åŽŸå§‹ç‚¹ Â· 18 åœç•™ã€ï¼Œä¸Žæ–‡ä»¶ rawSignals ç²¾ç¡®è®¡æ•°ä¸€è‡´ï¼ˆæ— å›žå½’ï¼‰ã€‚
+  - ã€Œè½¨è¿¹ç‚¹ã€å¼€å…³å…³é—­ â†’ è“åƒç´  5525â†’4474ï¼ˆåœ†ç‚¹æ¶ˆå¤±ã€è·¯çº¿ä¿ç•™ï¼‰ã€‚
+  - ã€ŒæŒ‰æ´»åŠ¨ç±»åž‹ã€æ¨¡å¼ä¸å—å½±å“ï¼ˆ19 æ®µ Â· 149 ç‚¹ Â· 18 åœç•™ Â· 523 åŽŸå§‹ç‚¹ Â· 18 å¤„è¡”æŽ¥ï¼‰ã€‚
+- æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-14 16:00 — Dev T15 Trip 时间轴视图（纯 GPS 轨迹线）
+## 2026-09-14 16:00 â€” Dev T15 Trip æ—¶é—´è½´è§†å›¾ï¼ˆçº¯ GPS è½¨è¿¹çº¿ï¼‰
 
-用户反馈 T14 系列（bridge lines）仍未解决——他们要的不是虚线桥，而是一条纯时间线：所有 rawSignals（GPS 点）按时间排序连成一条线（单色），停驻点用不同颜色标记，移动点 tooltip 显示 GPS 坐标。
+ç”¨æˆ·åé¦ˆ T14 ç³»åˆ—ï¼ˆbridge linesï¼‰ä»æœªè§£å†³â€”â€”ä»–ä»¬è¦çš„ä¸æ˜¯è™šçº¿æ¡¥ï¼Œè€Œæ˜¯ä¸€æ¡çº¯æ—¶é—´çº¿ï¼šæ‰€æœ‰ rawSignalsï¼ˆGPS ç‚¹ï¼‰æŒ‰æ—¶é—´æŽ’åºè¿žæˆä¸€æ¡çº¿ï¼ˆå•è‰²ï¼‰ï¼Œåœé©»ç‚¹ç”¨ä¸åŒé¢œè‰²æ ‡è®°ï¼Œç§»åŠ¨ç‚¹ tooltip æ˜¾ç¤º GPS åæ ‡ã€‚
 
-**实现**：
+**å®žçŽ°**ï¼š
 
-1. **`src/lib/trips.ts`**：新增 `TimelinePayload` 接口 + `prepareTimeline(visits, range, points)` 函数：
-   - 收集所有 rawSignals，按 `timestampMs` 排序
-   - 保留 `RAW_POINT_CAP=20000` 降采样逻辑（strideTake，保两端）
-   - visits 过滤 + 倒序排序 + MARKER_CAP 降采样
-   - 现有 `prepareTrips` / `prepareTripsForData` 保留不变
+1. **`src/lib/trips.ts`**ï¼šæ–°å¢ž `TimelinePayload` æŽ¥å£ + `prepareTimeline(visits, range, points)` å‡½æ•°ï¼š
+   - æ”¶é›†æ‰€æœ‰ rawSignalsï¼ŒæŒ‰ `timestampMs` æŽ’åº
+   - ä¿ç•™ `RAW_POINT_CAP=20000` é™é‡‡æ ·é€»è¾‘ï¼ˆstrideTakeï¼Œä¿ä¸¤ç«¯ï¼‰
+   - visits è¿‡æ»¤ + å€’åºæŽ’åº + MARKER_CAP é™é‡‡æ ·
+   - çŽ°æœ‰ `prepareTrips` / `prepareTripsForData` ä¿ç•™ä¸å˜
 
-2. **`src/components/TripMap.tsx`**：新增 `mode?: 'activityType' | 'timeline'` prop：
-   - timeline 模式：一条蓝色 polyline（#3b82f6, 2px, 实线）连接所有 rawSignals 点；每个 rawSignal 点渲染为小圆点 + tooltip（`{lat.toFixed(4)}, {lng.toFixed(4)} | {fmtDateTime(timestampMs)}`）
-   - activityType 模式：保留现有行为（segments 按活动着色 + bridges 虚线）
-   - visit markers 两种模式通用（红色）
+2. **`src/components/TripMap.tsx`**ï¼šæ–°å¢ž `mode?: 'activityType' | 'timeline'` propï¼š
+   - timeline æ¨¡å¼ï¼šä¸€æ¡è“è‰² polylineï¼ˆ#3b82f6, 2px, å®žçº¿ï¼‰è¿žæŽ¥æ‰€æœ‰ rawSignals ç‚¹ï¼›æ¯ä¸ª rawSignal ç‚¹æ¸²æŸ“ä¸ºå°åœ†ç‚¹ + tooltipï¼ˆ`{lat.toFixed(4)}, {lng.toFixed(4)} | {fmtDateTime(timestampMs)}`ï¼‰
+   - activityType æ¨¡å¼ï¼šä¿ç•™çŽ°æœ‰è¡Œä¸ºï¼ˆsegments æŒ‰æ´»åŠ¨ç€è‰² + bridges è™šçº¿ï¼‰
+   - visit markers ä¸¤ç§æ¨¡å¼é€šç”¨ï¼ˆçº¢è‰²ï¼‰
 
-3. **`src/pages/TripsPage.tsx`**：新增模式切换开关：
-   - 两个按钮：「时间轴」|「按活动类型」，默认选中「时间轴」
-   - timeline 模式调用 `prepareTimeline`，activityType 模式调用 `prepareTripsForData`
-   - summary 行根据模式显示不同信息
-   - 新增 CSS `.trips-mode-toggle` + `.trips-mode-btn`
+3. **`src/pages/TripsPage.tsx`**ï¼šæ–°å¢žæ¨¡å¼åˆ‡æ¢å¼€å…³ï¼š
+   - ä¸¤ä¸ªæŒ‰é’®ï¼šã€Œæ—¶é—´è½´ã€|ã€ŒæŒ‰æ´»åŠ¨ç±»åž‹ã€ï¼Œé»˜è®¤é€‰ä¸­ã€Œæ—¶é—´è½´ã€
+   - timeline æ¨¡å¼è°ƒç”¨ `prepareTimeline`ï¼ŒactivityType æ¨¡å¼è°ƒç”¨ `prepareTripsForData`
+   - summary è¡Œæ ¹æ®æ¨¡å¼æ˜¾ç¤ºä¸åŒä¿¡æ¯
+   - æ–°å¢ž CSS `.trips-mode-toggle` + `.trips-mode-btn`
 
-**测试**（`trips.test.ts`，124 → **131**）：
-- 新增 7 个 `prepareTimeline` 单测：排序、范围筛选、RAW_POINT_CAP 降采样、新近排序、保两端端点、空输入、MARKER_CAP 降采样
+**æµ‹è¯•**ï¼ˆ`trips.test.ts`ï¼Œ124 â†’ **131**ï¼‰ï¼š
+- æ–°å¢ž 7 ä¸ª `prepareTimeline` å•æµ‹ï¼šæŽ’åºã€èŒƒå›´ç­›é€‰ã€RAW_POINT_CAP é™é‡‡æ ·ã€æ–°è¿‘æŽ’åºã€ä¿ä¸¤ç«¯ç«¯ç‚¹ã€ç©ºè¾“å…¥ã€MARKER_CAP é™é‡‡æ ·
 
-**验证**：`npm run test` **131 passed** / `npm run build` ✅ / `npm run lint` 0 error ✅。未 commit、未部署。
+**éªŒè¯**ï¼š`npm run test` **131 passed** / `npm run build` âœ… / `npm run lint` 0 error âœ…ã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-14 15:17 — Dev T14.3 撤销双闸门：跟時間連纯时间口径
-CEO 决策（DECISIONS.md「T14.2 双闸门撤销」）：`bridgeLines` 回归纯时间语义——**所有时间相邻段不论类型/重叠/距离一律建桥**。
+## 2026-09-14 15:17 â€” Dev T14.3 æ’¤é”€åŒé—¸é—¨ï¼šè·Ÿæ™‚é–“é€£çº¯æ—¶é—´å£å¾„
+CEO å†³ç­–ï¼ˆDECISIONS.mdã€ŒT14.2 åŒé—¸é—¨æ’¤é”€ã€ï¼‰ï¼š`bridgeLines` å›žå½’çº¯æ—¶é—´è¯­ä¹‰â€”â€”**æ‰€æœ‰æ—¶é—´ç›¸é‚»æ®µä¸è®ºç±»åž‹/é‡å /è·ç¦»ä¸€å¾‹å»ºæ¡¥**ã€‚
 
-**根因**：T14.2 距离闸门（重叠且可视端点 >1000m 即跳过）在 2025-01-30 误杀交叉时间相邻对（用户实测「13:45 後沒有連去移動」）。复核该日 20 段：被跳过的 9 对全为跨类型**重叠**对，其中多条是本该相连的同程粗细双记录（如移动 12:00-14:00 ↔ 驾车 13:54-15:00，端点相距 66.7km/property）。同窗口粗细两种记录属同一次行程，断开违背「跟時間連」。
+**æ ¹å› **ï¼šT14.2 è·ç¦»é—¸é—¨ï¼ˆé‡å ä¸”å¯è§†ç«¯ç‚¹ >1000m å³è·³è¿‡ï¼‰åœ¨ 2025-01-30 è¯¯æ€äº¤å‰æ—¶é—´ç›¸é‚»å¯¹ï¼ˆç”¨æˆ·å®žæµ‹ã€Œ13:45 å¾Œæ²’æœ‰é€£åŽ»ç§»å‹•ã€ï¼‰ã€‚å¤æ ¸è¯¥æ—¥ 20 æ®µï¼šè¢«è·³è¿‡çš„ 9 å¯¹å…¨ä¸ºè·¨ç±»åž‹**é‡å **å¯¹ï¼Œå…¶ä¸­å¤šæ¡æ˜¯æœ¬è¯¥ç›¸è¿žçš„åŒç¨‹ç²—ç»†åŒè®°å½•ï¼ˆå¦‚ç§»åŠ¨ 12:00-14:00 â†” é©¾è½¦ 13:54-15:00ï¼Œç«¯ç‚¹ç›¸è· 66.7km/propertyï¼‰ã€‚åŒçª—å£ç²—ç»†ä¸¤ç§è®°å½•å±žåŒä¸€æ¬¡è¡Œç¨‹ï¼Œæ–­å¼€è¿èƒŒã€Œè·Ÿæ™‚é–“é€£ã€ã€‚
 
-**改动**（`src/lib/trips.ts`）：
-1. 删除 `BRIDGE_OVERLAP_MAX_M = 1000` 常量 + 双闸门注释。
-2. `bridgeLines` 删掉距离闸门行（`gapMs ≤ 0 && haversineKm(...)>1000m → skip`）；`bridgeLines`/`bridgeGapLabel` 的 JSDoc 重写为「跟時間連」契约（重叠是 GPS 粒度的常态，粗细双记录同程也连，虚线+「衔接 +N 分钟」已诚实现「无直接轨迹记录」）。
-3. 仅保留退化跳过（可视端点完全重合的零长线），`BRIDGE_CAP=1000` stride 抽稀、`BRIDGE_ANNOTATE_MIN_MS=60s`、`polylineEndpoints` 均不变。
-4. `haversineKm` 值导入从 trips.ts 移除（不再使用；types.ts 定义保留）。
+**æ”¹åŠ¨**ï¼ˆ`src/lib/trips.ts`ï¼‰ï¼š
+1. åˆ é™¤ `BRIDGE_OVERLAP_MAX_M = 1000` å¸¸é‡ + åŒé—¸é—¨æ³¨é‡Šã€‚
+2. `bridgeLines` åˆ æŽ‰è·ç¦»é—¸é—¨è¡Œï¼ˆ`gapMs â‰¤ 0 && haversineKm(...)>1000m â†’ skip`ï¼‰ï¼›`bridgeLines`/`bridgeGapLabel` çš„ JSDoc é‡å†™ä¸ºã€Œè·Ÿæ™‚é–“é€£ã€å¥‘çº¦ï¼ˆé‡å æ˜¯ GPS ç²’åº¦çš„å¸¸æ€ï¼Œç²—ç»†åŒè®°å½•åŒç¨‹ä¹Ÿè¿žï¼Œè™šçº¿+ã€Œè¡”æŽ¥ +N åˆ†é’Ÿã€å·²è¯šå®žçŽ°ã€Œæ— ç›´æŽ¥è½¨è¿¹è®°å½•ã€ï¼‰ã€‚
+3. ä»…ä¿ç•™é€€åŒ–è·³è¿‡ï¼ˆå¯è§†ç«¯ç‚¹å®Œå…¨é‡åˆçš„é›¶é•¿çº¿ï¼‰ï¼Œ`BRIDGE_CAP=1000` stride æŠ½ç¨€ã€`BRIDGE_ANNOTATE_MIN_MS=60s`ã€`polylineEndpoints` å‡ä¸å˜ã€‚
+4. `haversineKm` å€¼å¯¼å…¥ä»Ž trips.ts ç§»é™¤ï¼ˆä¸å†ä½¿ç”¨ï¼›types.ts å®šä¹‰ä¿ç•™ï¼‰ã€‚
 
-**测试**（`trips.test.ts`，123 → **124**）：
-- 原「重叠/相接且远离 → 跳过」两用例（~11km 并行对 / ~60km 驾车-移动对）**翻转**为「无论距离一律建桥」；原「CLOSE 步行换乘」用例语义改为重叠必建桥 + 元数据契约（gapMs 保持负/零、label=「衔接」、from/to 贴合可视端点）。
-- 新增合成回归固守用户例：驾车12:42-13:45 → 驾车13:54-15:00 → 移动14:00-16:00（端点距相邻驾车段 ~60km）→ 驾车15:15-16:35，断言 3 桥链 0→1→2→3、gapMs=+9min/-60min/-45min、label 分别「衔接 +9 分钟」/「衔接」。
-- livedata 回归改为最忙本地日全桥数校验：桥数 == 相邻对 − 退化对，且 > 旧纯时间规则计数；删除「≤1000m 闸门契约」断言（不再成立）。
+**æµ‹è¯•**ï¼ˆ`trips.test.ts`ï¼Œ123 â†’ **124**ï¼‰ï¼š
+- åŽŸã€Œé‡å /ç›¸æŽ¥ä¸”è¿œç¦» â†’ è·³è¿‡ã€ä¸¤ç”¨ä¾‹ï¼ˆ~11km å¹¶è¡Œå¯¹ / ~60km é©¾è½¦-ç§»åŠ¨å¯¹ï¼‰**ç¿»è½¬**ä¸ºã€Œæ— è®ºè·ç¦»ä¸€å¾‹å»ºæ¡¥ã€ï¼›åŽŸã€ŒCLOSE æ­¥è¡Œæ¢ä¹˜ã€ç”¨ä¾‹è¯­ä¹‰æ”¹ä¸ºé‡å å¿…å»ºæ¡¥ + å…ƒæ•°æ®å¥‘çº¦ï¼ˆgapMs ä¿æŒè´Ÿ/é›¶ã€label=ã€Œè¡”æŽ¥ã€ã€from/to è´´åˆå¯è§†ç«¯ç‚¹ï¼‰ã€‚
+- æ–°å¢žåˆæˆå›žå½’å›ºå®ˆç”¨æˆ·ä¾‹ï¼šé©¾è½¦12:42-13:45 â†’ é©¾è½¦13:54-15:00 â†’ ç§»åŠ¨14:00-16:00ï¼ˆç«¯ç‚¹è·ç›¸é‚»é©¾è½¦æ®µ ~60kmï¼‰â†’ é©¾è½¦15:15-16:35ï¼Œæ–­è¨€ 3 æ¡¥é“¾ 0â†’1â†’2â†’3ã€gapMs=+9min/-60min/-45minã€label åˆ†åˆ«ã€Œè¡”æŽ¥ +9 åˆ†é’Ÿã€/ã€Œè¡”æŽ¥ã€ã€‚
+- livedata å›žå½’æ”¹ä¸ºæœ€å¿™æœ¬åœ°æ—¥å…¨æ¡¥æ•°æ ¡éªŒï¼šæ¡¥æ•° == ç›¸é‚»å¯¹ âˆ’ é€€åŒ–å¯¹ï¼Œä¸” > æ—§çº¯æ—¶é—´è§„åˆ™è®¡æ•°ï¼›åˆ é™¤ã€Œâ‰¤1000m é—¸é—¨å¥‘çº¦ã€æ–­è¨€ï¼ˆä¸å†æˆç«‹ï¼‰ã€‚
 
-**真实数据验证**（CEO 临测脚本 verify-day.test.ts，跑完已删）：
-- 2025-01-30：20 段 → **17 桥**（19 相邻对 − 2 退化），SKIP 列表只剩 4→5 / 17→18 两条「identical endpoint (degenerate drop)」，无 UNEXPECTED；13:30-14:30 窗口 seg9→10→11→12 **全建桥**（seg10 驾车13:54-15:00 → seg11 移动14:00-16:00，66.7km 重叠现已连通）。
-- 2026 最忙本地日 2016-01-14：30 段 → **24 桥**（29 相邻对 − 5 退化），其中 21 条重叠桥；旧纯时间规则仅 3 桥。
+**çœŸå®žæ•°æ®éªŒè¯**ï¼ˆCEO ä¸´æµ‹è„šæœ¬ verify-day.test.tsï¼Œè·‘å®Œå·²åˆ ï¼‰ï¼š
+- 2025-01-30ï¼š20 æ®µ â†’ **17 æ¡¥**ï¼ˆ19 ç›¸é‚»å¯¹ âˆ’ 2 é€€åŒ–ï¼‰ï¼ŒSKIP åˆ—è¡¨åªå‰© 4â†’5 / 17â†’18 ä¸¤æ¡ã€Œidentical endpoint (degenerate drop)ã€ï¼Œæ—  UNEXPECTEDï¼›13:30-14:30 çª—å£ seg9â†’10â†’11â†’12 **å…¨å»ºæ¡¥**ï¼ˆseg10 é©¾è½¦13:54-15:00 â†’ seg11 ç§»åŠ¨14:00-16:00ï¼Œ66.7km é‡å çŽ°å·²è¿žé€šï¼‰ã€‚
+- 2026 æœ€å¿™æœ¬åœ°æ—¥ 2016-01-14ï¼š30 æ®µ â†’ **24 æ¡¥**ï¼ˆ29 ç›¸é‚»å¯¹ âˆ’ 5 é€€åŒ–ï¼‰ï¼Œå…¶ä¸­ 21 æ¡é‡å æ¡¥ï¼›æ—§çº¯æ—¶é—´è§„åˆ™ä»… 3 æ¡¥ã€‚
 
-**验证**：`npm run test` **124 passed** / `npm run build` ✅ / `npm run lint` 0 error ✅。未 commit、未部署。
+**éªŒè¯**ï¼š`npm run test` **124 passed** / `npm run build` âœ… / `npm run lint` 0 error âœ…ã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-14 14:28 — Dev 修 Reviewer A1（桥 tooltip 倒退箭头）
-重叠衔接桥 `fromMs=驾车段end(08:31)`、`toMs=步行段start(08:25)` → tooltip「08:31 → 08:25」倒退箭头穿帮。修复（`TripMap.tsx` 一行）：`gapMs ≤ 0` 用双向符号「↔」、`gapMs > 0` 保留「→」——重叠/相接是连接（无时序方向），双向符号比 min→max 更诚实（不伪装时序推进），正 gap 无记录空档仍沿线符号。验证：test 123 passed / build ✅ / lint 0 error。未 commit、未部署。
+## 2026-09-14 14:28 â€” Dev ä¿® Reviewer A1ï¼ˆæ¡¥ tooltip å€’é€€ç®­å¤´ï¼‰
+é‡å è¡”æŽ¥æ¡¥ `fromMs=é©¾è½¦æ®µend(08:31)`ã€`toMs=æ­¥è¡Œæ®µstart(08:25)` â†’ tooltipã€Œ08:31 â†’ 08:25ã€å€’é€€ç®­å¤´ç©¿å¸®ã€‚ä¿®å¤ï¼ˆ`TripMap.tsx` ä¸€è¡Œï¼‰ï¼š`gapMs â‰¤ 0` ç”¨åŒå‘ç¬¦å·ã€Œâ†”ã€ã€`gapMs > 0` ä¿ç•™ã€Œâ†’ã€â€”â€”é‡å /ç›¸æŽ¥æ˜¯è¿žæŽ¥ï¼ˆæ— æ—¶åºæ–¹å‘ï¼‰ï¼ŒåŒå‘ç¬¦å·æ¯” minâ†’max æ›´è¯šå®žï¼ˆä¸ä¼ªè£…æ—¶åºæŽ¨è¿›ï¼‰ï¼Œæ­£ gap æ— è®°å½•ç©ºæ¡£ä»æ²¿çº¿ç¬¦å·ã€‚éªŒè¯ï¼štest 123 passed / build âœ… / lint 0 errorã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-14 14:25 — Dev T14.2 跨类型换乘段不建桥（修复）
-用户实测：Trips 时间线「移动連移動、駕車連駕車」，但驾车↔步行/移动之间断开。
+## 2026-09-14 14:25 â€” Dev T14.2 è·¨ç±»åž‹æ¢ä¹˜æ®µä¸å»ºæ¡¥ï¼ˆä¿®å¤ï¼‰
+ç”¨æˆ·å®žæµ‹ï¼šTrips æ—¶é—´çº¿ã€Œç§»åŠ¨é€£ç§»å‹•ã€é§•è»Šé€£é§•è»Šã€ï¼Œä½†é©¾è½¦â†”æ­¥è¡Œ/ç§»åŠ¨ä¹‹é—´æ–­å¼€ã€‚
 
-**根因**：`bridgeLines` 只认 `gapMs > 0` 建桥。真实数据中换乘衔接（驾车段结束 → 步行段开始）常因 GPS 记录粒度**时间重叠几分钟**（gap ≤ 0）→ 被跳过 → 跨类型段视觉断开；同类型段首尾相接（gap > 0）→ 有桥。
+**æ ¹å› **ï¼š`bridgeLines` åªè®¤ `gapMs > 0` å»ºæ¡¥ã€‚çœŸå®žæ•°æ®ä¸­æ¢ä¹˜è¡”æŽ¥ï¼ˆé©¾è½¦æ®µç»“æŸ â†’ æ­¥è¡Œæ®µå¼€å§‹ï¼‰å¸¸å›  GPS è®°å½•ç²’åº¦**æ—¶é—´é‡å å‡ åˆ†é’Ÿ**ï¼ˆgap â‰¤ 0ï¼‰â†’ è¢«è·³è¿‡ â†’ è·¨ç±»åž‹æ®µè§†è§‰æ–­å¼€ï¼›åŒç±»åž‹æ®µé¦–å°¾ç›¸æŽ¥ï¼ˆgap > 0ï¼‰â†’ æœ‰æ¡¥ã€‚
 
-**修复**（`src/lib/trips.ts`）：bridgeLines 改「时间 or 距离双闸门」（沿用 T14.1 可视端点 `polylineEndpoints`）：
-1. `gapMs > 0` → 建桥（现状；无记录空档如实呈现）
-2. `gapMs ≤ 0`（重叠/相接）且可视端点 haversine 距离 ≤ `BRIDGE_OVERLAP_MAX_M = 1000m` → 建桥（**换乘衔接**）
-3. `gapMs ≤ 0` 且点距 > 1000m → 跳过（**真并行记录**，诚实原则）
-- 端点重合跳过判断保留在双闸门前（退化零长线不入列）。
-- `BridgeLine.gapMs` 改为**带符号真实时间差**（负=重叠，0=相接）；`bridgeGapLabel` 对 <60s（含全部负值/零）一律返回「衔接」，**负值永不显示**（杜绝「衔接 +-6 分钟」）。
+**ä¿®å¤**ï¼ˆ`src/lib/trips.ts`ï¼‰ï¼šbridgeLines æ”¹ã€Œæ—¶é—´ or è·ç¦»åŒé—¸é—¨ã€ï¼ˆæ²¿ç”¨ T14.1 å¯è§†ç«¯ç‚¹ `polylineEndpoints`ï¼‰ï¼š
+1. `gapMs > 0` â†’ å»ºæ¡¥ï¼ˆçŽ°çŠ¶ï¼›æ— è®°å½•ç©ºæ¡£å¦‚å®žå‘ˆçŽ°ï¼‰
+2. `gapMs â‰¤ 0`ï¼ˆé‡å /ç›¸æŽ¥ï¼‰ä¸”å¯è§†ç«¯ç‚¹ haversine è·ç¦» â‰¤ `BRIDGE_OVERLAP_MAX_M = 1000m` â†’ å»ºæ¡¥ï¼ˆ**æ¢ä¹˜è¡”æŽ¥**ï¼‰
+3. `gapMs â‰¤ 0` ä¸”ç‚¹è· > 1000m â†’ è·³è¿‡ï¼ˆ**çœŸå¹¶è¡Œè®°å½•**ï¼Œè¯šå®žåŽŸåˆ™ï¼‰
+- ç«¯ç‚¹é‡åˆè·³è¿‡åˆ¤æ–­ä¿ç•™åœ¨åŒé—¸é—¨å‰ï¼ˆé€€åŒ–é›¶é•¿çº¿ä¸å…¥åˆ—ï¼‰ã€‚
+- `BridgeLine.gapMs` æ”¹ä¸º**å¸¦ç¬¦å·çœŸå®žæ—¶é—´å·®**ï¼ˆè´Ÿ=é‡å ï¼Œ0=ç›¸æŽ¥ï¼‰ï¼›`bridgeGapLabel` å¯¹ <60sï¼ˆå«å…¨éƒ¨è´Ÿå€¼/é›¶ï¼‰ä¸€å¾‹è¿”å›žã€Œè¡”æŽ¥ã€ï¼Œ**è´Ÿå€¼æ°¸ä¸æ˜¾ç¤º**ï¼ˆæœç»ã€Œè¡”æŽ¥ +-6 åˆ†é’Ÿã€ï¼‰ã€‚
 
-**阈值标定（livedata 实测）**：对 2025/2026 两份真实导出（5.2 万/6 万段）全量「时间重叠相邻段」按类别逐对量可视端点点距，CDF：
-- **cross-type-transfer**（驾车→步行等真换乘）1255/1374 对：p50=0m、p75≈105m、p90≈385m、p95≈766m、p99≈2002m；**≤500m 91.6% / ≤1000m 96.9% / ≤2000m 99.0%**。
-- **trace-involved**（raw timelinePath 与其缝合 activity 的重叠对）27992/31859 对：p50≈1.35-1.47km、p75≈5.7km 长尾；≤1000m 仅 43.3%、≤2000m 57.7%。
-- **选 1000m**：500m 会漏 5% 真换乘（385-1000m 的城市内换乘）；2000m 只多收 2% 换乘却把 trace-involved 远对连到 58%（误连并行风险↑）。1000m = 换乘覆盖 96.9% 与并行隔离（只连 43% 近 trace 对）平衡点。
-- 最忙日 2016-01-14（UTC 日口径 30 段）：旧纯时间规则桥数 ≤ 新双闸门桥数，新增桥含 gapMs=0 的相接换乘与负 gap 的重叠换乘。
+**é˜ˆå€¼æ ‡å®šï¼ˆlivedata å®žæµ‹ï¼‰**ï¼šå¯¹ 2025/2026 ä¸¤ä»½çœŸå®žå¯¼å‡ºï¼ˆ5.2 ä¸‡/6 ä¸‡æ®µï¼‰å…¨é‡ã€Œæ—¶é—´é‡å ç›¸é‚»æ®µã€æŒ‰ç±»åˆ«é€å¯¹é‡å¯è§†ç«¯ç‚¹ç‚¹è·ï¼ŒCDFï¼š
+- **cross-type-transfer**ï¼ˆé©¾è½¦â†’æ­¥è¡Œç­‰çœŸæ¢ä¹˜ï¼‰1255/1374 å¯¹ï¼šp50=0mã€p75â‰ˆ105mã€p90â‰ˆ385mã€p95â‰ˆ766mã€p99â‰ˆ2002mï¼›**â‰¤500m 91.6% / â‰¤1000m 96.9% / â‰¤2000m 99.0%**ã€‚
+- **trace-involved**ï¼ˆraw timelinePath ä¸Žå…¶ç¼åˆ activity çš„é‡å å¯¹ï¼‰27992/31859 å¯¹ï¼šp50â‰ˆ1.35-1.47kmã€p75â‰ˆ5.7km é•¿å°¾ï¼›â‰¤1000m ä»… 43.3%ã€â‰¤2000m 57.7%ã€‚
+- **é€‰ 1000m**ï¼š500m ä¼šæ¼ 5% çœŸæ¢ä¹˜ï¼ˆ385-1000m çš„åŸŽå¸‚å†…æ¢ä¹˜ï¼‰ï¼›2000m åªå¤šæ”¶ 2% æ¢ä¹˜å´æŠŠ trace-involved è¿œå¯¹è¿žåˆ° 58%ï¼ˆè¯¯è¿žå¹¶è¡Œé£Žé™©â†‘ï¼‰ã€‚1000m = æ¢ä¹˜è¦†ç›– 96.9% ä¸Žå¹¶è¡Œéš”ç¦»ï¼ˆåªè¿ž 43% è¿‘ trace å¯¹ï¼‰å¹³è¡¡ç‚¹ã€‚
+- æœ€å¿™æ—¥ 2016-01-14ï¼ˆUTC æ—¥å£å¾„ 30 æ®µï¼‰ï¼šæ—§çº¯æ—¶é—´è§„åˆ™æ¡¥æ•° â‰¤ æ–°åŒé—¸é—¨æ¡¥æ•°ï¼Œæ–°å¢žæ¡¥å« gapMs=0 çš„ç›¸æŽ¥æ¢ä¹˜ä¸Žè´Ÿ gap çš„é‡å æ¢ä¹˜ã€‚
 
-**测试**（`trips.test.ts`，120 → **123**）：
-- 新增「重叠但接近 → 建桥」（驾车 8:00-8:31 / 步行 8:25-8:45，端点 ~78m，断言 gapMs=-6min、from/to 精确贴合可视端点、label=「衔接」）。
-- 新增「重叠且远离 → 跳过」（~2.6km，>1000m 闸门）。
-- 旧「重叠+相接跳过」用例改名为「FAR apart (parallel records)」语义不变（fixture 端点本就 ~11km，仍跳过，回归保护并行诚实原则）。
-- 标签用例补负值/零断言（`-6min` → 「衔接」；`0` → 「衔接」）。
-- 新增 **livedata 真实文件回归用例**（沿用 skipIf 缺文件自动跳过 + 180s timeout）：解析 2026 真实导出 → 最忙本地日（segments 最多的一天）→ 断言①桥数 > 0；②existence of gapMs≤0 桥；③新闸门桥数 > 纯时间老规则计数（证明修复在真实数据上生效）；④所有 gapMs≤0 桥端点距离 ≤1000m（闸门契约）；⑤其 label 均「衔接」。
+**æµ‹è¯•**ï¼ˆ`trips.test.ts`ï¼Œ120 â†’ **123**ï¼‰ï¼š
+- æ–°å¢žã€Œé‡å ä½†æŽ¥è¿‘ â†’ å»ºæ¡¥ã€ï¼ˆé©¾è½¦ 8:00-8:31 / æ­¥è¡Œ 8:25-8:45ï¼Œç«¯ç‚¹ ~78mï¼Œæ–­è¨€ gapMs=-6minã€from/to ç²¾ç¡®è´´åˆå¯è§†ç«¯ç‚¹ã€label=ã€Œè¡”æŽ¥ã€ï¼‰ã€‚
+- æ–°å¢žã€Œé‡å ä¸”è¿œç¦» â†’ è·³è¿‡ã€ï¼ˆ~2.6kmï¼Œ>1000m é—¸é—¨ï¼‰ã€‚
+- æ—§ã€Œé‡å +ç›¸æŽ¥è·³è¿‡ã€ç”¨ä¾‹æ”¹åä¸ºã€ŒFAR apart (parallel records)ã€è¯­ä¹‰ä¸å˜ï¼ˆfixture ç«¯ç‚¹æœ¬å°± ~11kmï¼Œä»è·³è¿‡ï¼Œå›žå½’ä¿æŠ¤å¹¶è¡Œè¯šå®žåŽŸåˆ™ï¼‰ã€‚
+- æ ‡ç­¾ç”¨ä¾‹è¡¥è´Ÿå€¼/é›¶æ–­è¨€ï¼ˆ`-6min` â†’ ã€Œè¡”æŽ¥ã€ï¼›`0` â†’ ã€Œè¡”æŽ¥ã€ï¼‰ã€‚
+- æ–°å¢ž **livedata çœŸå®žæ–‡ä»¶å›žå½’ç”¨ä¾‹**ï¼ˆæ²¿ç”¨ skipIf ç¼ºæ–‡ä»¶è‡ªåŠ¨è·³è¿‡ + 180s timeoutï¼‰ï¼šè§£æž 2026 çœŸå®žå¯¼å‡º â†’ æœ€å¿™æœ¬åœ°æ—¥ï¼ˆsegments æœ€å¤šçš„ä¸€å¤©ï¼‰â†’ æ–­è¨€â‘ æ¡¥æ•° > 0ï¼›â‘¡existence of gapMsâ‰¤0 æ¡¥ï¼›â‘¢æ–°é—¸é—¨æ¡¥æ•° > çº¯æ—¶é—´è€è§„åˆ™è®¡æ•°ï¼ˆè¯æ˜Žä¿®å¤åœ¨çœŸå®žæ•°æ®ä¸Šç”Ÿæ•ˆï¼‰ï¼›â‘£æ‰€æœ‰ gapMsâ‰¤0 æ¡¥ç«¯ç‚¹è·ç¦» â‰¤1000mï¼ˆé—¸é—¨å¥‘çº¦ï¼‰ï¼›â‘¤å…¶ label å‡ã€Œè¡”æŽ¥ã€ã€‚
 
-**验证**：`npm run test` **123 passed**（120 回归 + 2 合成 + 1 livedata）/ `npm run build`（tsc+vite）✅ / `npm run lint` 0 error ✅。未 commit、未部署。
+**éªŒè¯**ï¼š`npm run test` **123 passed**ï¼ˆ120 å›žå½’ + 2 åˆæˆ + 1 livedataï¼‰/ `npm run build`ï¼ˆtsc+viteï¼‰âœ… / `npm run lint` 0 error âœ…ã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-14 07:50 — Dev
-完成 T13.3 ① + ②（③仅为记录项，无行动）：缝合匹配中途子段 + Trips 路线点渲染。
+## 2026-09-14 07:50 â€” Dev
+å®Œæˆ T13.3 â‘  + â‘¡ï¼ˆâ‘¢ä»…ä¸ºè®°å½•é¡¹ï¼Œæ— è¡ŒåŠ¨ï¼‰ï¼šç¼åˆåŒ¹é…ä¸­é€”å­æ®µ + Trips è·¯çº¿ç‚¹æ¸²æŸ“ã€‚
 
-**改动 1 — 缝合匹配从「端点≡trace首末点」改为「trace 内子段匹配」**（`src/lib/parse/common.ts`）：
-- 根因：新版导出的 `timelinePath` 是 2 小时窗口连续轨迹（16:00-18:00 含 18 点），`activity` 段常是其中一段短途行程（start=16:15 点、end=16:33=trace[4]，非 trace 末点）。旧 `findStitchCandidate` 只接受 activity 起点≡trace首点 且 终点≡trace末点 → 64% 中途行程失配 → path=0 → 路线退化。
-- 新语义：新增 `nearestTraceIndex`（对每个候选 trace 的点线性扫描，找到与 segment.start / segment.end 在 `MAX_STITCH_DEG=0.02°` 容差内**距离最近**的点下标 i / j）。i≤j → 返回 `{...candidate, points: points.slice(i, j+1)}` 子段（新对象，不污染池；调用方照旧 `.slice()` 复制）。i>j → 仅当原始反向配对成立（start≈末点 且 end≈首点）时接受，子段按行程方向 reverse 后返回；i==j（两端点塌缩到同一点）拒绝，防退化 1 点 path。性能不变（二分 + maxEndUpTo 前缀扇出，trace 平均 ~10 点线性扫）。
-- 保持 `isNear` 容差与 `stitchSegments` 终 pass 结构不变。
+**æ”¹åŠ¨ 1 â€” ç¼åˆåŒ¹é…ä»Žã€Œç«¯ç‚¹â‰¡traceé¦–æœ«ç‚¹ã€æ”¹ä¸ºã€Œtrace å†…å­æ®µåŒ¹é…ã€**ï¼ˆ`src/lib/parse/common.ts`ï¼‰ï¼š
+- æ ¹å› ï¼šæ–°ç‰ˆå¯¼å‡ºçš„ `timelinePath` æ˜¯ 2 å°æ—¶çª—å£è¿žç»­è½¨è¿¹ï¼ˆ16:00-18:00 å« 18 ç‚¹ï¼‰ï¼Œ`activity` æ®µå¸¸æ˜¯å…¶ä¸­ä¸€æ®µçŸ­é€”è¡Œç¨‹ï¼ˆstart=16:15 ç‚¹ã€end=16:33=trace[4]ï¼Œéž trace æœ«ç‚¹ï¼‰ã€‚æ—§ `findStitchCandidate` åªæŽ¥å— activity èµ·ç‚¹â‰¡traceé¦–ç‚¹ ä¸” ç»ˆç‚¹â‰¡traceæœ«ç‚¹ â†’ 64% ä¸­é€”è¡Œç¨‹å¤±é… â†’ path=0 â†’ è·¯çº¿é€€åŒ–ã€‚
+- æ–°è¯­ä¹‰ï¼šæ–°å¢ž `nearestTraceIndex`ï¼ˆå¯¹æ¯ä¸ªå€™é€‰ trace çš„ç‚¹çº¿æ€§æ‰«æï¼Œæ‰¾åˆ°ä¸Ž segment.start / segment.end åœ¨ `MAX_STITCH_DEG=0.02Â°` å®¹å·®å†…**è·ç¦»æœ€è¿‘**çš„ç‚¹ä¸‹æ ‡ i / jï¼‰ã€‚iâ‰¤j â†’ è¿”å›ž `{...candidate, points: points.slice(i, j+1)}` å­æ®µï¼ˆæ–°å¯¹è±¡ï¼Œä¸æ±¡æŸ“æ± ï¼›è°ƒç”¨æ–¹ç…§æ—§ `.slice()` å¤åˆ¶ï¼‰ã€‚i>j â†’ ä»…å½“åŽŸå§‹åå‘é…å¯¹æˆç«‹ï¼ˆstartâ‰ˆæœ«ç‚¹ ä¸” endâ‰ˆé¦–ç‚¹ï¼‰æ—¶æŽ¥å—ï¼Œå­æ®µæŒ‰è¡Œç¨‹æ–¹å‘ reverse åŽè¿”å›žï¼›i==jï¼ˆä¸¤ç«¯ç‚¹å¡Œç¼©åˆ°åŒä¸€ç‚¹ï¼‰æ‹’ç»ï¼Œé˜²é€€åŒ– 1 ç‚¹ pathã€‚æ€§èƒ½ä¸å˜ï¼ˆäºŒåˆ† + maxEndUpTo å‰ç¼€æ‰‡å‡ºï¼Œtrace å¹³å‡ ~10 ç‚¹çº¿æ€§æ‰«ï¼‰ã€‚
+- ä¿æŒ `isNear` å®¹å·®ä¸Ž `stitchSegments` ç»ˆ pass ç»“æž„ä¸å˜ã€‚
 
-**改动 2 — Trips 路线轨迹点渲染**：
-- `src/lib/trips.ts`：新增 `ROUTE_POINT_CAP=5000`、`RoutePoint{lat,lng,color}`、`budgetRoutePoints(segments, cap)`（把 prepared.segments 的 path（已 DP 化简）拍平成点并带回 activityType 颜色；总量超预算时按比例 strideTake 抽稀，保两端）。3 个单测。
-- `src/components/TripMap.tsx`：新增 `showRoutePoints?: boolean`（默认 true）prop；`useMemo` 调 `budgetRoutePoints`，在 Polyline 之上、停留点 marker 之下渲染 `CircleMarker`（radius 3，type 同色，fillOpacity 0.6；有选中停留点时降透明度不妨碍聚焦）；停留点 marker 更大且后渲染，不被遮挡。
-- `src/pages/TripsPage.tsx`：顶栏新增「显示/隐藏轨迹点」toggle（本地 state，默认开），双 TripMap 实例共用。`src/index.css` 加 `.trips-toggle--plain`（去掉 auto margin，避免与侧栏 toggle 抢右侧）。
+**æ”¹åŠ¨ 2 â€” Trips è·¯çº¿è½¨è¿¹ç‚¹æ¸²æŸ“**ï¼š
+- `src/lib/trips.ts`ï¼šæ–°å¢ž `ROUTE_POINT_CAP=5000`ã€`RoutePoint{lat,lng,color}`ã€`budgetRoutePoints(segments, cap)`ï¼ˆæŠŠ prepared.segments çš„ pathï¼ˆå·² DP åŒ–ç®€ï¼‰æ‹å¹³æˆç‚¹å¹¶å¸¦å›ž activityType é¢œè‰²ï¼›æ€»é‡è¶…é¢„ç®—æ—¶æŒ‰æ¯”ä¾‹ strideTake æŠ½ç¨€ï¼Œä¿ä¸¤ç«¯ï¼‰ã€‚3 ä¸ªå•æµ‹ã€‚
+- `src/components/TripMap.tsx`ï¼šæ–°å¢ž `showRoutePoints?: boolean`ï¼ˆé»˜è®¤ trueï¼‰propï¼›`useMemo` è°ƒ `budgetRoutePoints`ï¼Œåœ¨ Polyline ä¹‹ä¸Šã€åœç•™ç‚¹ marker ä¹‹ä¸‹æ¸²æŸ“ `CircleMarker`ï¼ˆradius 3ï¼Œtype åŒè‰²ï¼ŒfillOpacity 0.6ï¼›æœ‰é€‰ä¸­åœç•™ç‚¹æ—¶é™é€æ˜Žåº¦ä¸å¦¨ç¢èšç„¦ï¼‰ï¼›åœç•™ç‚¹ marker æ›´å¤§ä¸”åŽæ¸²æŸ“ï¼Œä¸è¢«é®æŒ¡ã€‚
+- `src/pages/TripsPage.tsx`ï¼šé¡¶æ æ–°å¢žã€Œæ˜¾ç¤º/éšè—è½¨è¿¹ç‚¹ã€toggleï¼ˆæœ¬åœ° stateï¼Œé»˜è®¤å¼€ï¼‰ï¼ŒåŒ TripMap å®žä¾‹å…±ç”¨ã€‚`src/index.css` åŠ  `.trips-toggle--plain`ï¼ˆåŽ»æŽ‰ auto marginï¼Œé¿å…ä¸Žä¾§æ  toggle æŠ¢å³ä¾§ï¼‰ã€‚
 
-**测试**（`stitch.test.ts` 重构 +9，`trips.test.ts` +3）：S1 左扫 / 最长重叠 / A2 反向仍断言，但适配新契约（候选对象改为 new object，身份断言 `toBe(pool[0])` → `startMs` + 返回 points 断言）；新增 中途子段返回 5 点子段 / 邻近双点选更近 / 全段前向兼容 / 无近点拒绝 / i>j 非反向拒绝 / i==j 退化拒绝 / parse 管线的中途逐段集成用例（16:15→16:33 从 18 点窗口取 5 点子段）。
+**æµ‹è¯•**ï¼ˆ`stitch.test.ts` é‡æž„ +9ï¼Œ`trips.test.ts` +3ï¼‰ï¼šS1 å·¦æ‰« / æœ€é•¿é‡å  / A2 åå‘ä»æ–­è¨€ï¼Œä½†é€‚é…æ–°å¥‘çº¦ï¼ˆå€™é€‰å¯¹è±¡æ”¹ä¸º new objectï¼Œèº«ä»½æ–­è¨€ `toBe(pool[0])` â†’ `startMs` + è¿”å›ž points æ–­è¨€ï¼‰ï¼›æ–°å¢ž ä¸­é€”å­æ®µè¿”å›ž 5 ç‚¹å­æ®µ / é‚»è¿‘åŒç‚¹é€‰æ›´è¿‘ / å…¨æ®µå‰å‘å…¼å®¹ / æ— è¿‘ç‚¹æ‹’ç» / i>j éžåå‘æ‹’ç» / i==j é€€åŒ–æ‹’ç» / parse ç®¡çº¿çš„ä¸­é€”é€æ®µé›†æˆç”¨ä¾‹ï¼ˆ16:15â†’16:33 ä»Ž 18 ç‚¹çª—å£å– 5 ç‚¹å­æ®µï¼‰ã€‚
 
-**验证**：`npm run test` **96 passed**（87 回归 + 9 新增，含 livedata 5/5 精确断言）✅ / `npm run build`（tsc + vite）✅ / `npm run lint` 0 error ✅。
+**éªŒè¯**ï¼š`npm run test` **96 passed**ï¼ˆ87 å›žå½’ + 9 æ–°å¢žï¼Œå« livedata 5/5 ç²¾ç¡®æ–­è¨€ï¼‰âœ… / `npm run build`ï¼ˆtsc + viteï¼‰âœ… / `npm run lint` 0 error âœ…ã€‚
 
-**已知问题/记录**：①③ rawSignals 评估——livedata 里 2026-01-30 无 rawSignals，故 ③ 仅作记录不行动；②反向子段仅支持「trace 极端配对」（start≈末点/end≈首点），窗口中途的折返行程仍不缝合（保守策略，防乱序窗口误配，如需可后续放宽）；③路线点预算 5000 独立于全局 30000 path 预算，全部视图下圆点近似显示。
+**å·²çŸ¥é—®é¢˜/è®°å½•**ï¼šâ‘ â‘¢ rawSignals è¯„ä¼°â€”â€”livedata é‡Œ 2026-01-30 æ—  rawSignalsï¼Œæ•… â‘¢ ä»…ä½œè®°å½•ä¸è¡ŒåŠ¨ï¼›â‘¡åå‘å­æ®µä»…æ”¯æŒã€Œtrace æžç«¯é…å¯¹ã€ï¼ˆstartâ‰ˆæœ«ç‚¹/endâ‰ˆé¦–ç‚¹ï¼‰ï¼Œçª—å£ä¸­é€”çš„æŠ˜è¿”è¡Œç¨‹ä»ä¸ç¼åˆï¼ˆä¿å®ˆç­–ç•¥ï¼Œé˜²ä¹±åºçª—å£è¯¯é…ï¼Œå¦‚éœ€å¯åŽç»­æ”¾å®½ï¼‰ï¼›â‘¢è·¯çº¿ç‚¹é¢„ç®— 5000 ç‹¬ç«‹äºŽå…¨å±€ 30000 path é¢„ç®—ï¼Œå…¨éƒ¨è§†å›¾ä¸‹åœ†ç‚¹è¿‘ä¼¼æ˜¾ç¤ºã€‚
 
-## 2026-09-14 07:05 — Dev
-修复 7674cb4 后 Reviewer（S1/S2/A1/A2/A3）审查发现的拼接缺陷 + S3/A5 顺手项。
+## 2026-09-14 07:05 â€” Dev
+ä¿®å¤ 7674cb4 åŽ Reviewerï¼ˆS1/S2/A1/A2/A3ï¼‰å®¡æŸ¥å‘çŽ°çš„æ‹¼æŽ¥ç¼ºé™· + S3/A5 é¡ºæ‰‹é¡¹ã€‚
 
-**S1（严重）左向扇出提前终止**：`findStitchCandidate` 左扫原终止条件 `pool[i].endMs >= segment.startMs` 假定「按 startMs 排序 ⇒ endMs 单调」——不成立（短窗口 trace 可夹在长窗口 trace 之间），会挡住更靠左的真实重叠 trace 且终 pass 单次→永久漏匹配。修复：新增 `buildMaxEndUpTo`（maxEnd 前缀，`maxEndUpTo[i]=max(endMs of pool[0..i])`），左扫改为 `maxEndUpTo[i] >= segment.startMs`（前缀单调，退出安全）。仍 O(log n + 扇出)。
+**S1ï¼ˆä¸¥é‡ï¼‰å·¦å‘æ‰‡å‡ºæå‰ç»ˆæ­¢**ï¼š`findStitchCandidate` å·¦æ‰«åŽŸç»ˆæ­¢æ¡ä»¶ `pool[i].endMs >= segment.startMs` å‡å®šã€ŒæŒ‰ startMs æŽ’åº â‡’ endMs å•è°ƒã€â€”â€”ä¸æˆç«‹ï¼ˆçŸ­çª—å£ trace å¯å¤¹åœ¨é•¿çª—å£ trace ä¹‹é—´ï¼‰ï¼Œä¼šæŒ¡ä½æ›´é å·¦çš„çœŸå®žé‡å  trace ä¸”ç»ˆ pass å•æ¬¡â†’æ°¸ä¹…æ¼åŒ¹é…ã€‚ä¿®å¤ï¼šæ–°å¢ž `buildMaxEndUpTo`ï¼ˆmaxEnd å‰ç¼€ï¼Œ`maxEndUpTo[i]=max(endMs of pool[0..i])`ï¼‰ï¼Œå·¦æ‰«æ”¹ä¸º `maxEndUpTo[i] >= segment.startMs`ï¼ˆå‰ç¼€å•è°ƒï¼Œé€€å‡ºå®‰å…¨ï¼‰ã€‚ä» O(log n + æ‰‡å‡º)ã€‚
 
-**S2 即时借道分支删除**：`addSegment` 的即时分支在**文件顺序**（未排序）池上二分，借到次优 trace，且「已借走(path≥2)的段被终 pass 跳过」静默打破 `>best` 保证。修复：删除即时借道，全部交给 `stitchSegments` 唯一一次排序后的终 pass（逻辑等价且正确，每个 path<2 段对全池取最优）。同时修正代码注释与 NOTES 中「池天然按 startMs 排序」的错误说法（设备导出会乱序：activity/trace 交叠出现）。
+**S2 å³æ—¶å€Ÿé“åˆ†æ”¯åˆ é™¤**ï¼š`addSegment` çš„å³æ—¶åˆ†æ”¯åœ¨**æ–‡ä»¶é¡ºåº**ï¼ˆæœªæŽ’åºï¼‰æ± ä¸ŠäºŒåˆ†ï¼Œå€Ÿåˆ°æ¬¡ä¼˜ traceï¼Œä¸”ã€Œå·²å€Ÿèµ°(pathâ‰¥2)çš„æ®µè¢«ç»ˆ pass è·³è¿‡ã€é™é»˜æ‰“ç ´ `>best` ä¿è¯ã€‚ä¿®å¤ï¼šåˆ é™¤å³æ—¶å€Ÿé“ï¼Œå…¨éƒ¨äº¤ç»™ `stitchSegments` å”¯ä¸€ä¸€æ¬¡æŽ’åºåŽçš„ç»ˆ passï¼ˆé€»è¾‘ç­‰ä»·ä¸”æ­£ç¡®ï¼Œæ¯ä¸ª path<2 æ®µå¯¹å…¨æ± å–æœ€ä¼˜ï¼‰ã€‚åŒæ—¶ä¿®æ­£ä»£ç æ³¨é‡Šä¸Ž NOTES ä¸­ã€Œæ± å¤©ç„¶æŒ‰ startMs æŽ’åºã€çš„é”™è¯¯è¯´æ³•ï¼ˆè®¾å¤‡å¯¼å‡ºä¼šä¹±åºï¼šactivity/trace äº¤å å‡ºçŽ°ï¼‰ã€‚
 
-**S3 format2/3 缺终 pass**：`formatRecords.ts` / `formatSemanticHistory.ts` 解析器末尾补 `stitchSegments(state)`（pool 空直接 return，无害）。pooling 逻辑格式无关，三种格式统一终 pass。
+**S3 format2/3 ç¼ºç»ˆ pass**ï¼š`formatRecords.ts` / `formatSemanticHistory.ts` è§£æžå™¨æœ«å°¾è¡¥ `stitchSegments(state)`ï¼ˆpool ç©ºç›´æŽ¥ returnï¼Œæ— å®³ï¼‰ã€‚pooling é€»è¾‘æ ¼å¼æ— å…³ï¼Œä¸‰ç§æ ¼å¼ç»Ÿä¸€ç»ˆ passã€‚
 
-**A1 别名陷阱**：`segment.path = candidate.points.slice()`（原直接共享 trace 自身数组）。
+**A1 åˆ«åé™·é˜±**ï¼š`segment.path = candidate.points.slice()`ï¼ˆåŽŸç›´æŽ¥å…±äº« trace è‡ªèº«æ•°ç»„ï¼‰ã€‚
 
-**A2 反向轨迹匹配**：`consider` 增加反向配对（start↔末点、end↔首点），trace 点序反向不再漏配，成本极低。
+**A2 åå‘è½¨è¿¹åŒ¹é…**ï¼š`consider` å¢žåŠ åå‘é…å¯¹ï¼ˆstartâ†”æœ«ç‚¹ã€endâ†”é¦–ç‚¹ï¼‰ï¼Œtrace ç‚¹åºåå‘ä¸å†æ¼é…ï¼Œæˆæœ¬æžä½Žã€‚
 
-**A5 顺手**：`formatTimelineArray.ts` 补文件尾换行。
+**A5 é¡ºæ‰‹**ï¼š`formatTimelineArray.ts` è¡¥æ–‡ä»¶å°¾æ¢è¡Œã€‚
 
-**A3 测试**（`stitch.test.ts`）：新增 4 个 `findStitchCandidate` 单测（S1 非单调 endMs 场景——断言左扫越过短窗口 T1 命中 T0 / 多候选重叠取最长者（严格 `>`）/ 反向点序配对命中 / 端点不近配拒绝）；livedata 断言从 `>0` 收紧到精确值：2025-01-31 IN_BUS **5 条全中**（bus=5、withPath=5、covering=5）；修复测试名拼写 timelimePath→timelinePath。
+**A3 æµ‹è¯•**ï¼ˆ`stitch.test.ts`ï¼‰ï¼šæ–°å¢ž 4 ä¸ª `findStitchCandidate` å•æµ‹ï¼ˆS1 éžå•è°ƒ endMs åœºæ™¯â€”â€”æ–­è¨€å·¦æ‰«è¶Šè¿‡çŸ­çª—å£ T1 å‘½ä¸­ T0 / å¤šå€™é€‰é‡å å–æœ€é•¿è€…ï¼ˆä¸¥æ ¼ `>`ï¼‰/ åå‘ç‚¹åºé…å¯¹å‘½ä¸­ / ç«¯ç‚¹ä¸è¿‘é…æ‹’ç»ï¼‰ï¼›livedata æ–­è¨€ä»Ž `>0` æ”¶ç´§åˆ°ç²¾ç¡®å€¼ï¼š2025-01-31 IN_BUS **5 æ¡å…¨ä¸­**ï¼ˆbus=5ã€withPath=5ã€covering=5ï¼‰ï¼›ä¿®å¤æµ‹è¯•åæ‹¼å†™ timelimePathâ†’timelinePathã€‚
 
-**验证**：`npm run test` **80 passed**（76 回归 + 4 新增，含 livedata 5/5 精确断言）✅ / `npm run build`（tsc + vite）✅ / `npm run lint` 0 error ✅。commit `7674cb4` 的原有真实拼接结果不变（livedata 仍 5/5）。
+**éªŒè¯**ï¼š`npm run test` **80 passed**ï¼ˆ76 å›žå½’ + 4 æ–°å¢žï¼Œå« livedata 5/5 ç²¾ç¡®æ–­è¨€ï¼‰âœ… / `npm run build`ï¼ˆtsc + viteï¼‰âœ… / `npm run lint` 0 error âœ…ã€‚commit `7674cb4` çš„åŽŸæœ‰çœŸå®žæ‹¼æŽ¥ç»“æžœä¸å˜ï¼ˆlivedata ä» 5/5ï¼‰ã€‚
 
-## 2026-09-14 06:55 — Dev
-完成 segment 轨迹合并（path stitching）：真实设备导出（129MB live data）里短 `activity` 行程段只有 start/end 坐标、轨迹在 2 小时 `timelinePath` 段里，导致车辆行程渲染成退化直线/散点。已把时间重叠 + 起终点接近的 coarse trace 合并进 activity 段。
+## 2026-09-14 06:55 â€” Dev
+å®Œæˆ segment è½¨è¿¹åˆå¹¶ï¼ˆpath stitchingï¼‰ï¼šçœŸå®žè®¾å¤‡å¯¼å‡ºï¼ˆ129MB live dataï¼‰é‡ŒçŸ­ `activity` è¡Œç¨‹æ®µåªæœ‰ start/end åæ ‡ã€è½¨è¿¹åœ¨ 2 å°æ—¶ `timelinePath` æ®µé‡Œï¼Œå¯¼è‡´è½¦è¾†è¡Œç¨‹æ¸²æŸ“æˆé€€åŒ–ç›´çº¿/æ•£ç‚¹ã€‚å·²æŠŠæ—¶é—´é‡å  + èµ·ç»ˆç‚¹æŽ¥è¿‘çš„ coarse trace åˆå¹¶è¿› activity æ®µã€‚
 
-**修改文件**：
-- `src/lib/parse/common.ts`：`ParseState` 新增 `timelinePathPool`（`TimelinePathCandidate[]`，含 startMs/endMs/points）；`addSegment` 遇到含 `timelinePath` 的记录时把轨迹注册进池子（设备导出按时间有序，池天然按 startMs 排序），并即时尝试为 path<2 的段借轨迹；新增 `findStitchCandidate`（池按 startMs 二分定位起点 + 向两侧扇出：要求时间窗口真正 overlap（>0ms）且 activity.start/end 距轨迹首/末点 ≤0.02°（≈2km），取重叠最长者）+ `stitchSegments`（收尾 pass，先对池排序，再为所有 path<2 段补路径——覆盖「activity 出现在其 trace 之前」的乱序情况）。`activityType` 与 start/end 坐标保留 activity 自己的值，path 仅用于渲染路线。
-- `src/lib/parse/formatTimelineArray.ts`：`parseFormat1` 末尾调用 `stitchSegments(state)`。
-- `src/lib/parse/__tests__/stitch.test.ts`（新）：合成 fixture 4 用例（trace 前置于 activity→终 pass 拼接 / trace 后置→即时拼接 / trace 自身保留 / 坐标近但时间不重叠→不拼接）+ live data 用例（文件不存在自动 skip）。
+**ä¿®æ”¹æ–‡ä»¶**ï¼š
+- `src/lib/parse/common.ts`ï¼š`ParseState` æ–°å¢ž `timelinePathPool`ï¼ˆ`TimelinePathCandidate[]`ï¼Œå« startMs/endMs/pointsï¼‰ï¼›`addSegment` é‡åˆ°å« `timelinePath` çš„è®°å½•æ—¶æŠŠè½¨è¿¹æ³¨å†Œè¿›æ± å­ï¼ˆè®¾å¤‡å¯¼å‡ºæŒ‰æ—¶é—´æœ‰åºï¼Œæ± å¤©ç„¶æŒ‰ startMs æŽ’åºï¼‰ï¼Œå¹¶å³æ—¶å°è¯•ä¸º path<2 çš„æ®µå€Ÿè½¨è¿¹ï¼›æ–°å¢ž `findStitchCandidate`ï¼ˆæ± æŒ‰ startMs äºŒåˆ†å®šä½èµ·ç‚¹ + å‘ä¸¤ä¾§æ‰‡å‡ºï¼šè¦æ±‚æ—¶é—´çª—å£çœŸæ­£ overlapï¼ˆ>0msï¼‰ä¸” activity.start/end è·è½¨è¿¹é¦–/æœ«ç‚¹ â‰¤0.02Â°ï¼ˆâ‰ˆ2kmï¼‰ï¼Œå–é‡å æœ€é•¿è€…ï¼‰+ `stitchSegments`ï¼ˆæ”¶å°¾ passï¼Œå…ˆå¯¹æ± æŽ’åºï¼Œå†ä¸ºæ‰€æœ‰ path<2 æ®µè¡¥è·¯å¾„â€”â€”è¦†ç›–ã€Œactivity å‡ºçŽ°åœ¨å…¶ trace ä¹‹å‰ã€çš„ä¹±åºæƒ…å†µï¼‰ã€‚`activityType` ä¸Ž start/end åæ ‡ä¿ç•™ activity è‡ªå·±çš„å€¼ï¼Œpath ä»…ç”¨äºŽæ¸²æŸ“è·¯çº¿ã€‚
+- `src/lib/parse/formatTimelineArray.ts`ï¼š`parseFormat1` æœ«å°¾è°ƒç”¨ `stitchSegments(state)`ã€‚
+- `src/lib/parse/__tests__/stitch.test.ts`ï¼ˆæ–°ï¼‰ï¼šåˆæˆ fixture 4 ç”¨ä¾‹ï¼ˆtrace å‰ç½®äºŽ activityâ†’ç»ˆ pass æ‹¼æŽ¥ / trace åŽç½®â†’å³æ—¶æ‹¼æŽ¥ / trace è‡ªèº«ä¿ç•™ / åæ ‡è¿‘ä½†æ—¶é—´ä¸é‡å â†’ä¸æ‹¼æŽ¥ï¼‰+ live data ç”¨ä¾‹ï¼ˆæ–‡ä»¶ä¸å­˜åœ¨è‡ªåŠ¨ skipï¼‰ã€‚
 
-**验证**（`Timeline-20260820.json` 129MB 实测）：2025-01-31 的 5 个 IN_BUS 段全部获得真实路径——08:39→11 点(08-10 trace)、12:18→11 点(12-14 trace)、15:41→6 点(14-16 trace)、17:14→9 点(16-18 trace)、17:57→8 点(18-20 trace，靠终 pass 命中后置 trace)；修复前全部为 0 点。`npm run test` **76 passed**（71 回归 + 5 新增）✅ / `npm run build`（tsc + vite）✅ / `npm run lint` 0 error ✅。
+**éªŒè¯**ï¼ˆ`Timeline-20260820.json` 129MB å®žæµ‹ï¼‰ï¼š2025-01-31 çš„ 5 ä¸ª IN_BUS æ®µå…¨éƒ¨èŽ·å¾—çœŸå®žè·¯å¾„â€”â€”08:39â†’11 ç‚¹(08-10 trace)ã€12:18â†’11 ç‚¹(12-14 trace)ã€15:41â†’6 ç‚¹(14-16 trace)ã€17:14â†’9 ç‚¹(16-18 trace)ã€17:57â†’8 ç‚¹(18-20 traceï¼Œé ç»ˆ pass å‘½ä¸­åŽç½® trace)ï¼›ä¿®å¤å‰å…¨éƒ¨ä¸º 0 ç‚¹ã€‚`npm run test` **76 passed**ï¼ˆ71 å›žå½’ + 5 æ–°å¢žï¼‰âœ… / `npm run build`ï¼ˆtsc + viteï¼‰âœ… / `npm run lint` 0 error âœ…ã€‚
 
-**其他**：① 轨迹点元素 `{point, time}` 的 `pointFromPathElement` 只取 `point` 字段，点数不受 `time` 影响（确认，无需改动）；② 匹配按「重叠最长 + 端点半近」启发式，`/docs/livedata/` 不入库（.gitignore 已含，本次一并提交项目级 `.gitignore` 固定该规则）；③ 已知限制：合成数据/极端乱序下仍为 best-effort，不报错不回退。
+**å…¶ä»–**ï¼šâ‘  è½¨è¿¹ç‚¹å…ƒç´  `{point, time}` çš„ `pointFromPathElement` åªå– `point` å­—æ®µï¼Œç‚¹æ•°ä¸å— `time` å½±å“ï¼ˆç¡®è®¤ï¼Œæ— éœ€æ”¹åŠ¨ï¼‰ï¼›â‘¡ åŒ¹é…æŒ‰ã€Œé‡å æœ€é•¿ + ç«¯ç‚¹åŠè¿‘ã€å¯å‘å¼ï¼Œ`/docs/livedata/` ä¸å…¥åº“ï¼ˆ.gitignore å·²å«ï¼Œæœ¬æ¬¡ä¸€å¹¶æäº¤é¡¹ç›®çº§ `.gitignore` å›ºå®šè¯¥è§„åˆ™ï¼‰ï¼›â‘¢ å·²çŸ¥é™åˆ¶ï¼šåˆæˆæ•°æ®/æžç«¯ä¹±åºä¸‹ä»ä¸º best-effortï¼Œä¸æŠ¥é”™ä¸å›žé€€ã€‚
 
-## 2026-09-14 00:04 — Dev
-修复三个问题：marker 日期格式 + Google Maps 链接 + 汽车 GPS 轨迹。
+## 2026-09-14 00:04 â€” Dev
+ä¿®å¤ä¸‰ä¸ªé—®é¢˜ï¼šmarker æ—¥æœŸæ ¼å¼ + Google Maps é“¾æŽ¥ + æ±½è½¦ GPS è½¨è¿¹ã€‚
 
-**修改文件**：
-- `src/lib/trips.ts`：`fmtDateTime` 从 `fmtDay`（MM-DD）改为 `toInputDate`（YYYY-MM-DD），Places 视图停留点日期显示从 "01-30 14:30" → "2025-01-30 14:30"。
-- `src/components/PlacesMap.tsx`：`CircleMarker` 新增子元素 `<a>` 弹窗，含 Google Maps 链接（`https://www.google.com/maps?q=lat,lng`），`onClick` 阻止冒泡防止触发地图拾取。
-- `src/lib/parse/common.ts`：`pathToPoints` 新增 `path` 作为嵌套对象 fallback key（原仅支持 `waypoints`/`points`）；`PATH_KEYS` 新增 `path` 字段，使 `addSegment` 可解析 `path` 命名的轨迹数组。
+**ä¿®æ”¹æ–‡ä»¶**ï¼š
+- `src/lib/trips.ts`ï¼š`fmtDateTime` ä»Ž `fmtDay`ï¼ˆMM-DDï¼‰æ”¹ä¸º `toInputDate`ï¼ˆYYYY-MM-DDï¼‰ï¼ŒPlaces è§†å›¾åœç•™ç‚¹æ—¥æœŸæ˜¾ç¤ºä»Ž "01-30 14:30" â†’ "2025-01-30 14:30"ã€‚
+- `src/components/PlacesMap.tsx`ï¼š`CircleMarker` æ–°å¢žå­å…ƒç´  `<a>` å¼¹çª—ï¼Œå« Google Maps é“¾æŽ¥ï¼ˆ`https://www.google.com/maps?q=lat,lng`ï¼‰ï¼Œ`onClick` é˜»æ­¢å†’æ³¡é˜²æ­¢è§¦å‘åœ°å›¾æ‹¾å–ã€‚
+- `src/lib/parse/common.ts`ï¼š`pathToPoints` æ–°å¢ž `path` ä½œä¸ºåµŒå¥—å¯¹è±¡ fallback keyï¼ˆåŽŸä»…æ”¯æŒ `waypoints`/`points`ï¼‰ï¼›`PATH_KEYS` æ–°å¢ž `path` å­—æ®µï¼Œä½¿ `addSegment` å¯è§£æž `path` å‘½åçš„è½¨è¿¹æ•°ç»„ã€‚
 
-**问题 3 根因分析**：Google Timeline 导出的 `activitySegment` 轨迹字段名存在变体——部分导出使用 `waypointPath`（已支持），部分使用 `path`（原未支持）。`pathToPoints` 在 `waypointPath` 非数组且非 `{waypoints|points}` 对象时返回空数组，导致 `addSegment` 路径为空、`TripMap` 因 `latLngs.length < 2` 跳过渲染。修复后 `path` 作为 fallback key 被正确解析。
+**é—®é¢˜ 3 æ ¹å› åˆ†æž**ï¼šGoogle Timeline å¯¼å‡ºçš„ `activitySegment` è½¨è¿¹å­—æ®µåå­˜åœ¨å˜ä½“â€”â€”éƒ¨åˆ†å¯¼å‡ºä½¿ç”¨ `waypointPath`ï¼ˆå·²æ”¯æŒï¼‰ï¼Œéƒ¨åˆ†ä½¿ç”¨ `path`ï¼ˆåŽŸæœªæ”¯æŒï¼‰ã€‚`pathToPoints` åœ¨ `waypointPath` éžæ•°ç»„ä¸”éž `{waypoints|points}` å¯¹è±¡æ—¶è¿”å›žç©ºæ•°ç»„ï¼Œå¯¼è‡´ `addSegment` è·¯å¾„ä¸ºç©ºã€`TripMap` å›  `latLngs.length < 2` è·³è¿‡æ¸²æŸ“ã€‚ä¿®å¤åŽ `path` ä½œä¸º fallback key è¢«æ­£ç¡®è§£æžã€‚
 
-**验证**：`npm run build` ✅ / `npm run test` **71 passed**（无回归）✅ / `npm run lint` 无 error ✅。
+**éªŒè¯**ï¼š`npm run build` âœ… / `npm run test` **71 passed**ï¼ˆæ— å›žå½’ï¼‰âœ… / `npm run lint` æ—  error âœ…ã€‚
 
-<!-- 示例：
-## 2026-09-12 14:20 — Dev
-完成 T1 登录 API。自测通过。已知问题: token 刷新逻辑待优化。
+<!-- ç¤ºä¾‹ï¼š
+## 2026-09-12 14:20 â€” Dev
+å®Œæˆ T1 ç™»å½• APIã€‚è‡ªæµ‹é€šè¿‡ã€‚å·²çŸ¥é—®é¢˜: token åˆ·æ–°é€»è¾‘å¾…ä¼˜åŒ–ã€‚
 
-## 2026-09-12 15:10 — Reviewer
-审查 T1。通过。建议: 密码 hash 用 bcrypt（一般级，不阻塞）。
+## 2026-09-12 15:10 â€” Reviewer
+å®¡æŸ¥ T1ã€‚é€šè¿‡ã€‚å»ºè®®: å¯†ç  hash ç”¨ bcryptï¼ˆä¸€èˆ¬çº§ï¼Œä¸é˜»å¡žï¼‰ã€‚
 -->
 
-## 2026-09-13 23:33 — Dev
-完成 Places 视图停留点点击历史功能：点击地图上的停留点 marker 后，弹出浮动面板显示该地点的历史访问记录（时间线）。
+## 2026-09-13 23:33 â€” Dev
+å®Œæˆ Places è§†å›¾åœç•™ç‚¹ç‚¹å‡»åŽ†å²åŠŸèƒ½ï¼šç‚¹å‡»åœ°å›¾ä¸Šçš„åœç•™ç‚¹ marker åŽï¼Œå¼¹å‡ºæµ®åŠ¨é¢æ¿æ˜¾ç¤ºè¯¥åœ°ç‚¹çš„åŽ†å²è®¿é—®è®°å½•ï¼ˆæ—¶é—´çº¿ï¼‰ã€‚
 
-**新增文件**：`src/lib/geo/visitHistory.ts`（`visitGroupKey` + `groupVisitsByLocation`：按 name → address → 坐标桶分组，倒序排列）；`src/lib/geo/visitHistory.test.ts`（8 用例）；`src/components/VisitHistoryPanel.tsx`（浮动面板：地点名 + 访问次数 + 时间线列表，含关闭按钮）。
+**æ–°å¢žæ–‡ä»¶**ï¼š`src/lib/geo/visitHistory.ts`ï¼ˆ`visitGroupKey` + `groupVisitsByLocation`ï¼šæŒ‰ name â†’ address â†’ åæ ‡æ¡¶åˆ†ç»„ï¼Œå€’åºæŽ’åˆ—ï¼‰ï¼›`src/lib/geo/visitHistory.test.ts`ï¼ˆ8 ç”¨ä¾‹ï¼‰ï¼›`src/components/VisitHistoryPanel.tsx`ï¼ˆæµ®åŠ¨é¢æ¿ï¼šåœ°ç‚¹å + è®¿é—®æ¬¡æ•° + æ—¶é—´çº¿åˆ—è¡¨ï¼Œå«å…³é—­æŒ‰é’®ï¼‰ã€‚
 
-**修改文件**：`src/components/PlacesMap.tsx`（`CircleMarker` 新增 `click` 事件处理器，`stopPropagation` + `onVisitClick` callback；新增 `onVisitClick` prop）；`src/pages/PlacesPage.tsx`（新增 `historyVisit` state + `handleVisitClick`/`handleHistoryClose`；`useMemo` 预计算 `visitGroups`；PlacesMap 传 `onVisitClick`；地图区域内渲染 `VisitHistoryPanel`）；`src/index.css` 追加 visit-history-panel 样式段（~60 行，浮动卡片，bottom-right 定位，max-height 40vh，overflow-y auto）。
+**ä¿®æ”¹æ–‡ä»¶**ï¼š`src/components/PlacesMap.tsx`ï¼ˆ`CircleMarker` æ–°å¢ž `click` äº‹ä»¶å¤„ç†å™¨ï¼Œ`stopPropagation` + `onVisitClick` callbackï¼›æ–°å¢ž `onVisitClick` propï¼‰ï¼›`src/pages/PlacesPage.tsx`ï¼ˆæ–°å¢ž `historyVisit` state + `handleVisitClick`/`handleHistoryClose`ï¼›`useMemo` é¢„è®¡ç®— `visitGroups`ï¼›PlacesMap ä¼  `onVisitClick`ï¼›åœ°å›¾åŒºåŸŸå†…æ¸²æŸ“ `VisitHistoryPanel`ï¼‰ï¼›`src/index.css` è¿½åŠ  visit-history-panel æ ·å¼æ®µï¼ˆ~60 è¡Œï¼Œæµ®åŠ¨å¡ç‰‡ï¼Œbottom-right å®šä½ï¼Œmax-height 40vhï¼Œoverflow-y autoï¼‰ã€‚
 
-**验证**：`npm run build` ✅ / `npm run test` **71 passed**（63 回归 + 8 新增）✅ / `npm run lint` 无 error ✅。
+**éªŒè¯**ï¼š`npm run build` âœ… / `npm run test` **71 passed**ï¼ˆ63 å›žå½’ + 8 æ–°å¢žï¼‰âœ… / `npm run lint` æ—  error âœ…ã€‚
 
-**已知问题**：① 分组使用精确字符串匹配（同名才算同一地点），后续如需可加入模糊匹配或 placeId 去重；② 面板在侧栏折叠时仍显示在地图区域右上角，不占用侧栏空间。
+**å·²çŸ¥é—®é¢˜**ï¼šâ‘  åˆ†ç»„ä½¿ç”¨ç²¾ç¡®å­—ç¬¦ä¸²åŒ¹é…ï¼ˆåŒåæ‰ç®—åŒä¸€åœ°ç‚¹ï¼‰ï¼ŒåŽç»­å¦‚éœ€å¯åŠ å…¥æ¨¡ç³ŠåŒ¹é…æˆ– placeId åŽ»é‡ï¼›â‘¡ é¢æ¿åœ¨ä¾§æ æŠ˜å æ—¶ä»æ˜¾ç¤ºåœ¨åœ°å›¾åŒºåŸŸå³ä¸Šè§’ï¼Œä¸å ç”¨ä¾§æ ç©ºé—´ã€‚
 
-<!-- 示例：
-## 2026-09-12 14:20 — Dev
-完成 T1 登录 API。自测通过。已知问题: token 刷新逻辑待优化。
+<!-- ç¤ºä¾‹ï¼š
+## 2026-09-12 14:20 â€” Dev
+å®Œæˆ T1 ç™»å½• APIã€‚è‡ªæµ‹é€šè¿‡ã€‚å·²çŸ¥é—®é¢˜: token åˆ·æ–°é€»è¾‘å¾…ä¼˜åŒ–ã€‚
 
-## 2026-09-12 15:10 — Reviewer
-审查 T1。通过。建议: 密码 hash 用 bcrypt（一般级，不阻塞）。
+## 2026-09-12 15:10 â€” Reviewer
+å®¡æŸ¥ T1ã€‚é€šè¿‡ã€‚å»ºè®®: å¯†ç  hash ç”¨ bcryptï¼ˆä¸€èˆ¬çº§ï¼Œä¸é˜»å¡žï¼‰ã€‚
 -->
 
-## 2026-09-13 14:20 — Dev
-完成 T1 项目脚手架 + 应用框架：Vite + React 19 + TypeScript（严格模式）+ Leaflet/react-leaflet + React Router + Zustand；路由（首页/Trips/Places/教程/设置）、Header/Footer 骨架、Layout。`npm run build` 通过。
+## 2026-09-13 14:20 â€” Dev
+å®Œæˆ T1 é¡¹ç›®è„šæ‰‹æž¶ + åº”ç”¨æ¡†æž¶ï¼šVite + React 19 + TypeScriptï¼ˆä¸¥æ ¼æ¨¡å¼ï¼‰+ Leaflet/react-leaflet + React Router + Zustandï¼›è·¯ç”±ï¼ˆé¦–é¡µ/Trips/Places/æ•™ç¨‹/è®¾ç½®ï¼‰ã€Header/Footer éª¨æž¶ã€Layoutã€‚`npm run build` é€šè¿‡ã€‚
 
-## 2026-09-13 14:28 — Dev
-T2 数据解析层开工。完成内部统一数据模型（`src/lib/types.ts`）+ 四格式解析器（`src/lib/parse/`）+ Web Worker 封装 + vitest 单测（18 个用例）。详见提交信息；`npm run test` / `build` / `lint` 全通过。已知问题：Web Worker 在 node 环境不可测，需 T4 浏览器实测；解析层保留全量 path 点，抽稀/降采样留给 T5.3 渲染层。
+## 2026-09-13 14:28 â€” Dev
+T2 æ•°æ®è§£æžå±‚å¼€å·¥ã€‚å®Œæˆå†…éƒ¨ç»Ÿä¸€æ•°æ®æ¨¡åž‹ï¼ˆ`src/lib/types.ts`ï¼‰+ å››æ ¼å¼è§£æžå™¨ï¼ˆ`src/lib/parse/`ï¼‰+ Web Worker å°è£… + vitest å•æµ‹ï¼ˆ18 ä¸ªç”¨ä¾‹ï¼‰ã€‚è¯¦è§æäº¤ä¿¡æ¯ï¼›`npm run test` / `build` / `lint` å…¨é€šè¿‡ã€‚å·²çŸ¥é—®é¢˜ï¼šWeb Worker åœ¨ node çŽ¯å¢ƒä¸å¯æµ‹ï¼Œéœ€ T4 æµè§ˆå™¨å®žæµ‹ï¼›è§£æžå±‚ä¿ç•™å…¨é‡ path ç‚¹ï¼ŒæŠ½ç¨€/é™é‡‡æ ·ç•™ç»™ T5.3 æ¸²æŸ“å±‚ã€‚
 
-## 2026-09-13 15:40 — Dev
-完成 T3（模拟示例数据）+ T4（导入集成 + 空状态首屏 + 全局状态）。
+## 2026-09-13 15:40 â€” Dev
+å®Œæˆ T3ï¼ˆæ¨¡æ‹Ÿç¤ºä¾‹æ•°æ®ï¼‰+ T4ï¼ˆå¯¼å…¥é›†æˆ + ç©ºçŠ¶æ€é¦–å± + å…¨å±€çŠ¶æ€ï¼‰ã€‚
 
-**T3.1** `scripts/gen-sample-data.mjs`（node，mulberry32 确定性种子）产出 `src/lib/sample/sample-timeline.json`（262.8 KB）：虚构人物 7-20→9-11 共 54 天行程，含台北 home/work + 台中（周末驾车）+ 新加坡/吉隆坡（航班 + 跨境驾车）多地停留；1677 轨迹点（1387 路径点 + 432 rawSignals）、191 停留、197 行程段。直接数组格式（顶层数组，每元素 `semanticSegments` + `rawSignals`），坐标均为公开地标坐标。文件内无标注，标注走导出常量。
+**T3.1** `scripts/gen-sample-data.mjs`ï¼ˆnodeï¼Œmulberry32 ç¡®å®šæ€§ç§å­ï¼‰äº§å‡º `src/lib/sample/sample-timeline.json`ï¼ˆ262.8 KBï¼‰ï¼šè™šæž„äººç‰© 7-20â†’9-11 å…± 54 å¤©è¡Œç¨‹ï¼Œå«å°åŒ— home/work + å°ä¸­ï¼ˆå‘¨æœ«é©¾è½¦ï¼‰+ æ–°åŠ å¡/å‰éš†å¡ï¼ˆèˆªç­ + è·¨å¢ƒé©¾è½¦ï¼‰å¤šåœ°åœç•™ï¼›1677 è½¨è¿¹ç‚¹ï¼ˆ1387 è·¯å¾„ç‚¹ + 432 rawSignalsï¼‰ã€191 åœç•™ã€197 è¡Œç¨‹æ®µã€‚ç›´æŽ¥æ•°ç»„æ ¼å¼ï¼ˆé¡¶å±‚æ•°ç»„ï¼Œæ¯å…ƒç´  `semanticSegments` + `rawSignals`ï¼‰ï¼Œåæ ‡å‡ä¸ºå…¬å¼€åœ°æ ‡åæ ‡ã€‚æ–‡ä»¶å†…æ— æ ‡æ³¨ï¼Œæ ‡æ³¨èµ°å¯¼å‡ºå¸¸é‡ã€‚
 
-**T3.2** `src/lib/sample/index.ts`：导出 `SAMPLE_LABEL = '模拟数据 · 非真实轨迹'` + `loadSampleTimeline()`（内联 `?raw` JSON → 走 T2 `parseTimelineFile`，复用真实解析管线）。新增单测 `src/lib/sample/sample.test.ts`（4 用例：零 warning / 日期跨度 / 多城市多活动 / 加载函数）。
+**T3.2** `src/lib/sample/index.ts`ï¼šå¯¼å‡º `SAMPLE_LABEL = 'æ¨¡æ‹Ÿæ•°æ® Â· éžçœŸå®žè½¨è¿¹'` + `loadSampleTimeline()`ï¼ˆå†…è” `?raw` JSON â†’ èµ° T2 `parseTimelineFile`ï¼Œå¤ç”¨çœŸå®žè§£æžç®¡çº¿ï¼‰ã€‚æ–°å¢žå•æµ‹ `src/lib/sample/sample.test.ts`ï¼ˆ4 ç”¨ä¾‹ï¼šé›¶ warning / æ—¥æœŸè·¨åº¦ / å¤šåŸŽå¸‚å¤šæ´»åŠ¨ / åŠ è½½å‡½æ•°ï¼‰ã€‚
 
-**T4.1** `src/store/timelineStore.ts`（zustand）：`data/String 状态机（empty/parsing/ready/error）+ errorMsg + parseProgress + dataSource（none/user/sample）+ 全局 dateRange`。actions：`importFiles`（>100MB 大文件 confirm 确认，worker onProgress 进度驱动，失败/全空置 error+指引）、`loadSample`、`clearData`、`setDateRange`、`resetDateRange`。导入完成自动 navigate → /app（`RouterBridge` 桥接 useNavigate，见 `src/components/RouterBridge.tsx`）。
+**T4.1** `src/store/timelineStore.ts`ï¼ˆzustandï¼‰ï¼š`data/String çŠ¶æ€æœºï¼ˆempty/parsing/ready/errorï¼‰+ errorMsg + parseProgress + dataSourceï¼ˆnone/user/sampleï¼‰+ å…¨å±€ dateRange`ã€‚actionsï¼š`importFiles`ï¼ˆ>100MB å¤§æ–‡ä»¶ confirm ç¡®è®¤ï¼Œworker onProgress è¿›åº¦é©±åŠ¨ï¼Œå¤±è´¥/å…¨ç©ºç½® error+æŒ‡å¼•ï¼‰ã€`loadSample`ã€`clearData`ã€`setDateRange`ã€`resetDateRange`ã€‚å¯¼å…¥å®Œæˆè‡ªåŠ¨ navigate â†’ /appï¼ˆ`RouterBridge` æ¡¥æŽ¥ useNavigateï¼Œè§ `src/components/RouterBridge.tsx`ï¼‰ã€‚
 
-**T4.2** `src/pages/EmptyState.tsx`：欢迎语 + 一句话说明 + 大导入按钮 + 支持格式提示 + 「载入示例数据」（带模拟数据角标）+ 教程链接 `/help` + 隐私承诺行。Trips/Places 无数据时渲染它，示例数据时页头显示角标。视觉复用 index.css 风格（卡片式 drop-zone / 进度条 / 错误态样式）。
+**T4.2** `src/pages/EmptyState.tsx`ï¼šæ¬¢è¿Žè¯­ + ä¸€å¥è¯è¯´æ˜Ž + å¤§å¯¼å…¥æŒ‰é’® + æ”¯æŒæ ¼å¼æç¤º + ã€Œè½½å…¥ç¤ºä¾‹æ•°æ®ã€ï¼ˆå¸¦æ¨¡æ‹Ÿæ•°æ®è§’æ ‡ï¼‰+ æ•™ç¨‹é“¾æŽ¥ `/help` + éšç§æ‰¿è¯ºè¡Œã€‚Trips/Places æ— æ•°æ®æ—¶æ¸²æŸ“å®ƒï¼Œç¤ºä¾‹æ•°æ®æ—¶é¡µå¤´æ˜¾ç¤ºè§’æ ‡ã€‚è§†è§‰å¤ç”¨ index.css é£Žæ ¼ï¼ˆå¡ç‰‡å¼ drop-zone / è¿›åº¦æ¡ / é”™è¯¯æ€æ ·å¼ï¼‰ã€‚
 
-**T4.3** `src/components/ImportPanel.tsx`：点击选文件 + 整区拖拽 + 多文件 + 解析进度条（worker onProgress → 0-100）+ 错误态（errorMsg + 重新选择文件指引）。
+**T4.3** `src/components/ImportPanel.tsx`ï¼šç‚¹å‡»é€‰æ–‡ä»¶ + æ•´åŒºæ‹–æ‹½ + å¤šæ–‡ä»¶ + è§£æžè¿›åº¦æ¡ï¼ˆworker onProgress â†’ 0-100ï¼‰+ é”™è¯¯æ€ï¼ˆerrorMsg + é‡æ–°é€‰æ‹©æ–‡ä»¶æŒ‡å¼•ï¼‰ã€‚
 
-**验证**：`npm run build` ✅（bundle 含内联 sample JSON，~543KB，chunk-size 警告为 Leaflet+示例数据所致，可接受）；`npm run test` 22 passed（含 T2 18 用例不回归）✅；`npm run lint` 无 error ✅；dev 端到端冒烟（playwright）：空状态首屏可见 → 载入示例 → 自动跳 /app 显示 197 段/191 停留 + 角标 ✅；真实 Timeline.json 走 worker 导入 → 跳 /app 显示 1 段/1 停留 ✅；无 console 报错。
+**éªŒè¯**ï¼š`npm run build` âœ…ï¼ˆbundle å«å†…è” sample JSONï¼Œ~543KBï¼Œchunk-size è­¦å‘Šä¸º Leaflet+ç¤ºä¾‹æ•°æ®æ‰€è‡´ï¼Œå¯æŽ¥å—ï¼‰ï¼›`npm run test` 22 passedï¼ˆå« T2 18 ç”¨ä¾‹ä¸å›žå½’ï¼‰âœ…ï¼›`npm run lint` æ—  error âœ…ï¼›dev ç«¯åˆ°ç«¯å†’çƒŸï¼ˆplaywrightï¼‰ï¼šç©ºçŠ¶æ€é¦–å±å¯è§ â†’ è½½å…¥ç¤ºä¾‹ â†’ è‡ªåŠ¨è·³ /app æ˜¾ç¤º 197 æ®µ/191 åœç•™ + è§’æ ‡ âœ…ï¼›çœŸå®ž Timeline.json èµ° worker å¯¼å…¥ â†’ è·³ /app æ˜¾ç¤º 1 æ®µ/1 åœç•™ âœ…ï¼›æ—  console æŠ¥é”™ã€‚
 
-**已知问题**：① 新直出直接数组格式的 `rawSignals` 暂未被 T2 解析器消费（格式 1 的 `points` 恒为 0），示例 JSON 已按真实结构附带 rawSignals 以备后续；② Web Worker 路径经浏览器实测 OK，node 单测仍不覆盖 worker；③ build 存在 chunk>500KB 警告（示例数据内联所致），后续 T10 如需可 code-split 或改 public/ 外置。
+**å·²çŸ¥é—®é¢˜**ï¼šâ‘  æ–°ç›´å‡ºç›´æŽ¥æ•°ç»„æ ¼å¼çš„ `rawSignals` æš‚æœªè¢« T2 è§£æžå™¨æ¶ˆè´¹ï¼ˆæ ¼å¼ 1 çš„ `points` æ’ä¸º 0ï¼‰ï¼Œç¤ºä¾‹ JSON å·²æŒ‰çœŸå®žç»“æž„é™„å¸¦ rawSignals ä»¥å¤‡åŽç»­ï¼›â‘¡ Web Worker è·¯å¾„ç»æµè§ˆå™¨å®žæµ‹ OKï¼Œnode å•æµ‹ä»ä¸è¦†ç›– workerï¼›â‘¢ build å­˜åœ¨ chunk>500KB è­¦å‘Šï¼ˆç¤ºä¾‹æ•°æ®å†…è”æ‰€è‡´ï¼‰ï¼ŒåŽç»­ T10 å¦‚éœ€å¯ code-split æˆ–æ”¹ public/ å¤–ç½®ã€‚
 
-## 2026-09-13 17:24 — Dev
-完成 T5 Trips 视图，浏览器实测覆盖示例数据 + 真实导出。
+## 2026-09-13 17:24 â€” Dev
+å®Œæˆ T5 Trips è§†å›¾ï¼Œæµè§ˆå™¨å®žæµ‹è¦†ç›–ç¤ºä¾‹æ•°æ® + çœŸå®žå¯¼å‡ºã€‚
 
-**新增模块**：`src/lib/trips.ts`（filterTrips/boundsOf/prepareTrips：DP 抽稀 + GLOBAL_PATH_POINT_CAP=30000 + MAX_SEGMENTS=12000 + MARKER_CAP=4000 + LIST_LIMIT=500，任一超限置 `downsampled=true`，UI 显示角标）、`src/components/TripMap.tsx`（Leaflet 地图：单共享 canvas renderer 绘全部路径/标记，FitController 仅在过滤窗口“跨天结构变化”时 fitBounds，flyTo 只对点击目标触发）、`src/components/DateRangePicker.tsx`（快捷档 全部/近30天/近1年 + 起/止单边日，写全局 dateRange）、`src/components/StopList.tsx`（前 500 停留列表，点击反查）、TripsView 重建（摘要行/图例/降采样提示/侧栏折叠）。
+**æ–°å¢žæ¨¡å—**ï¼š`src/lib/trips.ts`ï¼ˆfilterTrips/boundsOf/prepareTripsï¼šDP æŠ½ç¨€ + GLOBAL_PATH_POINT_CAP=30000 + MAX_SEGMENTS=12000 + MARKER_CAP=4000 + LIST_LIMIT=500ï¼Œä»»ä¸€è¶…é™ç½® `downsampled=true`ï¼ŒUI æ˜¾ç¤ºè§’æ ‡ï¼‰ã€`src/components/TripMap.tsx`ï¼ˆLeaflet åœ°å›¾ï¼šå•å…±äº« canvas renderer ç»˜å…¨éƒ¨è·¯å¾„/æ ‡è®°ï¼ŒFitController ä»…åœ¨è¿‡æ»¤çª—å£â€œè·¨å¤©ç»“æž„å˜åŒ–â€æ—¶ fitBoundsï¼ŒflyTo åªå¯¹ç‚¹å‡»ç›®æ ‡è§¦å‘ï¼‰ã€`src/components/DateRangePicker.tsx`ï¼ˆå¿«æ·æ¡£ å…¨éƒ¨/è¿‘30å¤©/è¿‘1å¹´ + èµ·/æ­¢å•è¾¹æ—¥ï¼Œå†™å…¨å±€ dateRangeï¼‰ã€`src/components/StopList.tsx`ï¼ˆå‰ 500 åœç•™åˆ—è¡¨ï¼Œç‚¹å‡»åæŸ¥ï¼‰ã€TripsView é‡å»ºï¼ˆæ‘˜è¦è¡Œ/å›¾ä¾‹/é™é‡‡æ ·æç¤º/ä¾§æ æŠ˜å ï¼‰ã€‚
 
-**关键修复（本次最大坑）**：TripsPage 由 EmptyState 切换挂载时，`.app-main--app` 作 `.app-shell` 的 flex 子项（`flex:1` → basis 0 + `min-height:auto`）会拉伸到**内容高度**（≈侧栏 191 项 ≈15000px），导致 map 容器 `.trip-map` 随之 15000px 高 → Leaflet canvas 超大 → Chromium raster 崩溃（SIGBUS，且叠加沙箱磁盘 100% 打满/123MB livedata 内存压力）。修复：`.trips-shell` 高度直接锚定 `calc(100vh - var(--header-height))`（不依赖 main 百分比），全链路由 15000px → 612px。另删调试期 `.trip-map`/`.trips-map-wrap` 的 `min-height:320px` hack。
+**å…³é”®ä¿®å¤ï¼ˆæœ¬æ¬¡æœ€å¤§å‘ï¼‰**ï¼šTripsPage ç”± EmptyState åˆ‡æ¢æŒ‚è½½æ—¶ï¼Œ`.app-main--app` ä½œ `.app-shell` çš„ flex å­é¡¹ï¼ˆ`flex:1` â†’ basis 0 + `min-height:auto`ï¼‰ä¼šæ‹‰ä¼¸åˆ°**å†…å®¹é«˜åº¦**ï¼ˆâ‰ˆä¾§æ  191 é¡¹ â‰ˆ15000pxï¼‰ï¼Œå¯¼è‡´ map å®¹å™¨ `.trip-map` éšä¹‹ 15000px é«˜ â†’ Leaflet canvas è¶…å¤§ â†’ Chromium raster å´©æºƒï¼ˆSIGBUSï¼Œä¸”å åŠ æ²™ç®±ç£ç›˜ 100% æ‰“æ»¡/123MB livedata å†…å­˜åŽ‹åŠ›ï¼‰ã€‚ä¿®å¤ï¼š`.trips-shell` é«˜åº¦ç›´æŽ¥é”šå®š `calc(100vh - var(--header-height))`ï¼ˆä¸ä¾èµ– main ç™¾åˆ†æ¯”ï¼‰ï¼Œå…¨é“¾è·¯ç”± 15000px â†’ 612pxã€‚å¦åˆ è°ƒè¯•æœŸ `.trip-map`/`.trips-map-wrap` çš„ `min-height:320px` hackã€‚
 
-**crash 其次原因（环境）**：`/` 磁盘一度 100%（npm cache 2GB + journald 689MB + apt cache），Chromium 写 mmap 缓存失败也会 SIGBUS（BUS_ADRERR）。已清理（`npm cache clean --force` + `journalctl --vacuum-size=100M` + `apt-get clean`），现空余 ≥2.7GB。
+**crash å…¶æ¬¡åŽŸå› ï¼ˆçŽ¯å¢ƒï¼‰**ï¼š`/` ç£ç›˜ä¸€åº¦ 100%ï¼ˆnpm cache 2GB + journald 689MB + apt cacheï¼‰ï¼ŒChromium å†™ mmap ç¼“å­˜å¤±è´¥ä¹Ÿä¼š SIGBUSï¼ˆBUS_ADRERRï¼‰ã€‚å·²æ¸…ç†ï¼ˆ`npm cache clean --force` + `journalctl --vacuum-size=100M` + `apt-get clean`ï¼‰ï¼ŒçŽ°ç©ºä½™ â‰¥2.7GBã€‚
 
-**lint 约束（react-hooks v7 严格版）**：TripMap 渲染期不再读写 ref/不再惰性 `useState` 初始化 renderer（改模块级 `L.canvas({padding:0.5})`）；DateRangePicker 渲染期去掉 `Date.now()`（endAnchor 用 `dataTimeRange.maxMs ?? 0`）；TripsPage 去掉 effect 内 setState（拆 `<MapPane key={fitKey}>` 重挂载重置选中）。canvas 圆不触 DOM hover，选中标记的 tooltip 改 `openTooltip()/closeTooltip()` 命令式开关（react-leaflet 的 `permanent` prop 不会自动打开）。
+**lint çº¦æŸï¼ˆreact-hooks v7 ä¸¥æ ¼ç‰ˆï¼‰**ï¼šTripMap æ¸²æŸ“æœŸä¸å†è¯»å†™ ref/ä¸å†æƒ°æ€§ `useState` åˆå§‹åŒ– rendererï¼ˆæ”¹æ¨¡å—çº§ `L.canvas({padding:0.5})`ï¼‰ï¼›DateRangePicker æ¸²æŸ“æœŸåŽ»æŽ‰ `Date.now()`ï¼ˆendAnchor ç”¨ `dataTimeRange.maxMs ?? 0`ï¼‰ï¼›TripsPage åŽ»æŽ‰ effect å†… setStateï¼ˆæ‹† `<MapPane key={fitKey}>` é‡æŒ‚è½½é‡ç½®é€‰ä¸­ï¼‰ã€‚canvas åœ†ä¸è§¦ DOM hoverï¼Œé€‰ä¸­æ ‡è®°çš„ tooltip æ”¹ `openTooltip()/closeTooltip()` å‘½ä»¤å¼å¼€å…³ï¼ˆreact-leaflet çš„ `permanent` prop ä¸ä¼šè‡ªåŠ¨æ‰“å¼€ï¼‰ã€‚
 
-**验证**（playwright，headless chromium）：样例 5/5 无崩溃；空态→载入示例→地图（canvas 980×612）→摘要「197 段 · 191 停留 · 1,387 点」→近30天 120/115/831→全部复位→侧栏折叠/展开 map 存活→停靠点击选中 + tooltip 弹出，`ERRORS: none`。真实 123.4MB 导出：大文件 confirm → worker 解析 → 「12000 段 · 37287 停留 · 31,360 点」+ 降采样角标 + 列表 500 条 + 点选 tooltip，无 error 🎯。`npm run build` ✓ / `npm run lint` 无 error ✓ / `npm run test` 40 passed ✓。
+**éªŒè¯**ï¼ˆplaywrightï¼Œheadless chromiumï¼‰ï¼šæ ·ä¾‹ 5/5 æ— å´©æºƒï¼›ç©ºæ€â†’è½½å…¥ç¤ºä¾‹â†’åœ°å›¾ï¼ˆcanvas 980Ã—612ï¼‰â†’æ‘˜è¦ã€Œ197 æ®µ Â· 191 åœç•™ Â· 1,387 ç‚¹ã€â†’è¿‘30å¤© 120/115/831â†’å…¨éƒ¨å¤ä½â†’ä¾§æ æŠ˜å /å±•å¼€ map å­˜æ´»â†’åœé ç‚¹å‡»é€‰ä¸­ + tooltip å¼¹å‡ºï¼Œ`ERRORS: none`ã€‚çœŸå®ž 123.4MB å¯¼å‡ºï¼šå¤§æ–‡ä»¶ confirm â†’ worker è§£æž â†’ ã€Œ12000 æ®µ Â· 37287 åœç•™ Â· 31,360 ç‚¹ã€+ é™é‡‡æ ·è§’æ ‡ + åˆ—è¡¨ 500 æ¡ + ç‚¹é€‰ tooltipï¼Œæ—  error ðŸŽ¯ã€‚`npm run build` âœ“ / `npm run lint` æ—  error âœ“ / `npm run test` 40 passed âœ“ã€‚
 
-**依赖**：仅新增 devDependency `@types/leaflet ^1.9.22`（类型包，无运行时依赖，符合 owner 约束）。
+**ä¾èµ–**ï¼šä»…æ–°å¢ž devDependency `@types/leaflet ^1.9.22`ï¼ˆç±»åž‹åŒ…ï¼Œæ— è¿è¡Œæ—¶ä¾èµ–ï¼Œç¬¦åˆ owner çº¦æŸï¼‰ã€‚
 
-**已知问题**：① 无数据/仅 1 停留等退化场景的 tooltip 定位可能贴屏幕边缘，后续 polish；② `fitKey` 仅按“选中窗口跨天结构”变化自动 fit，同天窗口内换筛选只 invalidate；③ T5.1 起止日期输入为 `<input type=date>`，火狐/Safari 样式差异未处理。
+**å·²çŸ¥é—®é¢˜**ï¼šâ‘  æ— æ•°æ®/ä»… 1 åœç•™ç­‰é€€åŒ–åœºæ™¯çš„ tooltip å®šä½å¯èƒ½è´´å±å¹•è¾¹ç¼˜ï¼ŒåŽç»­ polishï¼›â‘¡ `fitKey` ä»…æŒ‰â€œé€‰ä¸­çª—å£è·¨å¤©ç»“æž„â€å˜åŒ–è‡ªåŠ¨ fitï¼ŒåŒå¤©çª—å£å†…æ¢ç­›é€‰åª invalidateï¼›â‘¢ T5.1 èµ·æ­¢æ—¥æœŸè¾“å…¥ä¸º `<input type=date>`ï¼Œç«ç‹/Safari æ ·å¼å·®å¼‚æœªå¤„ç†ã€‚
 
-## 2026-09-13 19:20 — Dev
-完成 T6 Places 视图（地图点击按半径查停留）+ 收尾。
+## 2026-09-13 19:20 â€” Dev
+å®Œæˆ T6 Places è§†å›¾ï¼ˆåœ°å›¾ç‚¹å‡»æŒ‰åŠå¾„æŸ¥åœç•™ï¼‰+ æ”¶å°¾ã€‚
 
-**新增模块**：`src/lib/geo/SpatialGrid.ts`（经纬 1°×1° 均匀网格索引：`add/build/queryCircle`，先用 BBOX_SAFETY=1.25 扩边选候选格，再 haversine 精确过滤，环形查询在跨 180° 与两极处做了防护）、`src/lib/geo/places.ts`（`PLACE_RADII_KM=[10,100,1000,5000]` + `PLACES_RESULT_LIMIT=200` + `fmtDistanceKm` 自适应小数位）、测试 `SpatialGrid.test.ts` + `places.test.ts`（10 用例）。UI：`src/components/PlacesMap.tsx`（ClickController 单监听拾取 / RadiusCircle 琥珀 #f59e0b 半径圈 + rAF 后 `fitBounds` 保证圆完整 / FlyController 结果 flyTo + 高亮圆点 + 常驻 tooltip / InvalidateController 侧栏折叠后重铺）、`src/pages/PlacesPage.tsx` 重写（网格 useMemo 按数据集 + 全局日期范围重建，200ms 防抖查询 + 500ms 慢查询「查询中…」提示，结果按开始时间倒序，前 200 条 + 「还有 N 条」提示）、`src/index.css` Places 样式段。
+**æ–°å¢žæ¨¡å—**ï¼š`src/lib/geo/SpatialGrid.ts`ï¼ˆç»çº¬ 1Â°Ã—1Â° å‡åŒ€ç½‘æ ¼ç´¢å¼•ï¼š`add/build/queryCircle`ï¼Œå…ˆç”¨ BBOX_SAFETY=1.25 æ‰©è¾¹é€‰å€™é€‰æ ¼ï¼Œå† haversine ç²¾ç¡®è¿‡æ»¤ï¼ŒçŽ¯å½¢æŸ¥è¯¢åœ¨è·¨ 180Â° ä¸Žä¸¤æžå¤„åšäº†é˜²æŠ¤ï¼‰ã€`src/lib/geo/places.ts`ï¼ˆ`PLACE_RADII_KM=[10,100,1000,5000]` + `PLACES_RESULT_LIMIT=200` + `fmtDistanceKm` è‡ªé€‚åº”å°æ•°ä½ï¼‰ã€æµ‹è¯• `SpatialGrid.test.ts` + `places.test.ts`ï¼ˆ10 ç”¨ä¾‹ï¼‰ã€‚UIï¼š`src/components/PlacesMap.tsx`ï¼ˆClickController å•ç›‘å¬æ‹¾å– / RadiusCircle ç¥ç€ #f59e0b åŠå¾„åœˆ + rAF åŽ `fitBounds` ä¿è¯åœ†å®Œæ•´ / FlyController ç»“æžœ flyTo + é«˜äº®åœ†ç‚¹ + å¸¸é©» tooltip / InvalidateController ä¾§æ æŠ˜å åŽé‡é“ºï¼‰ã€`src/pages/PlacesPage.tsx` é‡å†™ï¼ˆç½‘æ ¼ useMemo æŒ‰æ•°æ®é›† + å…¨å±€æ—¥æœŸèŒƒå›´é‡å»ºï¼Œ200ms é˜²æŠ–æŸ¥è¯¢ + 500ms æ…¢æŸ¥è¯¢ã€ŒæŸ¥è¯¢ä¸­â€¦ã€æç¤ºï¼Œç»“æžœæŒ‰å¼€å§‹æ—¶é—´å€’åºï¼Œå‰ 200 æ¡ + ã€Œè¿˜æœ‰ N æ¡ã€æç¤ºï¼‰ã€`src/index.css` Places æ ·å¼æ®µã€‚
 
-**收尾**：删除本地 benchmark 脚本 `src/lib/geo/bench.real.test.ts`（import node:fs/path/perf_hooks + `import.meta.dirname` → tsc `-b` 报 TS2591/TS2339；且依赖 gitignored `docs/livedata/`，按 T4 约束不进可提交代码——需要定向性能验证建议后续入 `scripts/` 作为独立 node 脚本而非测试文件）。删除前已跑基准并记录量级。
+**æ”¶å°¾**ï¼šåˆ é™¤æœ¬åœ° benchmark è„šæœ¬ `src/lib/geo/bench.real.test.ts`ï¼ˆimport node:fs/path/perf_hooks + `import.meta.dirname` â†’ tsc `-b` æŠ¥ TS2591/TS2339ï¼›ä¸”ä¾èµ– gitignored `docs/livedata/`ï¼ŒæŒ‰ T4 çº¦æŸä¸è¿›å¯æäº¤ä»£ç â€”â€”éœ€è¦å®šå‘æ€§èƒ½éªŒè¯å»ºè®®åŽç»­å…¥ `scripts/` ä½œä¸ºç‹¬ç«‹ node è„šæœ¬è€Œéžæµ‹è¯•æ–‡ä»¶ï¼‰ã€‚åˆ é™¤å‰å·²è·‘åŸºå‡†å¹¶è®°å½•é‡çº§ã€‚
 
-**真实数据性能量级**（`Timeline-20260820.json`，123.4MB，37,287 停留；`npx vitest run bench.real`，本地一次性，不入库）：解析 ≈2.3s；网格构建 ≈14ms；台北 (25.033, 121.565) 圆查询——**10km→13 hits (0.8ms) / 100km→30 hits (0.2ms) / 1000km→38 hits (0.3ms) / 5000km→37,287 hits (21ms)**；距离精度校验 mismatch=0。数量级上大半径全量命中时单次查询 ~20ms，UI 无感知。
+**çœŸå®žæ•°æ®æ€§èƒ½é‡çº§**ï¼ˆ`Timeline-20260820.json`ï¼Œ123.4MBï¼Œ37,287 åœç•™ï¼›`npx vitest run bench.real`ï¼Œæœ¬åœ°ä¸€æ¬¡æ€§ï¼Œä¸å…¥åº“ï¼‰ï¼šè§£æž â‰ˆ2.3sï¼›ç½‘æ ¼æž„å»º â‰ˆ14msï¼›å°åŒ— (25.033, 121.565) åœ†æŸ¥è¯¢â€”â€”**10kmâ†’13 hits (0.8ms) / 100kmâ†’30 hits (0.2ms) / 1000kmâ†’38 hits (0.3ms) / 5000kmâ†’37,287 hits (21ms)**ï¼›è·ç¦»ç²¾åº¦æ ¡éªŒ mismatch=0ã€‚æ•°é‡çº§ä¸Šå¤§åŠå¾„å…¨é‡å‘½ä¸­æ—¶å•æ¬¡æŸ¥è¯¢ ~20msï¼ŒUI æ— æ„ŸçŸ¥ã€‚
 
-**验证**：`npm run build` ✅ / `npm run lint` 无 error ✅ / `npm run test` **50 passed**（40 回归 + 10 新增）✅。浏览器实测（playwright，headless chromium）：**样例数据** 载入 → /app/places → 点击台北市中心 → 浮层 `25.00597, 121.55273` + 「169 个停留点在此范围内」(100km)，列表 Home/Bella/Nexus 等含地址·时间·距离；半径切换 10→10 / 100→169 / 1000→174 / 5000→191 实时更新，琥珀半径圈可见且自动 zoom（100km→z8）；点击结果 → flyTo + 高亮标记 + tooltip（Home · 9-12 02:35 · 3h55m）；再点地图重置选中。**真实数据**（123MB 导入）→ 37287 停留，点击台北 → 100km→30 / 10km→11 / 1000km→38 / 5000km→37287（与 bench 一致；10km 差 2 hits 系点击中心 ~3km 偏移的边缘差异）；点结果 → flyTo + tooltip 正常。全程 console 0 error。
+**éªŒè¯**ï¼š`npm run build` âœ… / `npm run lint` æ—  error âœ… / `npm run test` **50 passed**ï¼ˆ40 å›žå½’ + 10 æ–°å¢žï¼‰âœ…ã€‚æµè§ˆå™¨å®žæµ‹ï¼ˆplaywrightï¼Œheadless chromiumï¼‰ï¼š**æ ·ä¾‹æ•°æ®** è½½å…¥ â†’ /app/places â†’ ç‚¹å‡»å°åŒ—å¸‚ä¸­å¿ƒ â†’ æµ®å±‚ `25.00597, 121.55273` + ã€Œ169 ä¸ªåœç•™ç‚¹åœ¨æ­¤èŒƒå›´å†…ã€(100km)ï¼Œåˆ—è¡¨ Home/Bella/Nexus ç­‰å«åœ°å€Â·æ—¶é—´Â·è·ç¦»ï¼›åŠå¾„åˆ‡æ¢ 10â†’10 / 100â†’169 / 1000â†’174 / 5000â†’191 å®žæ—¶æ›´æ–°ï¼Œç¥ç€åŠå¾„åœˆå¯è§ä¸”è‡ªåŠ¨ zoomï¼ˆ100kmâ†’z8ï¼‰ï¼›ç‚¹å‡»ç»“æžœ â†’ flyTo + é«˜äº®æ ‡è®° + tooltipï¼ˆHome Â· 9-12 02:35 Â· 3h55mï¼‰ï¼›å†ç‚¹åœ°å›¾é‡ç½®é€‰ä¸­ã€‚**çœŸå®žæ•°æ®**ï¼ˆ123MB å¯¼å…¥ï¼‰â†’ 37287 åœç•™ï¼Œç‚¹å‡»å°åŒ— â†’ 100kmâ†’30 / 10kmâ†’11 / 1000kmâ†’38 / 5000kmâ†’37287ï¼ˆä¸Ž bench ä¸€è‡´ï¼›10km å·® 2 hits ç³»ç‚¹å‡»ä¸­å¿ƒ ~3km åç§»çš„è¾¹ç¼˜å·®å¼‚ï¼‰ï¼›ç‚¹ç»“æžœ â†’ flyTo + tooltip æ­£å¸¸ã€‚å…¨ç¨‹ console 0 errorã€‚
 
-**已知问题/待 CEO 决断**：① T6.4 design QA（Designer 子任务）本轮未独立走，视觉按 Trips 同款风格实现，建议并入 T11 Reviewer 验收；② 结果列表 `key=index`（排序固定倒序，仅去重场景闪烁风险，低优先级）；③ 5000km 全量命中时列表封顶 200 条并提示缩窄范围（符合设计）；④ 真实导入时浏览器 parse ~15-30s（worker 内），Places 网格构建 <30ms，无卡顿。
+**å·²çŸ¥é—®é¢˜/å¾… CEO å†³æ–­**ï¼šâ‘  T6.4 design QAï¼ˆDesigner å­ä»»åŠ¡ï¼‰æœ¬è½®æœªç‹¬ç«‹èµ°ï¼Œè§†è§‰æŒ‰ Trips åŒæ¬¾é£Žæ ¼å®žçŽ°ï¼Œå»ºè®®å¹¶å…¥ T11 Reviewer éªŒæ”¶ï¼›â‘¡ ç»“æžœåˆ—è¡¨ `key=index`ï¼ˆæŽ’åºå›ºå®šå€’åºï¼Œä»…åŽ»é‡åœºæ™¯é—ªçƒé£Žé™©ï¼Œä½Žä¼˜å…ˆçº§ï¼‰ï¼›â‘¢ 5000km å…¨é‡å‘½ä¸­æ—¶åˆ—è¡¨å°é¡¶ 200 æ¡å¹¶æç¤ºç¼©çª„èŒƒå›´ï¼ˆç¬¦åˆè®¾è®¡ï¼‰ï¼›â‘£ çœŸå®žå¯¼å…¥æ—¶æµè§ˆå™¨ parse ~15-30sï¼ˆworker å†…ï¼‰ï¼ŒPlaces ç½‘æ ¼æž„å»º <30msï¼Œæ— å¡é¡¿ã€‚
 
-## 2026-09-13 23:20 — Dev
-完成 T7 Landing 首页（portfolio 展示面）+ T8 导出教程页。
+## 2026-09-13 23:20 â€” Dev
+å®Œæˆ T7 Landing é¦–é¡µï¼ˆportfolio å±•ç¤ºé¢ï¼‰+ T8 å¯¼å‡ºæ•™ç¨‹é¡µã€‚
 
-**T7 Landing**（`src/pages/Landing.tsx` 重写）：五个 section。
-1. Hero — 产品名 GT Viewer + 「把 Google Timeline 数据从 JSON 变回你的行程地图」定位 + 双 CTA：「立即体验」(onClick → loadSample，busy 时禁用)、「如何导出数据」→ /help；无注册/账号/试玩提示。
-2. 痛点→方案 — 一句话：Timeline 网页版关停 / 裸 JSON 人不可读 / 本工具还原成行程地图。
-3. 三功能卡 — Trips（行程回放）、Places（点击地图查访，10–5000KM）、Privacy（数据不出设备），grid 3 列，暗色卡片。
-4. 技术栈行（React·TS·Vite·Leaflet·WebWorker·Zustand）+ 教程入口 + 隐私承诺段（边界线分隔，灰色调）。
-5. Built with OPC 3.0 — 有 `id="built-with-opc"` 锚点（Footer anchor 目标）；文案讲述 AI 驱动产品流程（需求→方案→开发→审查→验收，无内部角色术语）+ 5 步 pill 列表 + OPC 3.0 介绍 + 占位链接（`OPC_3_LINK='#'`，T10 换真链接）。
+**T7 Landing**ï¼ˆ`src/pages/Landing.tsx` é‡å†™ï¼‰ï¼šäº”ä¸ª sectionã€‚
+1. Hero â€” äº§å“å GT Viewer + ã€ŒæŠŠ Google Timeline æ•°æ®ä»Ž JSON å˜å›žä½ çš„è¡Œç¨‹åœ°å›¾ã€å®šä½ + åŒ CTAï¼šã€Œç«‹å³ä½“éªŒã€(onClick â†’ loadSampleï¼Œbusy æ—¶ç¦ç”¨)ã€ã€Œå¦‚ä½•å¯¼å‡ºæ•°æ®ã€â†’ /helpï¼›æ— æ³¨å†Œ/è´¦å·/è¯•çŽ©æç¤ºã€‚
+2. ç—›ç‚¹â†’æ–¹æ¡ˆ â€” ä¸€å¥è¯ï¼šTimeline ç½‘é¡µç‰ˆå…³åœ / è£¸ JSON äººä¸å¯è¯» / æœ¬å·¥å…·è¿˜åŽŸæˆè¡Œç¨‹åœ°å›¾ã€‚
+3. ä¸‰åŠŸèƒ½å¡ â€” Tripsï¼ˆè¡Œç¨‹å›žæ”¾ï¼‰ã€Placesï¼ˆç‚¹å‡»åœ°å›¾æŸ¥è®¿ï¼Œ10â€“5000KMï¼‰ã€Privacyï¼ˆæ•°æ®ä¸å‡ºè®¾å¤‡ï¼‰ï¼Œgrid 3 åˆ—ï¼Œæš—è‰²å¡ç‰‡ã€‚
+4. æŠ€æœ¯æ ˆè¡Œï¼ˆReactÂ·TSÂ·ViteÂ·LeafletÂ·WebWorkerÂ·Zustandï¼‰+ æ•™ç¨‹å…¥å£ + éšç§æ‰¿è¯ºæ®µï¼ˆè¾¹ç•Œçº¿åˆ†éš”ï¼Œç°è‰²è°ƒï¼‰ã€‚
+5. Built with OPC 3.0 â€” æœ‰ `id="built-with-opc"` é”šç‚¹ï¼ˆFooter anchor ç›®æ ‡ï¼‰ï¼›æ–‡æ¡ˆè®²è¿° AI é©±åŠ¨äº§å“æµç¨‹ï¼ˆéœ€æ±‚â†’æ–¹æ¡ˆâ†’å¼€å‘â†’å®¡æŸ¥â†’éªŒæ”¶ï¼Œæ— å†…éƒ¨è§’è‰²æœ¯è¯­ï¼‰+ 5 æ­¥ pill åˆ—è¡¨ + OPC 3.0 ä»‹ç» + å ä½é“¾æŽ¥ï¼ˆ`OPC_3_LINK='#'`ï¼ŒT10 æ¢çœŸé“¾æŽ¥ï¼‰ã€‚
 
-`useEffect` 在 hash 匹配时自动 scrollIntoView（解决从 /help 跨页加载后 native fragment scroll 可能失灵的问题）。`src/lib/site.ts` 新增 `OPC_3_LINK` 占位常量。
+`useEffect` åœ¨ hash åŒ¹é…æ—¶è‡ªåŠ¨ scrollIntoViewï¼ˆè§£å†³ä»Ž /help è·¨é¡µåŠ è½½åŽ native fragment scroll å¯èƒ½å¤±çµçš„é—®é¢˜ï¼‰ã€‚`src/lib/site.ts` æ–°å¢ž `OPC_3_LINK` å ä½å¸¸é‡ã€‚
 
-**T7 Footer**（`src/components/Footer.tsx`）：「Created by OPC 3.0」由 span 改为 `<a href="/#built-with-opc">`；CSS 去除下划线、hover 变色 accent。同一页面点击 → 原生 fragment scroll；其他页面点击 → 全量加载 Landing → useEffect 自动滚动到 built-with section。
+**T7 Footer**ï¼ˆ`src/components/Footer.tsx`ï¼‰ï¼šã€ŒCreated by OPC 3.0ã€ç”± span æ”¹ä¸º `<a href="/#built-with-opc">`ï¼›CSS åŽ»é™¤ä¸‹åˆ’çº¿ã€hover å˜è‰² accentã€‚åŒä¸€é¡µé¢ç‚¹å‡» â†’ åŽŸç”Ÿ fragment scrollï¼›å…¶ä»–é¡µé¢ç‚¹å‡» â†’ å…¨é‡åŠ è½½ Landing â†’ useEffect è‡ªåŠ¨æ»šåŠ¨åˆ° built-with sectionã€‚
 
-**T8 教程页**（`src/pages/HelpPage.tsx` 重写）：
-- Android 6 步数字卡（「设置→位置→位置服务→时间轴→导出时间轴数据」，含机型/语言差异提示）+ 文件路径示例；
-- iOS 6 步数字卡（Google Maps App 内路径，含「文件」App 存储提示）+ 文件路径示例；
-- 4 格式说明（Timeline.json / Records.json / YYYY_MM.json / Location History.json）+ 树形路径 code block；
-- FAQ 折叠（新增 `src/components/FAQ.tsx`：4 条 — 找不到菜单 / 换机丢数据 / 文件大 / 数据安全，多开，按钮+caret动态+−，answer 白色 pre-line，有 `aria-expanded`）；
-- 底部 CTA「回到首页，一键体验示例数据 →」→ Link `/`。
+**T8 æ•™ç¨‹é¡µ**ï¼ˆ`src/pages/HelpPage.tsx` é‡å†™ï¼‰ï¼š
+- Android 6 æ­¥æ•°å­—å¡ï¼ˆã€Œè®¾ç½®â†’ä½ç½®â†’ä½ç½®æœåŠ¡â†’æ—¶é—´è½´â†’å¯¼å‡ºæ—¶é—´è½´æ•°æ®ã€ï¼Œå«æœºåž‹/è¯­è¨€å·®å¼‚æç¤ºï¼‰+ æ–‡ä»¶è·¯å¾„ç¤ºä¾‹ï¼›
+- iOS 6 æ­¥æ•°å­—å¡ï¼ˆGoogle Maps App å†…è·¯å¾„ï¼Œå«ã€Œæ–‡ä»¶ã€App å­˜å‚¨æç¤ºï¼‰+ æ–‡ä»¶è·¯å¾„ç¤ºä¾‹ï¼›
+- 4 æ ¼å¼è¯´æ˜Žï¼ˆTimeline.json / Records.json / YYYY_MM.json / Location History.jsonï¼‰+ æ ‘å½¢è·¯å¾„ code blockï¼›
+- FAQ æŠ˜å ï¼ˆæ–°å¢ž `src/components/FAQ.tsx`ï¼š4 æ¡ â€” æ‰¾ä¸åˆ°èœå• / æ¢æœºä¸¢æ•°æ® / æ–‡ä»¶å¤§ / æ•°æ®å®‰å…¨ï¼Œå¤šå¼€ï¼ŒæŒ‰é’®+caretåŠ¨æ€+âˆ’ï¼Œanswer ç™½è‰² pre-lineï¼Œæœ‰ `aria-expanded`ï¼‰ï¼›
+- åº•éƒ¨ CTAã€Œå›žåˆ°é¦–é¡µï¼Œä¸€é”®ä½“éªŒç¤ºä¾‹æ•°æ® â†’ã€â†’ Link `/`ã€‚
 
-**CSS**（`src/index.css`）新增 ~280 行：Landing（hero/landing-section/feature-cards/tech-line/privacy-promise/landing-builtwith/opc-steps）+ Help（step-cards 两列+数字圆/step-continue全宽/help-tip 左accent边框/format-rows/format-row/code-block/faq/faq-q/faq-a/help-cta）+ footer brand link 样式 + 860px 媒体断点（feature-cards→1col、step-cards→1col）。
+**CSS**ï¼ˆ`src/index.css`ï¼‰æ–°å¢ž ~280 è¡Œï¼šLandingï¼ˆhero/landing-section/feature-cards/tech-line/privacy-promise/landing-builtwith/opc-stepsï¼‰+ Helpï¼ˆstep-cards ä¸¤åˆ—+æ•°å­—åœ†/step-continueå…¨å®½/help-tip å·¦accentè¾¹æ¡†/format-rows/format-row/code-block/faq/faq-q/faq-a/help-ctaï¼‰+ footer brand link æ ·å¼ + 860px åª’ä½“æ–­ç‚¹ï¼ˆfeature-cardsâ†’1colã€step-cardsâ†’1colï¼‰ã€‚
 
-**验证**：`npm run test` 50 passed（无回归）✅ / `npm run lint` 无 error ✅ / `npm run build` 通过（chunk 警告同前）✅。Playwright 浏览器实测：
-- `/` Landing：hero 可见 → 三卡无溢出（scrollWidth===clientWidth=1003px）→ Built with section 锚点可见 → Footer 原生 fragment scroll ✓；
-- 「立即体验」→ loadSample → /app（197 段/191 停留 + 模拟数据角标）✓；
-- Footer `/help` → 点击 → /#built-with-opc 跨页滚动 ✓（useEffect fallback，rect.top ≈ 0）；
-- `/help`：Android 6 步 + iOS 6 步 + 4 格式 + FAQ 开/关 ✓（aria-expanded 动态、answer 隐藏/显示、caret −/+ 切换）→ 再点击关闭折叠 ✓；
-- 水平溢出检查（/ 与 /help）无 ✅；
-- console：0 error / 0 warning（仅 React DevTools info）✅。
+**éªŒè¯**ï¼š`npm run test` 50 passedï¼ˆæ— å›žå½’ï¼‰âœ… / `npm run lint` æ—  error âœ… / `npm run build` é€šè¿‡ï¼ˆchunk è­¦å‘ŠåŒå‰ï¼‰âœ…ã€‚Playwright æµè§ˆå™¨å®žæµ‹ï¼š
+- `/` Landingï¼šhero å¯è§ â†’ ä¸‰å¡æ— æº¢å‡ºï¼ˆscrollWidth===clientWidth=1003pxï¼‰â†’ Built with section é”šç‚¹å¯è§ â†’ Footer åŽŸç”Ÿ fragment scroll âœ“ï¼›
+- ã€Œç«‹å³ä½“éªŒã€â†’ loadSample â†’ /appï¼ˆ197 æ®µ/191 åœç•™ + æ¨¡æ‹Ÿæ•°æ®è§’æ ‡ï¼‰âœ“ï¼›
+- Footer `/help` â†’ ç‚¹å‡» â†’ /#built-with-opc è·¨é¡µæ»šåŠ¨ âœ“ï¼ˆuseEffect fallbackï¼Œrect.top â‰ˆ 0ï¼‰ï¼›
+- `/help`ï¼šAndroid 6 æ­¥ + iOS 6 æ­¥ + 4 æ ¼å¼ + FAQ å¼€/å…³ âœ“ï¼ˆaria-expanded åŠ¨æ€ã€answer éšè—/æ˜¾ç¤ºã€caret âˆ’/+ åˆ‡æ¢ï¼‰â†’ å†ç‚¹å‡»å…³é—­æŠ˜å  âœ“ï¼›
+- æ°´å¹³æº¢å‡ºæ£€æŸ¥ï¼ˆ/ ä¸Ž /helpï¼‰æ—  âœ…ï¼›
+- consoleï¼š0 error / 0 warningï¼ˆä»… React DevTools infoï¼‰âœ…ã€‚
 
-**已知问题**：① OPC 3.0 链接为占位 `#`，T10 部署时换真 URL；② Landing 全页截图存 `docs/screenshots/` 待 T10 README 用；③ step-cards 第 6 步（最终产出）若需要全宽视觉，可加 `.step-continue` class（当前两列排列已足够清晰，未启用）。
+**å·²çŸ¥é—®é¢˜**ï¼šâ‘  OPC 3.0 é“¾æŽ¥ä¸ºå ä½ `#`ï¼ŒT10 éƒ¨ç½²æ—¶æ¢çœŸ URLï¼›â‘¡ Landing å…¨é¡µæˆªå›¾å­˜ `docs/screenshots/` å¾… T10 README ç”¨ï¼›â‘¢ step-cards ç¬¬ 6 æ­¥ï¼ˆæœ€ç»ˆäº§å‡ºï¼‰è‹¥éœ€è¦å…¨å®½è§†è§‰ï¼Œå¯åŠ  `.step-continue` classï¼ˆå½“å‰ä¸¤åˆ—æŽ’åˆ—å·²è¶³å¤Ÿæ¸…æ™°ï¼Œæœªå¯ç”¨ï¼‰ã€‚
 
-## 2026-09-13 23:50 — Dev
-完成 T9.1 隐私与瓦片源设置面板（PRD#功能5）。
+## 2026-09-13 23:50 â€” Dev
+å®Œæˆ T9.1 éšç§ä¸Žç“¦ç‰‡æºè®¾ç½®é¢æ¿ï¼ˆPRD#åŠŸèƒ½5ï¼‰ã€‚
 
-**T9.1.1 store 扩展**（`src/store/timelineStore.ts`）：新增 `tileSource: { name, url, attribution }`（并入 timelineStore；单一全局 store，地图组件本就消费它，未另设 settingsStore）——初始值 = OSM 默认瓦片；`setTileSource(url, attribution?)`（name 标记为「自定义」）、`resetTileSource()`（回 OSM 默认）。**仅内存，不写 localStorage**（与产品 no-persistence 承诺一致：刷新重置是预期行为，写入文案）。
+**T9.1.1 store æ‰©å±•**ï¼ˆ`src/store/timelineStore.ts`ï¼‰ï¼šæ–°å¢ž `tileSource: { name, url, attribution }`ï¼ˆå¹¶å…¥ timelineStoreï¼›å•ä¸€å…¨å±€ storeï¼Œåœ°å›¾ç»„ä»¶æœ¬å°±æ¶ˆè´¹å®ƒï¼Œæœªå¦è®¾ settingsStoreï¼‰â€”â€”åˆå§‹å€¼ = OSM é»˜è®¤ç“¦ç‰‡ï¼›`setTileSource(url, attribution?)`ï¼ˆname æ ‡è®°ä¸ºã€Œè‡ªå®šä¹‰ã€ï¼‰ã€`resetTileSource()`ï¼ˆå›ž OSM é»˜è®¤ï¼‰ã€‚**ä»…å†…å­˜ï¼Œä¸å†™ localStorage**ï¼ˆä¸Žäº§å“ no-persistence æ‰¿è¯ºä¸€è‡´ï¼šåˆ·æ–°é‡ç½®æ˜¯é¢„æœŸè¡Œä¸ºï¼Œå†™å…¥æ–‡æ¡ˆï¼‰ã€‚
 
-**T9.1.2 瓦片配置 + 校验**（`src/lib/tiles.ts`）：`OSM_TILE_SOURCE` 默认值（`https://tile.openstreetmap.org/{z}/{x}/{y}.png` + 官方 attribution，符合 OSM 使用政策——官方推荐不带 `{s}` 子域名的主 URL）；`tileUrlError(url)` 校验（空串→合法=恢复默认信号；必须 http/https 可解析；必须含 `{z}/{x}/{y}` 三 token，缺失列出具体缺失项）。新增 `tiles.test.ts` 7 用例。
+**T9.1.2 ç“¦ç‰‡é…ç½® + æ ¡éªŒ**ï¼ˆ`src/lib/tiles.ts`ï¼‰ï¼š`OSM_TILE_SOURCE` é»˜è®¤å€¼ï¼ˆ`https://tile.openstreetmap.org/{z}/{x}/{y}.png` + å®˜æ–¹ attributionï¼Œç¬¦åˆ OSM ä½¿ç”¨æ”¿ç­–â€”â€”å®˜æ–¹æŽ¨èä¸å¸¦ `{s}` å­åŸŸåçš„ä¸» URLï¼‰ï¼›`tileUrlError(url)` æ ¡éªŒï¼ˆç©ºä¸²â†’åˆæ³•=æ¢å¤é»˜è®¤ä¿¡å·ï¼›å¿…é¡» http/https å¯è§£æžï¼›å¿…é¡»å« `{z}/{x}/{y}` ä¸‰ tokenï¼Œç¼ºå¤±åˆ—å‡ºå…·ä½“ç¼ºå¤±é¡¹ï¼‰ã€‚æ–°å¢ž `tiles.test.ts` 7 ç”¨ä¾‹ã€‚
 
-**T9.1.3 地图接入**：TripMap / PlacesMap 从 store 读 `tileSource` 传 `<TileLayer url attribution>`；改变量 React 重建 layer，设置即时生效（含已打开地图）。
+**T9.1.3 åœ°å›¾æŽ¥å…¥**ï¼šTripMap / PlacesMap ä»Ž store è¯» `tileSource` ä¼  `<TileLayer url attribution>`ï¼›æ”¹å˜é‡ React é‡å»º layerï¼Œè®¾ç½®å³æ—¶ç”Ÿæ•ˆï¼ˆå«å·²æ‰“å¼€åœ°å›¾ï¼‰ã€‚
 
-**T9.1.4 设置 UI**（`src/pages/SettingsPage.tsx` 重写）：瓦片源名称显示（OpenStreetMap / 自定义 + 徽标）；URL 输入（`{z}/{x}/{y}` 占位符校验，非法时红色警告 + 应用禁用；合法时绿色提示）；应用（空串=恢复默认）/ 恢复默认按钮；「自定义瓦片源 = 自担风险」明示文案（原样：瓦片请求会把你的 IP 与当前地图视野的坐标范围发送给瓦片服务器…）；「数据生命周期」说明卡（内存处理/不写 localStorage 与 IndexedDB/不上传/无分析遥测 SDK；唯一外发请求是瓦片）。CSS 追加 settings 段（~100 行）。
+**T9.1.4 è®¾ç½® UI**ï¼ˆ`src/pages/SettingsPage.tsx` é‡å†™ï¼‰ï¼šç“¦ç‰‡æºåç§°æ˜¾ç¤ºï¼ˆOpenStreetMap / è‡ªå®šä¹‰ + å¾½æ ‡ï¼‰ï¼›URL è¾“å…¥ï¼ˆ`{z}/{x}/{y}` å ä½ç¬¦æ ¡éªŒï¼Œéžæ³•æ—¶çº¢è‰²è­¦å‘Š + åº”ç”¨ç¦ç”¨ï¼›åˆæ³•æ—¶ç»¿è‰²æç¤ºï¼‰ï¼›åº”ç”¨ï¼ˆç©ºä¸²=æ¢å¤é»˜è®¤ï¼‰/ æ¢å¤é»˜è®¤æŒ‰é’®ï¼›ã€Œè‡ªå®šä¹‰ç“¦ç‰‡æº = è‡ªæ‹…é£Žé™©ã€æ˜Žç¤ºæ–‡æ¡ˆï¼ˆåŽŸæ ·ï¼šç“¦ç‰‡è¯·æ±‚ä¼šæŠŠä½ çš„ IP ä¸Žå½“å‰åœ°å›¾è§†é‡Žçš„åæ ‡èŒƒå›´å‘é€ç»™ç“¦ç‰‡æœåŠ¡å™¨â€¦ï¼‰ï¼›ã€Œæ•°æ®ç”Ÿå‘½å‘¨æœŸã€è¯´æ˜Žå¡ï¼ˆå†…å­˜å¤„ç†/ä¸å†™ localStorage ä¸Ž IndexedDB/ä¸ä¸Šä¼ /æ— åˆ†æžé¥æµ‹ SDKï¼›å”¯ä¸€å¤–å‘è¯·æ±‚æ˜¯ç“¦ç‰‡ï¼‰ã€‚CSS è¿½åŠ  settings æ®µï¼ˆ~100 è¡Œï¼‰ã€‚
 
-**验证**：`npm run test` **57 passed**（50 回归 + tiles 7 新增）✅ / `npm run build` 通过 ✅ / `npm run lint` 无 error ✅。Playwright 实测：/settings 面板可见；非法 URL（缺 token）→ 警告 + 应用禁用；应用开源变体 `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` → 返 /app Trips 与 /app/places 地图 network 均为 `a/b/c.tile.openstreetmap.org`（200，无 `tile.openstreetmap.org` 请求）→ 自定义源驱动确认；恢复默认 → 地图回 `tile.openstreetmap.org`（200）✓；刷新页面 → 设置重置为 OSM（预期）✓；空 URL 应用 → 恢复默认 ✓；全程 console 0 error / 0 warning；localStorage 无键、IndexedDB 无库 ✓。
+**éªŒè¯**ï¼š`npm run test` **57 passed**ï¼ˆ50 å›žå½’ + tiles 7 æ–°å¢žï¼‰âœ… / `npm run build` é€šè¿‡ âœ… / `npm run lint` æ—  error âœ…ã€‚Playwright å®žæµ‹ï¼š/settings é¢æ¿å¯è§ï¼›éžæ³• URLï¼ˆç¼º tokenï¼‰â†’ è­¦å‘Š + åº”ç”¨ç¦ç”¨ï¼›åº”ç”¨å¼€æºå˜ä½“ `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` â†’ è¿” /app Trips ä¸Ž /app/places åœ°å›¾ network å‡ä¸º `a/b/c.tile.openstreetmap.org`ï¼ˆ200ï¼Œæ—  `tile.openstreetmap.org` è¯·æ±‚ï¼‰â†’ è‡ªå®šä¹‰æºé©±åŠ¨ç¡®è®¤ï¼›æ¢å¤é»˜è®¤ â†’ åœ°å›¾å›ž `tile.openstreetmap.org`ï¼ˆ200ï¼‰âœ“ï¼›åˆ·æ–°é¡µé¢ â†’ è®¾ç½®é‡ç½®ä¸º OSMï¼ˆé¢„æœŸï¼‰âœ“ï¼›ç©º URL åº”ç”¨ â†’ æ¢å¤é»˜è®¤ âœ“ï¼›å…¨ç¨‹ console 0 error / 0 warningï¼›localStorage æ— é”®ã€IndexedDB æ— åº“ âœ“ã€‚
 
-**已知问题**：① 自定义源未提供 attribution 输入（存储默认为空串），Leaflet attribution 控件留空——如需要可后续加 attribution 输入框；② URL 校验是轻量的「tokens 齐全 + http(s)」检查，不做实际连通性探测（探测本身也会向第三方暴露请求，与隐私目标相悖）。
+**å·²çŸ¥é—®é¢˜**ï¼šâ‘  è‡ªå®šä¹‰æºæœªæä¾› attribution è¾“å…¥ï¼ˆå­˜å‚¨é»˜è®¤ä¸ºç©ºä¸²ï¼‰ï¼ŒLeaflet attribution æŽ§ä»¶ç•™ç©ºâ€”â€”å¦‚éœ€è¦å¯åŽç»­åŠ  attribution è¾“å…¥æ¡†ï¼›â‘¡ URL æ ¡éªŒæ˜¯è½»é‡çš„ã€Œtokens é½å…¨ + http(s)ã€æ£€æŸ¥ï¼Œä¸åšå®žé™…è¿žé€šæ€§æŽ¢æµ‹ï¼ˆæŽ¢æµ‹æœ¬èº«ä¹Ÿä¼šå‘ç¬¬ä¸‰æ–¹æš´éœ²è¯·æ±‚ï¼Œä¸Žéšç§ç›®æ ‡ç›¸æ‚–ï¼‰ã€‚
 
-## 2026-09-13 20:30 — Dev
-完成 T9.3 安全加固 + T10.1 GitHub Pages 部署 workflow + HashRouter + README 4 张截图。
+## 2026-09-13 20:30 â€” Dev
+å®Œæˆ T9.3 å®‰å…¨åŠ å›º + T10.1 GitHub Pages éƒ¨ç½² workflow + HashRouter + README 4 å¼ æˆªå›¾ã€‚
 
-## 2026-09-13 23:55 — Dev
-完成 T12 产品改动（改名 + Theme + 半径档位 + marker 颜色 + 日期筛选）。
+## 2026-09-13 23:55 â€” Dev
+å®Œæˆ T12 äº§å“æ”¹åŠ¨ï¼ˆæ”¹å + Theme + åŠå¾„æ¡£ä½ + marker é¢œè‰² + æ—¥æœŸç­›é€‰ï¼‰ã€‚
 
-**T12.1 改名**：`src/lib/site.ts` `SITE_NAME` 从 "GT Viewer" → "Timeline Map"；`src/pages/Landing.tsx` 标题/描述/功能卡文案；`src/index.html` `<title>` 标签；`README.md` 标题 + 功能亮点半径说明；Places 功能卡从 "10–5000KM" 改为 "1–100KM"。
+**T12.1 æ”¹å**ï¼š`src/lib/site.ts` `SITE_NAME` ä»Ž "GT Viewer" â†’ "Timeline Map"ï¼›`src/pages/Landing.tsx` æ ‡é¢˜/æè¿°/åŠŸèƒ½å¡æ–‡æ¡ˆï¼›`src/index.html` `<title>` æ ‡ç­¾ï¼›`README.md` æ ‡é¢˜ + åŠŸèƒ½äº®ç‚¹åŠå¾„è¯´æ˜Žï¼›Places åŠŸèƒ½å¡ä»Ž "10â€“5000KM" æ”¹ä¸º "1â€“100KM"ã€‚
 
-**T12.2 Theme**：`src/index.css` 新增 `@media (prefers-color-scheme: light)` + `[data-theme='dark/light']` CSS 变量覆盖；`src/store/timelineStore.ts` 新增 `ThemeMode` 类型 + `themeMode: 'system'` 初始值 + `setThemeMode()` action；`src/App.tsx` 添加 `useEffect` 同步 `data-theme` 到 `<html>`；`src/pages/SettingsPage.tsx` 新增主题切换按钮组（跟随系统/浅色/深色），CSS 新增 `.theme-selector` + `.theme-btn` 样式。默认跟随系统。
+**T12.2 Theme**ï¼š`src/index.css` æ–°å¢ž `@media (prefers-color-scheme: light)` + `[data-theme='dark/light']` CSS å˜é‡è¦†ç›–ï¼›`src/store/timelineStore.ts` æ–°å¢ž `ThemeMode` ç±»åž‹ + `themeMode: 'system'` åˆå§‹å€¼ + `setThemeMode()` actionï¼›`src/App.tsx` æ·»åŠ  `useEffect` åŒæ­¥ `data-theme` åˆ° `<html>`ï¼›`src/pages/SettingsPage.tsx` æ–°å¢žä¸»é¢˜åˆ‡æ¢æŒ‰é’®ç»„ï¼ˆè·Ÿéšç³»ç»Ÿ/æµ…è‰²/æ·±è‰²ï¼‰ï¼ŒCSS æ–°å¢ž `.theme-selector` + `.theme-btn` æ ·å¼ã€‚é»˜è®¤è·Ÿéšç³»ç»Ÿã€‚
 
-**T12.3 半径档位**：`src/lib/geo/places.ts` `PLACE_RADII_KM` 从 `[10, 100, 1000, 5000]` → `[1, 5, 10, 50, 100]`；`src/pages/PlacesPage.tsx` 按钮文案从 "{radius} km" 改为 "{radius}"（数值小不加单位更清晰）；新增 `.places-radii-label` 显示 "1–100 KM"；summary 行追加 "1–100 KM 可选"；`places.test.ts` 断言更新为 5 档。
+**T12.3 åŠå¾„æ¡£ä½**ï¼š`src/lib/geo/places.ts` `PLACE_RADII_KM` ä»Ž `[10, 100, 1000, 5000]` â†’ `[1, 5, 10, 50, 100]`ï¼›`src/pages/PlacesPage.tsx` æŒ‰é’®æ–‡æ¡ˆä»Ž "{radius} km" æ”¹ä¸º "{radius}"ï¼ˆæ•°å€¼å°ä¸åŠ å•ä½æ›´æ¸…æ™°ï¼‰ï¼›æ–°å¢ž `.places-radii-label` æ˜¾ç¤º "1â€“100 KM"ï¼›summary è¡Œè¿½åŠ  "1â€“100 KM å¯é€‰"ï¼›`places.test.ts` æ–­è¨€æ›´æ–°ä¸º 5 æ¡£ã€‚
 
-**T12.4 Places marker 颜色**：`src/components/PlacesMap.tsx` 新增常量 `PLACES_CLICK_MARKER_COLOR='#3b82f6'`（accent 蓝）+ `PLACES_STOP_MARKER_COLOR='#94a3b8'`（默认灰）；点击处使用 `L.marker` + 自定义 HTML divIcon（蓝色实心圆 + 白边 + 阴影）；选中停留点仍用 `CircleMarker`（琥珀色）；CSS 新增 `.leaflet-marker-icon.places-click-marker` 清除 Leaflet 默认样式。
+**T12.4 Places marker é¢œè‰²**ï¼š`src/components/PlacesMap.tsx` æ–°å¢žå¸¸é‡ `PLACES_CLICK_MARKER_COLOR='#3b82f6'`ï¼ˆaccent è“ï¼‰+ `PLACES_STOP_MARKER_COLOR='#94a3b8'`ï¼ˆé»˜è®¤ç°ï¼‰ï¼›ç‚¹å‡»å¤„ä½¿ç”¨ `L.marker` + è‡ªå®šä¹‰ HTML divIconï¼ˆè“è‰²å®žå¿ƒåœ† + ç™½è¾¹ + é˜´å½±ï¼‰ï¼›é€‰ä¸­åœç•™ç‚¹ä»ç”¨ `CircleMarker`ï¼ˆç¥ç€è‰²ï¼‰ï¼›CSS æ–°å¢ž `.leaflet-marker-icon.places-click-marker` æ¸…é™¤ Leaflet é»˜è®¤æ ·å¼ã€‚
 
-**T12.5 Places 日期筛选**：`src/pages/PlacesPage.tsx` 侧栏顶部插入 `<DateRangePicker />` 组件，复用 Trips 视图的全局日期筛选，与 Trips 共享 `dateRange` store。
+**T12.5 Places æ—¥æœŸç­›é€‰**ï¼š`src/pages/PlacesPage.tsx` ä¾§æ é¡¶éƒ¨æ’å…¥ `<DateRangePicker />` ç»„ä»¶ï¼Œå¤ç”¨ Trips è§†å›¾çš„å…¨å±€æ—¥æœŸç­›é€‰ï¼Œä¸Ž Trips å…±äº« `dateRange` storeã€‚
 
-**验证**：`npm run build` ✅ / `npm run test` **63 passed**（含 places.test.ts 更新）✅ / `npm run lint` 无 error ✅。
+**éªŒè¯**ï¼š`npm run build` âœ… / `npm run test` **63 passed**ï¼ˆå« places.test.ts æ›´æ–°ï¼‰âœ… / `npm run lint` æ—  error âœ…ã€‚
 
-**已知问题**：① Places 视图的周围停留点列表尚未在地图上渲染为 circleMarker（仅高亮点击处 + 选中停留点），后续如需可加；② Theme 切换不持久化（刷新重置为 system），与产品 no-persistence 承诺一致。
+**å·²çŸ¥é—®é¢˜**ï¼šâ‘  Places è§†å›¾çš„å‘¨å›´åœç•™ç‚¹åˆ—è¡¨å°šæœªåœ¨åœ°å›¾ä¸Šæ¸²æŸ“ä¸º circleMarkerï¼ˆä»…é«˜äº®ç‚¹å‡»å¤„ + é€‰ä¸­åœç•™ç‚¹ï¼‰ï¼ŒåŽç»­å¦‚éœ€å¯åŠ ï¼›â‘¡ Theme åˆ‡æ¢ä¸æŒä¹…åŒ–ï¼ˆåˆ·æ–°é‡ç½®ä¸º systemï¼‰ï¼Œä¸Žäº§å“ no-persistence æ‰¿è¯ºä¸€è‡´ã€‚
 
-## 2026-09-13 23:30 — Dev
-完成 T12.6 Places 地图停留点 marker 批量渲染：点击地图后，范围内**所有停留点**均显示 amber CircleMarker，点击处用蓝色 divIcon 高亮，半径圈保持透明填充+描边；空态无 marker。
+## 2026-09-13 23:30 â€” Dev
+å®Œæˆ T12.6 Places åœ°å›¾åœç•™ç‚¹ marker æ‰¹é‡æ¸²æŸ“ï¼šç‚¹å‡»åœ°å›¾åŽï¼ŒèŒƒå›´å†…**æ‰€æœ‰åœç•™ç‚¹**å‡æ˜¾ç¤º amber CircleMarkerï¼Œç‚¹å‡»å¤„ç”¨è“è‰² divIcon é«˜äº®ï¼ŒåŠå¾„åœˆä¿æŒé€æ˜Žå¡«å……+æè¾¹ï¼›ç©ºæ€æ—  markerã€‚
 
-**修改文件**：`src/components/PlacesMap.tsx`（新增 `visits: Visit[]` prop，遍历渲染 `CircleMarker`，移除冗余的单独 selected marker，清理未用 import `Tooltip`/`fmtDateTime`/`fmtDuration`）；`src/pages/PlacesPage.tsx`（传 `results.map(r => r.record)` 给 `visits` prop）。
+**ä¿®æ”¹æ–‡ä»¶**ï¼š`src/components/PlacesMap.tsx`ï¼ˆæ–°å¢ž `visits: Visit[]` propï¼ŒéåŽ†æ¸²æŸ“ `CircleMarker`ï¼Œç§»é™¤å†—ä½™çš„å•ç‹¬ selected markerï¼Œæ¸…ç†æœªç”¨ import `Tooltip`/`fmtDateTime`/`fmtDuration`ï¼‰ï¼›`src/pages/PlacesPage.tsx`ï¼ˆä¼  `results.map(r => r.record)` ç»™ `visits` propï¼‰ã€‚
 
-**验证**：`npm run build` ✅ / `npm run test` **63 passed**（无回归）✅ / `npm run lint` 无 error ✅。
+**éªŒè¯**ï¼š`npm run build` âœ… / `npm run test` **63 passed**ï¼ˆæ— å›žå½’ï¼‰âœ… / `npm run lint` æ—  error âœ…ã€‚
 
-## 2026-09-13 14:20 — Dev
-完成 T9.3 安全加固 + T10.1 GitHub Pages 部署 workflow + HashRouter + README 4 张截图。
+## 2026-09-13 14:20 â€” Dev
+å®Œæˆ T9.3 å®‰å…¨åŠ å›º + T10.1 GitHub Pages éƒ¨ç½² workflow + HashRouter + README 4 å¼ æˆªå›¾ã€‚
 
-**T9.3 安全加固（Security 报告原样采纳）**：
-- **G1 raw points 上限**：`src/lib/parse/common.ts` 新增 `MAX_RAW_POINTS = 2_000_000`；`addRawPoint` 累计达上限后丢弃后续点并只发**一次** warning（`"x.json": raw points 超过 200 万，已截断`，`rawTruncated` 防重）；`index.ts` `mergeTimelineData(list, warnings=true)` 对跨文件合并结果也截断 + `累计 raw points 超过 200 万，已截断`，worker（`parse.worker.ts`）把合并截断警告并入 `allWarnings` 透传给 UI。新增 2 单测（单文件截断告警一次 / 合并截断）。
-- **S1 CSP meta**（`index.html`）：`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self' https:; worker-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'`。**实测**：dev（vite 5173）与生产 preview（4173）均无资源被拦、无 ws 阻断（CSP 规范里 `connect-src 'self'` 对同源 `ws://` 是放行的，Vite HMR 正常）；唯一 console 消息是浏览器提示「`frame-ancestors` 在 `<meta>` 里被忽略」——此为规范行为，`frame-ancestors` 需 HTTP 响应头才生效，而 GitHub Pages 静态托管无法加自定义头，故保留在 meta 中（**取舍**：frame 防护生效不了，其余指令全部生效；将来若要严控可改换 Vercel/Cloudflare 或自托管并配置头，不阻塞当前部署）。
-- **S2 http:// 明文警告**：`src/lib/tiles.ts` 新增 `tileUrlNotes(url)`，`http:` 协议 → 「⚠ 明文传输：数据可能被网络中间人篡改，建议使用 https 或内网瓦片源」（`kind: cleartext`）；SettingsPage 在输入下方按规则渲染（有校验错误时降级为红色错误条）。新 `.tile-note-warn` CSS（琥珀色粗体）。
-- **S3 {s} 子域说明**：`tileUrlNotes` 对含 `{s}` 的 URL 追加「{s} 将向 a/b/c 多个主机发起请求」（`subdomains`）；若域名含 `openstreetmap.org` 再追加「OSM 公共服务器不支持 {s}，瓦片将加载失败」（`osm-subdomains`）；设置页静态说明段同步补了同文案。新增 `tileUrlNotes` 4 单测。
-- **S5 示例数据命名**：`scripts/gen-sample-data.mjs` 把 `Home` → 「家（模拟）」、`Nexus Co., Ltd.` → 「公司（模拟）」（seed 不变 `20260913`，同 PRNG 重新生成则全部后续随机值序列改变，输出会整体变化，无妨——seed 确定即可复现）；已重跑生成 `src/lib/sample/sample-timeline.json`，python 校验全部 17 个地点名无旧英文名、UI 显示正常、无奇怪字符。
+**T9.3 å®‰å…¨åŠ å›ºï¼ˆSecurity æŠ¥å‘ŠåŽŸæ ·é‡‡çº³ï¼‰**ï¼š
+- **G1 raw points ä¸Šé™**ï¼š`src/lib/parse/common.ts` æ–°å¢ž `MAX_RAW_POINTS = 2_000_000`ï¼›`addRawPoint` ç´¯è®¡è¾¾ä¸Šé™åŽä¸¢å¼ƒåŽç»­ç‚¹å¹¶åªå‘**ä¸€æ¬¡** warningï¼ˆ`"x.json": raw points è¶…è¿‡ 200 ä¸‡ï¼Œå·²æˆªæ–­`ï¼Œ`rawTruncated` é˜²é‡ï¼‰ï¼›`index.ts` `mergeTimelineData(list, warnings=true)` å¯¹è·¨æ–‡ä»¶åˆå¹¶ç»“æžœä¹Ÿæˆªæ–­ + `ç´¯è®¡ raw points è¶…è¿‡ 200 ä¸‡ï¼Œå·²æˆªæ–­`ï¼Œworkerï¼ˆ`parse.worker.ts`ï¼‰æŠŠåˆå¹¶æˆªæ–­è­¦å‘Šå¹¶å…¥ `allWarnings` é€ä¼ ç»™ UIã€‚æ–°å¢ž 2 å•æµ‹ï¼ˆå•æ–‡ä»¶æˆªæ–­å‘Šè­¦ä¸€æ¬¡ / åˆå¹¶æˆªæ–­ï¼‰ã€‚
+- **S1 CSP meta**ï¼ˆ`index.html`ï¼‰ï¼š`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self' https:; worker-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'`ã€‚**å®žæµ‹**ï¼šdevï¼ˆvite 5173ï¼‰ä¸Žç”Ÿäº§ previewï¼ˆ4173ï¼‰å‡æ— èµ„æºè¢«æ‹¦ã€æ—  ws é˜»æ–­ï¼ˆCSP è§„èŒƒé‡Œ `connect-src 'self'` å¯¹åŒæº `ws://` æ˜¯æ”¾è¡Œçš„ï¼ŒVite HMR æ­£å¸¸ï¼‰ï¼›å”¯ä¸€ console æ¶ˆæ¯æ˜¯æµè§ˆå™¨æç¤ºã€Œ`frame-ancestors` åœ¨ `<meta>` é‡Œè¢«å¿½ç•¥ã€â€”â€”æ­¤ä¸ºè§„èŒƒè¡Œä¸ºï¼Œ`frame-ancestors` éœ€ HTTP å“åº”å¤´æ‰ç”Ÿæ•ˆï¼Œè€Œ GitHub Pages é™æ€æ‰˜ç®¡æ— æ³•åŠ è‡ªå®šä¹‰å¤´ï¼Œæ•…ä¿ç•™åœ¨ meta ä¸­ï¼ˆ**å–èˆ**ï¼šframe é˜²æŠ¤ç”Ÿæ•ˆä¸äº†ï¼Œå…¶ä½™æŒ‡ä»¤å…¨éƒ¨ç”Ÿæ•ˆï¼›å°†æ¥è‹¥è¦ä¸¥æŽ§å¯æ”¹æ¢ Vercel/Cloudflare æˆ–è‡ªæ‰˜ç®¡å¹¶é…ç½®å¤´ï¼Œä¸é˜»å¡žå½“å‰éƒ¨ç½²ï¼‰ã€‚
+- **S2 http:// æ˜Žæ–‡è­¦å‘Š**ï¼š`src/lib/tiles.ts` æ–°å¢ž `tileUrlNotes(url)`ï¼Œ`http:` åè®® â†’ ã€Œâš  æ˜Žæ–‡ä¼ è¾“ï¼šæ•°æ®å¯èƒ½è¢«ç½‘ç»œä¸­é—´äººç¯¡æ”¹ï¼Œå»ºè®®ä½¿ç”¨ https æˆ–å†…ç½‘ç“¦ç‰‡æºã€ï¼ˆ`kind: cleartext`ï¼‰ï¼›SettingsPage åœ¨è¾“å…¥ä¸‹æ–¹æŒ‰è§„åˆ™æ¸²æŸ“ï¼ˆæœ‰æ ¡éªŒé”™è¯¯æ—¶é™çº§ä¸ºçº¢è‰²é”™è¯¯æ¡ï¼‰ã€‚æ–° `.tile-note-warn` CSSï¼ˆç¥ç€è‰²ç²—ä½“ï¼‰ã€‚
+- **S3 {s} å­åŸŸè¯´æ˜Ž**ï¼š`tileUrlNotes` å¯¹å« `{s}` çš„ URL è¿½åŠ ã€Œ{s} å°†å‘ a/b/c å¤šä¸ªä¸»æœºå‘èµ·è¯·æ±‚ã€ï¼ˆ`subdomains`ï¼‰ï¼›è‹¥åŸŸåå« `openstreetmap.org` å†è¿½åŠ ã€ŒOSM å…¬å…±æœåŠ¡å™¨ä¸æ”¯æŒ {s}ï¼Œç“¦ç‰‡å°†åŠ è½½å¤±è´¥ã€ï¼ˆ`osm-subdomains`ï¼‰ï¼›è®¾ç½®é¡µé™æ€è¯´æ˜Žæ®µåŒæ­¥è¡¥äº†åŒæ–‡æ¡ˆã€‚æ–°å¢ž `tileUrlNotes` 4 å•æµ‹ã€‚
+- **S5 ç¤ºä¾‹æ•°æ®å‘½å**ï¼š`scripts/gen-sample-data.mjs` æŠŠ `Home` â†’ ã€Œå®¶ï¼ˆæ¨¡æ‹Ÿï¼‰ã€ã€`Nexus Co., Ltd.` â†’ ã€Œå…¬å¸ï¼ˆæ¨¡æ‹Ÿï¼‰ã€ï¼ˆseed ä¸å˜ `20260913`ï¼ŒåŒ PRNG é‡æ–°ç”Ÿæˆåˆ™å…¨éƒ¨åŽç»­éšæœºå€¼åºåˆ—æ”¹å˜ï¼Œè¾“å‡ºä¼šæ•´ä½“å˜åŒ–ï¼Œæ— å¦¨â€”â€”seed ç¡®å®šå³å¯å¤çŽ°ï¼‰ï¼›å·²é‡è·‘ç”Ÿæˆ `src/lib/sample/sample-timeline.json`ï¼Œpython æ ¡éªŒå…¨éƒ¨ 17 ä¸ªåœ°ç‚¹åæ— æ—§è‹±æ–‡åã€UI æ˜¾ç¤ºæ­£å¸¸ã€æ— å¥‡æ€ªå­—ç¬¦ã€‚
 
-**T10.1 GitHub Pages 部署 + HashRouter**：
-- `src/main.tsx`：**BrowserRouter → HashRouter**（静态托管无服务端重写，子路由刷新 404 的根治方案）。**锚点适配**：Footer「Created by OPC 3.0」从原生 `<a href="/#built-with-opc">` 改为路由 `<Link to={{ pathname:'/', hash:'#built-with-opc' }}>`，HashRouter 下 URL 变 `#/#built-with-opc`；Landing 现有 `useEffect` 读 `useLocation().hash` + `scrollIntoView` 逻辑保留即生效（无需 native fragment）。**实测**：preview 下从 `/help` 点 footer 链接 → 跳转 Landing 并滚到 `#built-with-opc` 顶部（落点差因页面高度不足 clamping，section 完整可见）。
-- `vite.config.ts`：`base: './'` 相对 base（适配 GitHub Pages `/<repo>/` 子路径部署，所有资源路径可移植）。
-- 新建 `.github/workflows/deploy.yml`：push main（+ workflow_dispatch）→ `actions/checkout` + `setup-node(22, cache:npm)` → `npm ci` → `lint` → `test` → `build` → `actions/configure-pages` + `upload-pages-artifact(path: dist)` → `deploy-pages`。permissions: pages:write / id-token:write；concurrency 组防堆叠。**未创建 remote/推送**（gh 未安装、无 remote，T10.3 由 CEO 协调）。
+**T10.1 GitHub Pages éƒ¨ç½² + HashRouter**ï¼š
+- `src/main.tsx`ï¼š**BrowserRouter â†’ HashRouter**ï¼ˆé™æ€æ‰˜ç®¡æ— æœåŠ¡ç«¯é‡å†™ï¼Œå­è·¯ç”±åˆ·æ–° 404 çš„æ ¹æ²»æ–¹æ¡ˆï¼‰ã€‚**é”šç‚¹é€‚é…**ï¼šFooterã€ŒCreated by OPC 3.0ã€ä»ŽåŽŸç”Ÿ `<a href="/#built-with-opc">` æ”¹ä¸ºè·¯ç”± `<Link to={{ pathname:'/', hash:'#built-with-opc' }}>`ï¼ŒHashRouter ä¸‹ URL å˜ `#/#built-with-opc`ï¼›Landing çŽ°æœ‰ `useEffect` è¯» `useLocation().hash` + `scrollIntoView` é€»è¾‘ä¿ç•™å³ç”Ÿæ•ˆï¼ˆæ— éœ€ native fragmentï¼‰ã€‚**å®žæµ‹**ï¼špreview ä¸‹ä»Ž `/help` ç‚¹ footer é“¾æŽ¥ â†’ è·³è½¬ Landing å¹¶æ»šåˆ° `#built-with-opc` é¡¶éƒ¨ï¼ˆè½ç‚¹å·®å› é¡µé¢é«˜åº¦ä¸è¶³ clampingï¼Œsection å®Œæ•´å¯è§ï¼‰ã€‚
+- `vite.config.ts`ï¼š`base: './'` ç›¸å¯¹ baseï¼ˆé€‚é… GitHub Pages `/<repo>/` å­è·¯å¾„éƒ¨ç½²ï¼Œæ‰€æœ‰èµ„æºè·¯å¾„å¯ç§»æ¤ï¼‰ã€‚
+- æ–°å»º `.github/workflows/deploy.yml`ï¼špush mainï¼ˆ+ workflow_dispatchï¼‰â†’ `actions/checkout` + `setup-node(22, cache:npm)` â†’ `npm ci` â†’ `lint` â†’ `test` â†’ `build` â†’ `actions/configure-pages` + `upload-pages-artifact(path: dist)` â†’ `deploy-pages`ã€‚permissions: pages:write / id-token:writeï¼›concurrency ç»„é˜²å †å ã€‚**æœªåˆ›å»º remote/æŽ¨é€**ï¼ˆgh æœªå®‰è£…ã€æ—  remoteï¼ŒT10.3 ç”± CEO åè°ƒï¼‰ã€‚
 
-**README 截图补全**（`docs/screenshots/`，playwright 对 preview 实际流程截图，命名固定）：`trips.png`（Trips：载入示例 + 近 30 天 + 地图 + 侧栏，「模拟数据 · 非真实轨迹」角标）· `places.png`（Places：点击台北市中心 25.04,121.51 → 100km 半径圈 + 浮层「98 个停留点在此范围内」+ 结果列表）· `help.png`（教程页顶部）· `settings.png`（设置页：瓦片源 + 生命卡 + `{s}` 说明）。加已有 3 张 landing 图，README 引用齐全。
+**README æˆªå›¾è¡¥å…¨**ï¼ˆ`docs/screenshots/`ï¼Œplaywright å¯¹ preview å®žé™…æµç¨‹æˆªå›¾ï¼Œå‘½åå›ºå®šï¼‰ï¼š`trips.png`ï¼ˆTripsï¼šè½½å…¥ç¤ºä¾‹ + è¿‘ 30 å¤© + åœ°å›¾ + ä¾§æ ï¼Œã€Œæ¨¡æ‹Ÿæ•°æ® Â· éžçœŸå®žè½¨è¿¹ã€è§’æ ‡ï¼‰Â· `places.png`ï¼ˆPlacesï¼šç‚¹å‡»å°åŒ—å¸‚ä¸­å¿ƒ 25.04,121.51 â†’ 100km åŠå¾„åœˆ + æµ®å±‚ã€Œ98 ä¸ªåœç•™ç‚¹åœ¨æ­¤èŒƒå›´å†…ã€+ ç»“æžœåˆ—è¡¨ï¼‰Â· `help.png`ï¼ˆæ•™ç¨‹é¡µé¡¶éƒ¨ï¼‰Â· `settings.png`ï¼ˆè®¾ç½®é¡µï¼šç“¦ç‰‡æº + ç”Ÿå‘½å¡ + `{s}` è¯´æ˜Žï¼‰ã€‚åŠ å·²æœ‰ 3 å¼  landing å›¾ï¼ŒREADME å¼•ç”¨é½å…¨ã€‚
 
-**验证**：`npm run test` **63 passed**（57 回归 + G1 2 + tileUrlNotes 4）✅ / `npm run build` ✅（tsc + vite）/ `npm run lint` 0 error ✅。**验收自查**（playwright，preview 4173 + dev 5173）：`#/`、`#/app`、`#/app/places`、`#/help`、`#/settings` 全部可达（HashRouter 单文档内路由）；Landing 锚点从 /help 跨页跳转滚动正常；CSP dev/preview 均无资源拦截（仅 frame-ancestors meta 忽略提示，见 S1 取舍）；设置页输入 `http://{s}.tile.openstreetmap.org/...` 实测同时出现明文警告 + {s} 说明 + OSM 不支持三条提示 ✅；canvas Trips 路线绘制（采样 alpha>0）、Trips 侧栏 115 停留、Places 半径圆 `leaflet-interactive` 可见 ✅。
+**éªŒè¯**ï¼š`npm run test` **63 passed**ï¼ˆ57 å›žå½’ + G1 2 + tileUrlNotes 4ï¼‰âœ… / `npm run build` âœ…ï¼ˆtsc + viteï¼‰/ `npm run lint` 0 error âœ…ã€‚**éªŒæ”¶è‡ªæŸ¥**ï¼ˆplaywrightï¼Œpreview 4173 + dev 5173ï¼‰ï¼š`#/`ã€`#/app`ã€`#/app/places`ã€`#/help`ã€`#/settings` å…¨éƒ¨å¯è¾¾ï¼ˆHashRouter å•æ–‡æ¡£å†…è·¯ç”±ï¼‰ï¼›Landing é”šç‚¹ä»Ž /help è·¨é¡µè·³è½¬æ»šåŠ¨æ­£å¸¸ï¼›CSP dev/preview å‡æ— èµ„æºæ‹¦æˆªï¼ˆä»… frame-ancestors meta å¿½ç•¥æç¤ºï¼Œè§ S1 å–èˆï¼‰ï¼›è®¾ç½®é¡µè¾“å…¥ `http://{s}.tile.openstreetmap.org/...` å®žæµ‹åŒæ—¶å‡ºçŽ°æ˜Žæ–‡è­¦å‘Š + {s} è¯´æ˜Ž + OSM ä¸æ”¯æŒä¸‰æ¡æç¤º âœ…ï¼›canvas Trips è·¯çº¿ç»˜åˆ¶ï¼ˆé‡‡æ · alpha>0ï¼‰ã€Trips ä¾§æ  115 åœç•™ã€Places åŠå¾„åœ† `leaflet-interactive` å¯è§ âœ…ã€‚
 
-**已知问题**：① S1 的 `frame-ancestors` 在 meta 下被忽略（需 HTTP 头，GitHub Pages 不支持），见取舍记录；② deploy.yml 首次启用时需在 GitHub repo 开 Pages 指向 Actions（`Settings → Pages → Source: GitHub Actions`），T10.3 协调；③ `vite preview` 对 SPA 刷新 `#/xxx` 天然可达（单文档），真站验证仍留 T10.3。
+**å·²çŸ¥é—®é¢˜**ï¼šâ‘  S1 çš„ `frame-ancestors` åœ¨ meta ä¸‹è¢«å¿½ç•¥ï¼ˆéœ€ HTTP å¤´ï¼ŒGitHub Pages ä¸æ”¯æŒï¼‰ï¼Œè§å–èˆè®°å½•ï¼›â‘¡ deploy.yml é¦–æ¬¡å¯ç”¨æ—¶éœ€åœ¨ GitHub repo å¼€ Pages æŒ‡å‘ Actionsï¼ˆ`Settings â†’ Pages â†’ Source: GitHub Actions`ï¼‰ï¼ŒT10.3 åè°ƒï¼›â‘¢ `vite preview` å¯¹ SPA åˆ·æ–° `#/xxx` å¤©ç„¶å¯è¾¾ï¼ˆå•æ–‡æ¡£ï¼‰ï¼ŒçœŸç«™éªŒè¯ä»ç•™ T10.3ã€‚
 
-## 2026-09-14 09:30 — Dev
-完成 T13.1 + T13.2（真实 livedata 支持修复，三轮迭代）。
+## 2026-09-14 09:30 â€” Dev
+å®Œæˆ T13.1 + T13.2ï¼ˆçœŸå®ž livedata æ”¯æŒä¿®å¤ï¼Œä¸‰è½®è¿­ä»£ï¼‰ã€‚
 
-**T13.1 细节修复**（df24db2）：① Trips marker tooltip 日期加年份：`trips.ts:fmtDateTime` 从 `fmtDay`（MM-DD）→ `toInputDate`（YYYY-MM-DD）；② Places popup 加 Google Maps 链接：`PlacesMap.tsx` CircleMarker 弹窗内 `<a href="https://www.google.com/maps?q=lat,lng">`，`onClick` 阻止冒泡；③ `common.ts:pathToPoints` 新增 `path` fallback key，`PATH_KEYS` 增加 `path`。
+**T13.1 ç»†èŠ‚ä¿®å¤**ï¼ˆdf24db2ï¼‰ï¼šâ‘  Trips marker tooltip æ—¥æœŸåŠ å¹´ä»½ï¼š`trips.ts:fmtDateTime` ä»Ž `fmtDay`ï¼ˆMM-DDï¼‰â†’ `toInputDate`ï¼ˆYYYY-MM-DDï¼‰ï¼›â‘¡ Places popup åŠ  Google Maps é“¾æŽ¥ï¼š`PlacesMap.tsx` CircleMarker å¼¹çª—å†… `<a href="https://www.google.com/maps?q=lat,lng">`ï¼Œ`onClick` é˜»æ­¢å†’æ³¡ï¼›â‘¢ `common.ts:pathToPoints` æ–°å¢ž `path` fallback keyï¼Œ`PATH_KEYS` å¢žåŠ  `path`ã€‚
 
-**T13.2 根因分析（CEO + Dev 联合）**：用户真实数据 `docs/livedata/Timeline-20260820.json`（129MB，新版 Google Timeline 设备导出）`semanticSegments` 中同一时间段同时存在两类重叠段：①`timelinePath` 段（2 小时粒度，`{point,time}` 完整 GPS 轨迹 8-11 点）；②`activity` 段（`{start:{latLng}, end:{latLng}, distanceMeters, topCandidate:{type:IN_BUS/WALKING/...}}`，**只有起终点无轨迹点**）。此前 `activity` 车辆行程渲染成退化直线 → 用户"汽车 GPS 没显示"。真实轨迹在同时间 `timelinePath` 段，未与 activity 关联。
+**T13.2 æ ¹å› åˆ†æžï¼ˆCEO + Dev è”åˆï¼‰**ï¼šç”¨æˆ·çœŸå®žæ•°æ® `docs/livedata/Timeline-20260820.json`ï¼ˆ129MBï¼Œæ–°ç‰ˆ Google Timeline è®¾å¤‡å¯¼å‡ºï¼‰`semanticSegments` ä¸­åŒä¸€æ—¶é—´æ®µåŒæ—¶å­˜åœ¨ä¸¤ç±»é‡å æ®µï¼šâ‘ `timelinePath` æ®µï¼ˆ2 å°æ—¶ç²’åº¦ï¼Œ`{point,time}` å®Œæ•´ GPS è½¨è¿¹ 8-11 ç‚¹ï¼‰ï¼›â‘¡`activity` æ®µï¼ˆ`{start:{latLng}, end:{latLng}, distanceMeters, topCandidate:{type:IN_BUS/WALKING/...}}`ï¼Œ**åªæœ‰èµ·ç»ˆç‚¹æ— è½¨è¿¹ç‚¹**ï¼‰ã€‚æ­¤å‰ `activity` è½¦è¾†è¡Œç¨‹æ¸²æŸ“æˆé€€åŒ–ç›´çº¿ â†’ ç”¨æˆ·"æ±½è½¦ GPS æ²¡æ˜¾ç¤º"ã€‚çœŸå®žè½¨è¿¹åœ¨åŒæ—¶é—´ `timelinePath` æ®µï¼Œæœªä¸Ž activity å…³è”ã€‚
 
-**修复方案**（7674cb4 初版 → c2b28f3 审查加固 → 802ddf7 尾换行）：
-- `common.ts`：`ParseState.timelinePathPool` 池化含 timelinePath 的段；`findStitchCandidate` 查候选（时间真重叠 + 起终点距 trace 首末点 ≤0.02°≈2km，取重叠最长）
-- `stitchSegments` 终 pass：**唯一一次排序**后为所有 path<2 段匹配（S2 修复：删除即时借道分支，保证 `>best`）；左扫用 `maxEndUpTo` 前缀 max（S1 修复：endMs 非单调不漏配）；反向配对（A2）；`candidate.points.slice()` 防别名（A1）
-- `formatTimelineArray.ts` / `formatRecords.ts` / `formatSemanticHistory.ts` 末尾调 `stitchSegments`（S3：format1/2/3 全覆盖；入池唯一条件=含 timelinePath 键且 path≥2，无误伤）
-- `stitch.test.ts`：4 个合成单测（S1 短窗口跨越/多候选取最长/反向点序/端点拒绝）+ livedata 精确断言（2025-01-31 IN_BUS 5/5 全获得真实路径）
+**ä¿®å¤æ–¹æ¡ˆ**ï¼ˆ7674cb4 åˆç‰ˆ â†’ c2b28f3 å®¡æŸ¥åŠ å›º â†’ 802ddf7 å°¾æ¢è¡Œï¼‰ï¼š
+- `common.ts`ï¼š`ParseState.timelinePathPool` æ± åŒ–å« timelinePath çš„æ®µï¼›`findStitchCandidate` æŸ¥å€™é€‰ï¼ˆæ—¶é—´çœŸé‡å  + èµ·ç»ˆç‚¹è· trace é¦–æœ«ç‚¹ â‰¤0.02Â°â‰ˆ2kmï¼Œå–é‡å æœ€é•¿ï¼‰
+- `stitchSegments` ç»ˆ passï¼š**å”¯ä¸€ä¸€æ¬¡æŽ’åº**åŽä¸ºæ‰€æœ‰ path<2 æ®µåŒ¹é…ï¼ˆS2 ä¿®å¤ï¼šåˆ é™¤å³æ—¶å€Ÿé“åˆ†æ”¯ï¼Œä¿è¯ `>best`ï¼‰ï¼›å·¦æ‰«ç”¨ `maxEndUpTo` å‰ç¼€ maxï¼ˆS1 ä¿®å¤ï¼šendMs éžå•è°ƒä¸æ¼é…ï¼‰ï¼›åå‘é…å¯¹ï¼ˆA2ï¼‰ï¼›`candidate.points.slice()` é˜²åˆ«åï¼ˆA1ï¼‰
+- `formatTimelineArray.ts` / `formatRecords.ts` / `formatSemanticHistory.ts` æœ«å°¾è°ƒ `stitchSegments`ï¼ˆS3ï¼šformat1/2/3 å…¨è¦†ç›–ï¼›å…¥æ± å”¯ä¸€æ¡ä»¶=å« timelinePath é”®ä¸” pathâ‰¥2ï¼Œæ— è¯¯ä¼¤ï¼‰
+- `stitch.test.ts`ï¼š4 ä¸ªåˆæˆå•æµ‹ï¼ˆS1 çŸ­çª—å£è·¨è¶Š/å¤šå€™é€‰å–æœ€é•¿/åå‘ç‚¹åº/ç«¯ç‚¹æ‹’ç»ï¼‰+ livedata ç²¾ç¡®æ–­è¨€ï¼ˆ2025-01-31 IN_BUS 5/5 å…¨èŽ·å¾—çœŸå®žè·¯å¾„ï¼‰
 
-**验证**：`npm run test` 80 passed / `npm run build` ✅ / `npm run lint` 0 error ✅。livedata 实测 4s（含 JSON.parse）。129MB livedata 已 gitignore，未提交。Reviewer 两轮（S1 严重 + S2/S3 + A1/A2/A3/A5 建议）修复后**通过**。
+**éªŒè¯**ï¼š`npm run test` 80 passed / `npm run build` âœ… / `npm run lint` 0 error âœ…ã€‚livedata å®žæµ‹ 4sï¼ˆå« JSON.parseï¼‰ã€‚129MB livedata å·² gitignoreï¼Œæœªæäº¤ã€‚Reviewer ä¸¤è½®ï¼ˆS1 ä¸¥é‡ + S2/S3 + A1/A2/A3/A5 å»ºè®®ï¼‰ä¿®å¤åŽ**é€šè¿‡**ã€‚
 
-## 2026-09-14 10:00 — CEO 验收
-验收 T13.1 + T13.2：三个用户反馈全部闭环。
-1. **marker 日期加年份** ✅ — Trips tooltip 显示 YYYY-MM-DD
-2. **popup Google Maps 链接** ✅ — 点击停留点弹窗内可跳转 Google Maps
-3. **汽车移动 GPS 显示** ✅ — 真实 livedata 的 IN_BUS / IN_PASSENGER_VEHICLE 行程已缝合 timelinePath 轨迹（2025-01-31 实测 5/5 车辆段获得真实路径，路径点 6-11 个）
+## 2026-09-14 10:00 â€” CEO éªŒæ”¶
+éªŒæ”¶ T13.1 + T13.2ï¼šä¸‰ä¸ªç”¨æˆ·åé¦ˆå…¨éƒ¨é—­çŽ¯ã€‚
+1. **marker æ—¥æœŸåŠ å¹´ä»½** âœ… â€” Trips tooltip æ˜¾ç¤º YYYY-MM-DD
+2. **popup Google Maps é“¾æŽ¥** âœ… â€” ç‚¹å‡»åœç•™ç‚¹å¼¹çª—å†…å¯è·³è½¬ Google Maps
+3. **æ±½è½¦ç§»åŠ¨ GPS æ˜¾ç¤º** âœ… â€” çœŸå®ž livedata çš„ IN_BUS / IN_PASSENGER_VEHICLE è¡Œç¨‹å·²ç¼åˆ timelinePath è½¨è¿¹ï¼ˆ2025-01-31 å®žæµ‹ 5/5 è½¦è¾†æ®µèŽ·å¾—çœŸå®žè·¯å¾„ï¼Œè·¯å¾„ç‚¹ 6-11 ä¸ªï¼‰
 
-部署：三个 commit 均通过 GitHub Actions 成功部署（最新 802ddf7 线上 200）。新增 Backlog 项：livedata 完整支持延伸（visit 段与 activity 段关联展示）。
+éƒ¨ç½²ï¼šä¸‰ä¸ª commit å‡é€šè¿‡ GitHub Actions æˆåŠŸéƒ¨ç½²ï¼ˆæœ€æ–° 802ddf7 çº¿ä¸Š 200ï¼‰ã€‚æ–°å¢ž Backlog é¡¹ï¼šlivedata å®Œæ•´æ”¯æŒå»¶ä¼¸ï¼ˆvisit æ®µä¸Ž activity æ®µå…³è”å±•ç¤ºï¼‰ã€‚
 
-## 2026-09-14 07:15 — Dev
-format3（Semantic Location History）两个兼容性缺口补齐（依据 community 权威格式文档：https://locationhistoryformat.com/reference/semantic/ 与 github.com/CarlosBergillos/LocationHistoryFormat schemas/Semantic.schema.json，均确认字段存在）。
+## 2026-09-14 07:15 â€” Dev
+format3ï¼ˆSemantic Location Historyï¼‰ä¸¤ä¸ªå…¼å®¹æ€§ç¼ºå£è¡¥é½ï¼ˆä¾æ® community æƒå¨æ ¼å¼æ–‡æ¡£ï¼šhttps://locationhistoryformat.com/reference/semantic/ ä¸Ž github.com/CarlosBergillos/LocationHistoryFormat schemas/Semantic.schema.jsonï¼Œå‡ç¡®è®¤å­—æ®µå­˜åœ¨ï¼‰ã€‚
 
-**缺口 1：`placeVisit.centerLatE7 / centerLngE7`**
-- 旧版 Takeout format3 的 placeVisit 坐标可能直接是 `centerLatE7`/`centerLngE7`（整数 E7），不一定有 `location` 对象。
-- `common.ts:getLatLng` 增加 `centerLatE7`/`centerLngE7` 分支（fallback，优先级低于 `latitudeE7/longitudeE7`，用 `e7ToLat/e7ToLng` 换算）；JSON schema 限定 E7 为整数。
-- `common.ts:addVisit` 坐标解析改为 `(location ? getLatLng(location) : null) ?? getLatLng(record)`：无 `location` 对象时回退到 placeVisit 记录本身，否则 centerLatE7 永远读不到。
+**ç¼ºå£ 1ï¼š`placeVisit.centerLatE7 / centerLngE7`**
+- æ—§ç‰ˆ Takeout format3 çš„ placeVisit åæ ‡å¯èƒ½ç›´æŽ¥æ˜¯ `centerLatE7`/`centerLngE7`ï¼ˆæ•´æ•° E7ï¼‰ï¼Œä¸ä¸€å®šæœ‰ `location` å¯¹è±¡ã€‚
+- `common.ts:getLatLng` å¢žåŠ  `centerLatE7`/`centerLngE7` åˆ†æ”¯ï¼ˆfallbackï¼Œä¼˜å…ˆçº§ä½ŽäºŽ `latitudeE7/longitudeE7`ï¼Œç”¨ `e7ToLat/e7ToLng` æ¢ç®—ï¼‰ï¼›JSON schema é™å®š E7 ä¸ºæ•´æ•°ã€‚
+- `common.ts:addVisit` åæ ‡è§£æžæ”¹ä¸º `(location ? getLatLng(location) : null) ?? getLatLng(record)`ï¼šæ—  `location` å¯¹è±¡æ—¶å›žé€€åˆ° placeVisit è®°å½•æœ¬èº«ï¼Œå¦åˆ™ centerLatE7 æ°¸è¿œè¯»ä¸åˆ°ã€‚
 
-**缺口 2：`activitySegment.transitPath.transitStops[]`**
-- transitPath 是 `{ transitStops: [{ latitudeE7, longitudeE7, placeId, address, name }...] }` 公交站列表，不是点数组。原 `PATH_KEYS` 已含 `transitPath`，但 `pathToPoints` 对 object 只查 `waypoints/points/path` → 返回空，段起终点全靠 startLocation/endLocation。
-- `common.ts:pathToPoints` 在链中插入 `Array.isArray(record['transitStops']) ? record['transitStops'] : ...`；元素经 `pointFromPathElement → getLatLng` 直接解析 `latitudeE7/longitudeE7`。
+**ç¼ºå£ 2ï¼š`activitySegment.transitPath.transitStops[]`**
+- transitPath æ˜¯ `{ transitStops: [{ latitudeE7, longitudeE7, placeId, address, name }...] }` å…¬äº¤ç«™åˆ—è¡¨ï¼Œä¸æ˜¯ç‚¹æ•°ç»„ã€‚åŽŸ `PATH_KEYS` å·²å« `transitPath`ï¼Œä½† `pathToPoints` å¯¹ object åªæŸ¥ `waypoints/points/path` â†’ è¿”å›žç©ºï¼Œæ®µèµ·ç»ˆç‚¹å…¨é  startLocation/endLocationã€‚
+- `common.ts:pathToPoints` åœ¨é“¾ä¸­æ’å…¥ `Array.isArray(record['transitStops']) ? record['transitStops'] : ...`ï¼›å…ƒç´ ç» `pointFromPathElement â†’ getLatLng` ç›´æŽ¥è§£æž `latitudeE7/longitudeE7`ã€‚
 
-**测试**（`src/lib/parse/__tests__/format3Compat.test.ts`，新增 7 个）：getLatLng centerE7 换算 + 优先级 + 缺字段返回 null；addVisit 解析仅含 centerLatE7 的 placeVisit；transitStops 多点提取；仅 transitPath 的 activitySegment 解析；完整 format3 文件混合两种 shape 的端到端解析。
+**æµ‹è¯•**ï¼ˆ`src/lib/parse/__tests__/format3Compat.test.ts`ï¼Œæ–°å¢ž 7 ä¸ªï¼‰ï¼šgetLatLng centerE7 æ¢ç®— + ä¼˜å…ˆçº§ + ç¼ºå­—æ®µè¿”å›ž nullï¼›addVisit è§£æžä»…å« centerLatE7 çš„ placeVisitï¼›transitStops å¤šç‚¹æå–ï¼›ä»… transitPath çš„ activitySegment è§£æžï¼›å®Œæ•´ format3 æ–‡ä»¶æ··åˆä¸¤ç§ shape çš„ç«¯åˆ°ç«¯è§£æžã€‚
 
-**验证**：`npm run test` **87 passed**（80 回归 + 7 新增）✅ / `npm run build` ✅（tsc + vite）/ `npm run lint` 0 error ✅。livedata 未改未提交。
+**éªŒè¯**ï¼š`npm run test` **87 passed**ï¼ˆ80 å›žå½’ + 7 æ–°å¢žï¼‰âœ… / `npm run build` âœ…ï¼ˆtsc + viteï¼‰/ `npm run lint` 0 error âœ…ã€‚livedata æœªæ”¹æœªæäº¤ã€‚
 
-## 2026-09-14 11:30 — Dev + CEO
-依据 community 权威格式文档（locationhistoryformat.com / CarlosBergillos/LocationHistoryFormat，含官方 JSON Schema）补齐 format3（Semantic Location History）两个兼容性缺口。
+## 2026-09-14 11:30 â€” Dev + CEO
+ä¾æ® community æƒå¨æ ¼å¼æ–‡æ¡£ï¼ˆlocationhistoryformat.com / CarlosBergillos/LocationHistoryFormatï¼Œå«å®˜æ–¹ JSON Schemaï¼‰è¡¥é½ format3ï¼ˆSemantic Location Historyï¼‰ä¸¤ä¸ªå…¼å®¹æ€§ç¼ºå£ã€‚
 
-**价值评估**：该网站是 Google Location History 格式的权威参考（Records.json / Settings.json / Timeline Edits.json / Semantic Location History，附官方 JSON Schema）。对照后确认我们的核心覆盖正确，但发现 2 个 format3 缺口。用户 livedata（新版设备导出 semanticSegments）不受影响，此轮为公开项目 format3 兼容性加分。
+**ä»·å€¼è¯„ä¼°**ï¼šè¯¥ç½‘ç«™æ˜¯ Google Location History æ ¼å¼çš„æƒå¨å‚è€ƒï¼ˆRecords.json / Settings.json / Timeline Edits.json / Semantic Location Historyï¼Œé™„å®˜æ–¹ JSON Schemaï¼‰ã€‚å¯¹ç…§åŽç¡®è®¤æˆ‘ä»¬çš„æ ¸å¿ƒè¦†ç›–æ­£ç¡®ï¼Œä½†å‘çŽ° 2 ä¸ª format3 ç¼ºå£ã€‚ç”¨æˆ· livedataï¼ˆæ–°ç‰ˆè®¾å¤‡å¯¼å‡º semanticSegmentsï¼‰ä¸å—å½±å“ï¼Œæ­¤è½®ä¸ºå…¬å¼€é¡¹ç›® format3 å…¼å®¹æ€§åŠ åˆ†ã€‚
 
-**修复**（0a0d568）：
-- `common.ts:getLatLng` 新增 `centerLatE7/centerLngE7` 分支（优先级低于 latitudeE7/longitudeE7）
-- `common.ts:pathToPoints` 对象分支链补 `transitStops`（transitPath 是 {transitStops:[{latitudeE7,longitudeE7}...]} 公交站列表，原解析为空）
-- `common.ts:addVisit` 坐标解析回退 `(location ? getLatLng(location) : null) ?? getLatLng(record)`，使无 location 但带 centerLatE7 的 placeVisit 能解析
-- 新增 `format3Compat.test.ts`（7 测试）
+**ä¿®å¤**ï¼ˆ0a0d568ï¼‰ï¼š
+- `common.ts:getLatLng` æ–°å¢ž `centerLatE7/centerLngE7` åˆ†æ”¯ï¼ˆä¼˜å…ˆçº§ä½ŽäºŽ latitudeE7/longitudeE7ï¼‰
+- `common.ts:pathToPoints` å¯¹è±¡åˆ†æ”¯é“¾è¡¥ `transitStops`ï¼ˆtransitPath æ˜¯ {transitStops:[{latitudeE7,longitudeE7}...]} å…¬äº¤ç«™åˆ—è¡¨ï¼ŒåŽŸè§£æžä¸ºç©ºï¼‰
+- `common.ts:addVisit` åæ ‡è§£æžå›žé€€ `(location ? getLatLng(location) : null) ?? getLatLng(record)`ï¼Œä½¿æ—  location ä½†å¸¦ centerLatE7 çš„ placeVisit èƒ½è§£æž
+- æ–°å¢ž `format3Compat.test.ts`ï¼ˆ7 æµ‹è¯•ï¼‰
 
-**验证**：`npm run test` 87 passed（80 回归 + 7 新增）/ build ✅ / lint 0 error ✅。Reviewer 审查通过（3 条建议级遗留，不阻塞）。已部署 0a0d568，线上 200。
+**éªŒè¯**ï¼š`npm run test` 87 passedï¼ˆ80 å›žå½’ + 7 æ–°å¢žï¼‰/ build âœ… / lint 0 error âœ…ã€‚Reviewer å®¡æŸ¥é€šè¿‡ï¼ˆ3 æ¡å»ºè®®çº§é—ç•™ï¼Œä¸é˜»å¡žï¼‰ã€‚å·²éƒ¨ç½² 0a0d568ï¼Œçº¿ä¸Š 200ã€‚
 
-## 2026-09-14 07:56 — Dev
-Reviewer 一般项 1：`budgetRoutePoints` 预算上限可被击穿（Math.max(1, round(len*ratio)) 逐段 floor 1，12000 段×2 点 → 12000 > ROUTE_POINT_CAP）。修复：展平所有 path 点后整体 strideTake（保两端），总点数保证 ≤ cap；更新 docstring。新增回归测试（3000 段×2 点，断言输出 ≤5000）。test 97 passed / build ✅ / lint 0 error。
+## 2026-09-14 07:56 â€” Dev
+Reviewer ä¸€èˆ¬é¡¹ 1ï¼š`budgetRoutePoints` é¢„ç®—ä¸Šé™å¯è¢«å‡»ç©¿ï¼ˆMath.max(1, round(len*ratio)) é€æ®µ floor 1ï¼Œ12000 æ®µÃ—2 ç‚¹ â†’ 12000 > ROUTE_POINT_CAPï¼‰ã€‚ä¿®å¤ï¼šå±•å¹³æ‰€æœ‰ path ç‚¹åŽæ•´ä½“ strideTakeï¼ˆä¿ä¸¤ç«¯ï¼‰ï¼Œæ€»ç‚¹æ•°ä¿è¯ â‰¤ capï¼›æ›´æ–° docstringã€‚æ–°å¢žå›žå½’æµ‹è¯•ï¼ˆ3000 æ®µÃ—2 ç‚¹ï¼Œæ–­è¨€è¾“å‡º â‰¤5000ï¼‰ã€‚test 97 passed / build âœ… / lint 0 errorã€‚
 
-## 2026-09-14 14:30 — CEO 验收 T13.3
-用户反馈 2026-01-30 移动点不够 + 路线点要显示。
+## 2026-09-14 14:30 â€” CEO éªŒæ”¶ T13.3
+ç”¨æˆ·åé¦ˆ 2026-01-30 ç§»åŠ¨ç‚¹ä¸å¤Ÿ + è·¯çº¿ç‚¹è¦æ˜¾ç¤ºã€‚
 
-**根因（CEO 定位）**：Google timelinePath 是 2 小时窗口连续轨迹（平均 ~10 点），activity 是其中一段短途行程。旧 `findStitchCandidate` 要求 activity 端点≡trace 首末点 → 中途行程（约 64%，如 16:15-16:33 落在 16:00-18:00 trace 的第 0-4 点）缝合失败 path=0。另确认 2026-01-30 **无 rawSignals**（该导出仅 2026-07/08 有原始信号），轨迹只能靠 timelinePath。
+**æ ¹å› ï¼ˆCEO å®šä½ï¼‰**ï¼šGoogle timelinePath æ˜¯ 2 å°æ—¶çª—å£è¿žç»­è½¨è¿¹ï¼ˆå¹³å‡ ~10 ç‚¹ï¼‰ï¼Œactivity æ˜¯å…¶ä¸­ä¸€æ®µçŸ­é€”è¡Œç¨‹ã€‚æ—§ `findStitchCandidate` è¦æ±‚ activity ç«¯ç‚¹â‰¡trace é¦–æœ«ç‚¹ â†’ ä¸­é€”è¡Œç¨‹ï¼ˆçº¦ 64%ï¼Œå¦‚ 16:15-16:33 è½åœ¨ 16:00-18:00 trace çš„ç¬¬ 0-4 ç‚¹ï¼‰ç¼åˆå¤±è´¥ path=0ã€‚å¦ç¡®è®¤ 2026-01-30 **æ—  rawSignals**ï¼ˆè¯¥å¯¼å‡ºä»… 2026-07/08 æœ‰åŽŸå§‹ä¿¡å·ï¼‰ï¼Œè½¨è¿¹åªèƒ½é  timelinePathã€‚
 
-**修复**（33b2e13 + 918a57a）：
-- 改动 1：`findStitchCandidate` 改语义——trace 内找与 activity start/end 最近的点对（MAX_STITCH_DEG=0.02°），取子段 `slice(i,j+1)` 返回；i==j 拒绝单点退化；反向极端配对兼容；时间重叠闸门保留防跨时段误缝。16:15 实测 path=0 → **path=5**（精确 16:15→16:33），16:42 path=10（16:42→17:19），17:57 path=4。
-- 改动 2：`trips.ts:budgetRoutePoints` 拍平 path 点 + ROUTE_POINT_CAP=5000 整体 strideTake 保两端（严格 ≤cap，修复逐段 floor 击穿）；`TripMap.tsx` Polyline 之上、停留 marker 之下渲染 CircleMarker（radius 3 同色系，选中降透明度）；`TripsPage` 顶栏「显示/隐藏轨迹点」toggle 默认开。
+**ä¿®å¤**ï¼ˆ33b2e13 + 918a57aï¼‰ï¼š
+- æ”¹åŠ¨ 1ï¼š`findStitchCandidate` æ”¹è¯­ä¹‰â€”â€”trace å†…æ‰¾ä¸Ž activity start/end æœ€è¿‘çš„ç‚¹å¯¹ï¼ˆMAX_STITCH_DEG=0.02Â°ï¼‰ï¼Œå–å­æ®µ `slice(i,j+1)` è¿”å›žï¼›i==j æ‹’ç»å•ç‚¹é€€åŒ–ï¼›åå‘æžç«¯é…å¯¹å…¼å®¹ï¼›æ—¶é—´é‡å é—¸é—¨ä¿ç•™é˜²è·¨æ—¶æ®µè¯¯ç¼ã€‚16:15 å®žæµ‹ path=0 â†’ **path=5**ï¼ˆç²¾ç¡® 16:15â†’16:33ï¼‰ï¼Œ16:42 path=10ï¼ˆ16:42â†’17:19ï¼‰ï¼Œ17:57 path=4ã€‚
+- æ”¹åŠ¨ 2ï¼š`trips.ts:budgetRoutePoints` æ‹å¹³ path ç‚¹ + ROUTE_POINT_CAP=5000 æ•´ä½“ strideTake ä¿ä¸¤ç«¯ï¼ˆä¸¥æ ¼ â‰¤capï¼Œä¿®å¤é€æ®µ floor å‡»ç©¿ï¼‰ï¼›`TripMap.tsx` Polyline ä¹‹ä¸Šã€åœç•™ marker ä¹‹ä¸‹æ¸²æŸ“ CircleMarkerï¼ˆradius 3 åŒè‰²ç³»ï¼Œé€‰ä¸­é™é€æ˜Žåº¦ï¼‰ï¼›`TripsPage` é¡¶æ ã€Œæ˜¾ç¤º/éšè—è½¨è¿¹ç‚¹ã€toggle é»˜è®¤å¼€ã€‚
 
-**验证**：97 tests（87 回归 + 9 缝合 + 1 预算）✅ / build ✅ / lint ✅。Reviewer 两轮：首轮通过（5 条一般/建议记录放行），预算上限一般项已由 918a57a 修复。已部署，线上 200。
+**éªŒè¯**ï¼š97 testsï¼ˆ87 å›žå½’ + 9 ç¼åˆ + 1 é¢„ç®—ï¼‰âœ… / build âœ… / lint âœ…ã€‚Reviewer ä¸¤è½®ï¼šé¦–è½®é€šè¿‡ï¼ˆ5 æ¡ä¸€èˆ¬/å»ºè®®è®°å½•æ”¾è¡Œï¼‰ï¼Œé¢„ç®—ä¸Šé™ä¸€èˆ¬é¡¹å·²ç”± 918a57a ä¿®å¤ã€‚å·²éƒ¨ç½²ï¼Œçº¿ä¸Š 200ã€‚
 
-## 2026-09-14 16:20 — CEO 数据格式研究（rawSignals 窗口 / 时区 / 双文件对齐）
-用户提供第二份真实导出 `Timeline-20250213.json`（Takeout）。深入研究发现：
+## 2026-09-14 16:20 â€” CEO æ•°æ®æ ¼å¼ç ”ç©¶ï¼ˆrawSignals çª—å£ / æ—¶åŒº / åŒæ–‡ä»¶å¯¹é½ï¼‰
+ç”¨æˆ·æä¾›ç¬¬äºŒä»½çœŸå®žå¯¼å‡º `Timeline-20250213.json`ï¼ˆTakeoutï¼‰ã€‚æ·±å…¥ç ”ç©¶å‘çŽ°ï¼š
 
-**① 两文件 schema 完全一致**（顶层 semanticSegments + rawSignals + userLocationProfile 及其子字段逐项相同）→ Android Timeline Export 与 Takeout 输出**同一种新版扁平格式**。
+**â‘  ä¸¤æ–‡ä»¶ schema å®Œå…¨ä¸€è‡´**ï¼ˆé¡¶å±‚ semanticSegments + rawSignals + userLocationProfile åŠå…¶å­å­—æ®µé€é¡¹ç›¸åŒï¼‰â†’ Android Timeline Export ä¸Ž Takeout è¾“å‡º**åŒä¸€ç§æ–°ç‰ˆæ‰å¹³æ ¼å¼**ã€‚
 
-**② rawSignals = 滚动 ~29 天窗口，semanticSegments = 永久历史**：
-- 20250213: rawSignals 2025-01-14→02-13；semanticSegments 2012-12-30→2025-02-13
-- 20260820: rawSignals 2026-07-21→08-20；semanticSegments 2012-12-30→2026-08-20
-- 同段原始信号（2025-01/02）在后期导出中消失 → Google 服务器滚动清除，任何方式拿不回
-- 推论：定期 ≤30 天导出存档 rawSignals，天然互补可 merge
+**â‘¡ rawSignals = æ»šåŠ¨ ~29 å¤©çª—å£ï¼ŒsemanticSegments = æ°¸ä¹…åŽ†å²**ï¼š
+- 20250213: rawSignals 2025-01-14â†’02-13ï¼›semanticSegments 2012-12-30â†’2025-02-13
+- 20260820: rawSignals 2026-07-21â†’08-20ï¼›semanticSegments 2012-12-30â†’2026-08-20
+- åŒæ®µåŽŸå§‹ä¿¡å·ï¼ˆ2025-01/02ï¼‰åœ¨åŽæœŸå¯¼å‡ºä¸­æ¶ˆå¤± â†’ Google æœåŠ¡å™¨æ»šåŠ¨æ¸…é™¤ï¼Œä»»ä½•æ–¹å¼æ‹¿ä¸å›ž
+- æŽ¨è®ºï¼šå®šæœŸ â‰¤30 å¤©å¯¼å‡ºå­˜æ¡£ rawSignalsï¼Œå¤©ç„¶äº’è¡¥å¯ merge
 
-**③ 2025-01-30/31 双文件可精确对齐**：timelinePath 64=64 逐点相等；两文件仅「导出粒度/字段丰富度/activity 重分类」差异，语义不冲突。
+**â‘¢ 2025-01-30/31 åŒæ–‡ä»¶å¯ç²¾ç¡®å¯¹é½**ï¼štimelinePath 64=64 é€ç‚¹ç›¸ç­‰ï¼›ä¸¤æ–‡ä»¶ä»…ã€Œå¯¼å‡ºç²’åº¦/å­—æ®µä¸°å¯Œåº¦/activity é‡åˆ†ç±»ã€å·®å¼‚ï¼Œè¯­ä¹‰ä¸å†²çªã€‚
 
-**④ 时区陷阱（未修，KIV）**：`parseInputDate` 用本地(+08)日筛选，但 `startOfDayMs`/`dayKeyOf` 用 UTC 日分组 → 凌晨 00:00-07:59(+08) 段被归到「前一天」。实测 2025-01-30 有 3 段因此标错日。
+**â‘£ æ—¶åŒºé™·é˜±ï¼ˆæœªä¿®ï¼ŒKIVï¼‰**ï¼š`parseInputDate` ç”¨æœ¬åœ°(+08)æ—¥ç­›é€‰ï¼Œä½† `startOfDayMs`/`dayKeyOf` ç”¨ UTC æ—¥åˆ†ç»„ â†’ å‡Œæ™¨ 00:00-07:59(+08) æ®µè¢«å½’åˆ°ã€Œå‰ä¸€å¤©ã€ã€‚å®žæµ‹ 2025-01-30 æœ‰ 3 æ®µå› æ­¤æ ‡é”™æ—¥ã€‚
 
-**⑤ 解析器现状 bug（KIV T13.6）**：`parseFormat1` 只收 `semanticSegments`，**rawSignals 整段丢弃**（两文件各 5 万+条 position 全丢）；且 `getLatLng` 不认识大写 `LatLng`、`addRawPoint` 拿不到嵌套 `position.timestamp`。
+**â‘¤ è§£æžå™¨çŽ°çŠ¶ bugï¼ˆKIV T13.6ï¼‰**ï¼š`parseFormat1` åªæ”¶ `semanticSegments`ï¼Œ**rawSignals æ•´æ®µä¸¢å¼ƒ**ï¼ˆä¸¤æ–‡ä»¶å„ 5 ä¸‡+æ¡ position å…¨ä¸¢ï¼‰ï¼›ä¸” `getLatLng` ä¸è®¤è¯†å¤§å†™ `LatLng`ã€`addRawPoint` æ‹¿ä¸åˆ°åµŒå¥— `position.timestamp`ã€‚
 
-**建档**：docs/DATA-FINDINGS.md（全部领域知识沉淀）。
-## 2026-09-14 18:00 — Dev 收尾 T13.6 / T13.7
-完成 format1 rawSignals 解析接入 + 本地时区分组修复，自测全绿后交 Reviewer。
+**å»ºæ¡£**ï¼šdocs/DATA-FINDINGS.mdï¼ˆå…¨éƒ¨é¢†åŸŸçŸ¥è¯†æ²‰æ·€ï¼‰ã€‚
+## 2026-09-14 18:00 â€” Dev æ”¶å°¾ T13.6 / T13.7
+å®Œæˆ format1 rawSignals è§£æžæŽ¥å…¥ + æœ¬åœ°æ—¶åŒºåˆ†ç»„ä¿®å¤ï¼Œè‡ªæµ‹å…¨ç»¿åŽäº¤ Reviewerã€‚
 
-**改动清单**：
-- `src/lib/parse/common.ts`：`getLatLng` 坐标 key 增加大写 `LatLng`（`['latLng','LatLng','coordinates']`）；`addRawPoint` 优先从嵌套 `position` 包装解析坐标/时间/精度，回退扁平 record；`parseSemanticElement` 对 `timelineMemory` 静默跳过（文档化"忽略"类型，不再每条误报 `无法识别的语义段`）。
-- `src/lib/parse/formatTimelineArray.ts`：支持对象根 `{semanticSegments, rawSignals}` 与 per-day 数组元素；`parseRawSignals`/`parseRawSignal` 路由：position→点、wifiScan/activityRecord→静默跳过、旧式扁平兜底；仅含 rawSignals 的元素也可解析；末尾仍 stitchSegments 缝合。
-- `src/lib/parse/index.ts`：对象根改传整个 record 给 parseFormat1（原只传数组 → rawSignals 全丢）。
-- `src/lib/trips.ts`：`startOfDayMs` 本地时区 `new Date(y,m,d)`、`dayKeyOf=toInputDate(ms)` 对齐日期筛选器；`RAW_POINT_CAP=20000`（超出抽稀 + `downsampled` 标记）、`filterRawPoints`、`PreparedTrips.points`、`prepareTrips(points=[])`。
-- `src/components/TripMap.tsx`：`rawPoints` prop，Polyline 之下灰点 CircleMarker（r=2，#9ca3af，选中停留时降透明度），`showRoutePoints` 可关。
-- `src/pages/TripsPage.tsx`：`prepareTrips(data.segments, data.visits, dateRange, data.points)` 第 4 参接入；两个 TripMap 实例传 `rawPoints`；summary 增 `· N 原始点`。
-- 测试：`trips.test.ts`（旧 UTC 日测试改本地断言+理由注释；T13.7 三用例：22:00→前一日、00:30/04:00/06:00→当日且 startOfDayMs==parseInputDate、地图同日本地分组；raw 点四用例：筛选/携带/抽稀/范围外排除）、`parse/__tests__/rawSignals.test.ts`（新建：位置类目大写 LatLng+嵌套 timestamp+精度、扁平兼容、静默跳过类目、缺坐标告警、direct array、livedata 精确计数）、`parse.test.ts`（timelineMemory 静默）、`sample.test.ts`（样例 432 扁平点全进点流）。
+**æ”¹åŠ¨æ¸…å•**ï¼š
+- `src/lib/parse/common.ts`ï¼š`getLatLng` åæ ‡ key å¢žåŠ å¤§å†™ `LatLng`ï¼ˆ`['latLng','LatLng','coordinates']`ï¼‰ï¼›`addRawPoint` ä¼˜å…ˆä»ŽåµŒå¥— `position` åŒ…è£…è§£æžåæ ‡/æ—¶é—´/ç²¾åº¦ï¼Œå›žé€€æ‰å¹³ recordï¼›`parseSemanticElement` å¯¹ `timelineMemory` é™é»˜è·³è¿‡ï¼ˆæ–‡æ¡£åŒ–"å¿½ç•¥"ç±»åž‹ï¼Œä¸å†æ¯æ¡è¯¯æŠ¥ `æ— æ³•è¯†åˆ«çš„è¯­ä¹‰æ®µ`ï¼‰ã€‚
+- `src/lib/parse/formatTimelineArray.ts`ï¼šæ”¯æŒå¯¹è±¡æ ¹ `{semanticSegments, rawSignals}` ä¸Ž per-day æ•°ç»„å…ƒç´ ï¼›`parseRawSignals`/`parseRawSignal` è·¯ç”±ï¼špositionâ†’ç‚¹ã€wifiScan/activityRecordâ†’é™é»˜è·³è¿‡ã€æ—§å¼æ‰å¹³å…œåº•ï¼›ä»…å« rawSignals çš„å…ƒç´ ä¹Ÿå¯è§£æžï¼›æœ«å°¾ä» stitchSegments ç¼åˆã€‚
+- `src/lib/parse/index.ts`ï¼šå¯¹è±¡æ ¹æ”¹ä¼ æ•´ä¸ª record ç»™ parseFormat1ï¼ˆåŽŸåªä¼ æ•°ç»„ â†’ rawSignals å…¨ä¸¢ï¼‰ã€‚
+- `src/lib/trips.ts`ï¼š`startOfDayMs` æœ¬åœ°æ—¶åŒº `new Date(y,m,d)`ã€`dayKeyOf=toInputDate(ms)` å¯¹é½æ—¥æœŸç­›é€‰å™¨ï¼›`RAW_POINT_CAP=20000`ï¼ˆè¶…å‡ºæŠ½ç¨€ + `downsampled` æ ‡è®°ï¼‰ã€`filterRawPoints`ã€`PreparedTrips.points`ã€`prepareTrips(points=[])`ã€‚
+- `src/components/TripMap.tsx`ï¼š`rawPoints` propï¼ŒPolyline ä¹‹ä¸‹ç°ç‚¹ CircleMarkerï¼ˆr=2ï¼Œ#9ca3afï¼Œé€‰ä¸­åœç•™æ—¶é™é€æ˜Žåº¦ï¼‰ï¼Œ`showRoutePoints` å¯å…³ã€‚
+- `src/pages/TripsPage.tsx`ï¼š`prepareTrips(data.segments, data.visits, dateRange, data.points)` ç¬¬ 4 å‚æŽ¥å…¥ï¼›ä¸¤ä¸ª TripMap å®žä¾‹ä¼  `rawPoints`ï¼›summary å¢ž `Â· N åŽŸå§‹ç‚¹`ã€‚
+- æµ‹è¯•ï¼š`trips.test.ts`ï¼ˆæ—§ UTC æ—¥æµ‹è¯•æ”¹æœ¬åœ°æ–­è¨€+ç†ç”±æ³¨é‡Šï¼›T13.7 ä¸‰ç”¨ä¾‹ï¼š22:00â†’å‰ä¸€æ—¥ã€00:30/04:00/06:00â†’å½“æ—¥ä¸” startOfDayMs==parseInputDateã€åœ°å›¾åŒæ—¥æœ¬åœ°åˆ†ç»„ï¼›raw ç‚¹å››ç”¨ä¾‹ï¼šç­›é€‰/æºå¸¦/æŠ½ç¨€/èŒƒå›´å¤–æŽ’é™¤ï¼‰ã€`parse/__tests__/rawSignals.test.ts`ï¼ˆæ–°å»ºï¼šä½ç½®ç±»ç›®å¤§å†™ LatLng+åµŒå¥— timestamp+ç²¾åº¦ã€æ‰å¹³å…¼å®¹ã€é™é»˜è·³è¿‡ç±»ç›®ã€ç¼ºåæ ‡å‘Šè­¦ã€direct arrayã€livedata ç²¾ç¡®è®¡æ•°ï¼‰ã€`parse.test.ts`ï¼ˆtimelineMemory é™é»˜ï¼‰ã€`sample.test.ts`ï¼ˆæ ·ä¾‹ 432 æ‰å¹³ç‚¹å…¨è¿›ç‚¹æµï¼‰ã€‚
 
-**关键数据**（真实验证）：
-- `docs/livedata/Timeline-20250213.json`：rawSignals=50662 → position 11773 / activityRecord 28028 / wifiScan 10861；解析出 **11773 个原始点**，0 warning。
-- `docs/livedata/Timeline-20260820.json`：rawSignals=55509 → position 15479；解析出 **15479 个原始点**，0 warning。
-- 时区核对：2025 文件全量 **17284** 段旧 UTC 分组错日（全部为本地凌晨 00:00–07:59 段）；2025-01-30 凌晨实测 04:00、06:00 两段此前标成 01-29，现归 01-30；22:00 段归属不变（合法属 01-29）。
+**å…³é”®æ•°æ®**ï¼ˆçœŸå®žéªŒè¯ï¼‰ï¼š
+- `docs/livedata/Timeline-20250213.json`ï¼šrawSignals=50662 â†’ position 11773 / activityRecord 28028 / wifiScan 10861ï¼›è§£æžå‡º **11773 ä¸ªåŽŸå§‹ç‚¹**ï¼Œ0 warningã€‚
+- `docs/livedata/Timeline-20260820.json`ï¼šrawSignals=55509 â†’ position 15479ï¼›è§£æžå‡º **15479 ä¸ªåŽŸå§‹ç‚¹**ï¼Œ0 warningã€‚
+- æ—¶åŒºæ ¸å¯¹ï¼š2025 æ–‡ä»¶å…¨é‡ **17284** æ®µæ—§ UTC åˆ†ç»„é”™æ—¥ï¼ˆå…¨éƒ¨ä¸ºæœ¬åœ°å‡Œæ™¨ 00:00â€“07:59 æ®µï¼‰ï¼›2025-01-30 å‡Œæ™¨å®žæµ‹ 04:00ã€06:00 ä¸¤æ®µæ­¤å‰æ ‡æˆ 01-29ï¼ŒçŽ°å½’ 01-30ï¼›22:00 æ®µå½’å±žä¸å˜ï¼ˆåˆæ³•å±ž 01-29ï¼‰ã€‚
 
-**验证**：`npm run test` 97 → **111** passed（+rawSignals 6、+T13.7/raw 点 7、+timelineMemory 1）/ `npm run build`（tsc + vite）✅ / `npm run lint` 0 error。未 commit、未部署 —— 待 Reviewer 审查。
+**éªŒè¯**ï¼š`npm run test` 97 â†’ **111** passedï¼ˆ+rawSignals 6ã€+T13.7/raw ç‚¹ 7ã€+timelineMemory 1ï¼‰/ `npm run build`ï¼ˆtsc + viteï¼‰âœ… / `npm run lint` 0 errorã€‚æœª commitã€æœªéƒ¨ç½² â€”â€” å¾… Reviewer å®¡æŸ¥ã€‚
 
-**额外发现（供评审参考）**：① 未被识别的语义段全部是 `timelineMemory`（记忆，无坐标），已修复为静默跳过；② trips.test.ts 保留的 `toInputDate(Date.UTC(...))`/`fmtRangeLabel(Date.UTC(...))` 断言在负时区 CI 会漂移（+08 通过）—— 现有遗留，未动。
-## 2026-09-14 18:30 — Dev 修复 T13.6 S1（Reviewer 打回）
-Reviewer 结论：T13.7 通过；T13.6 打回，S1 必须修。
+**é¢å¤–å‘çŽ°ï¼ˆä¾›è¯„å®¡å‚è€ƒï¼‰**ï¼šâ‘  æœªè¢«è¯†åˆ«çš„è¯­ä¹‰æ®µå…¨éƒ¨æ˜¯ `timelineMemory`ï¼ˆè®°å¿†ï¼Œæ— åæ ‡ï¼‰ï¼Œå·²ä¿®å¤ä¸ºé™é»˜è·³è¿‡ï¼›â‘¡ trips.test.ts ä¿ç•™çš„ `toInputDate(Date.UTC(...))`/`fmtRangeLabel(Date.UTC(...))` æ–­è¨€åœ¨è´Ÿæ—¶åŒº CI ä¼šæ¼‚ç§»ï¼ˆ+08 é€šè¿‡ï¼‰â€”â€” çŽ°æœ‰é—ç•™ï¼ŒæœªåŠ¨ã€‚
+## 2026-09-14 18:30 â€” Dev ä¿®å¤ T13.6 S1ï¼ˆReviewer æ‰“å›žï¼‰
+Reviewer ç»“è®ºï¼šT13.7 é€šè¿‡ï¼›T13.6 æ‰“å›žï¼ŒS1 å¿…é¡»ä¿®ã€‚
 
-**S1（必须修）**：`TripsPage.tsx:107` `prepareTrips(data.segments, data.visits, dateRange)` 漏传第 4 参 `data.points` → `prepared.points` 恒空 → 两个 TripMap 的 `rawPoints` 空、summary「· N 原始点」永不显示，UI 渲染链路为死代码。
+**S1ï¼ˆå¿…é¡»ä¿®ï¼‰**ï¼š`TripsPage.tsx:107` `prepareTrips(data.segments, data.visits, dateRange)` æ¼ä¼ ç¬¬ 4 å‚ `data.points` â†’ `prepared.points` æ’ç©º â†’ ä¸¤ä¸ª TripMap çš„ `rawPoints` ç©ºã€summaryã€ŒÂ· N åŽŸå§‹ç‚¹ã€æ°¸ä¸æ˜¾ç¤ºï¼ŒUI æ¸²æŸ“é“¾è·¯ä¸ºæ­»ä»£ç ã€‚
 
-**修复**：
-- `src/lib/trips.ts` 新增 `prepareTripsForData(data, range)` —— 页面级唯一接线入口，内部 `prepareTrips(data.segments, data.visits, range, data.points)`，注释写明回归风险。
-- `src/pages/TripsPage.tsx:107` 改用 `prepareTripsForData(data, dateRange)`（依赖数组 `[data, dateRange]` 已含 data，未动）。
+**ä¿®å¤**ï¼š
+- `src/lib/trips.ts` æ–°å¢ž `prepareTripsForData(data, range)` â€”â€” é¡µé¢çº§å”¯ä¸€æŽ¥çº¿å…¥å£ï¼Œå†…éƒ¨ `prepareTrips(data.segments, data.visits, range, data.points)`ï¼Œæ³¨é‡Šå†™æ˜Žå›žå½’é£Žé™©ã€‚
+- `src/pages/TripsPage.tsx:107` æ”¹ç”¨ `prepareTripsForData(data, dateRange)`ï¼ˆä¾èµ–æ•°ç»„ `[data, dateRange]` å·²å« dataï¼ŒæœªåŠ¨ï¼‰ã€‚
 
-**链路断言（防复发）**：`trips.test.ts` 新增 describe「TripsPage wiring (prepareTripsForData)」——构造带 points 的完整 `TimelineData`，断言页面消费的 payload：范围内 2 点穿透进 `prepared.points`（TripMap `rawPoints` 与 summary「原始点」的非空前提），范围外点不入。若今后接线再丢 `data.points`，此测试即失败。
+**é“¾è·¯æ–­è¨€ï¼ˆé˜²å¤å‘ï¼‰**ï¼š`trips.test.ts` æ–°å¢ž describeã€ŒTripsPage wiring (prepareTripsForData)ã€â€”â€”æž„é€ å¸¦ points çš„å®Œæ•´ `TimelineData`ï¼Œæ–­è¨€é¡µé¢æ¶ˆè´¹çš„ payloadï¼šèŒƒå›´å†… 2 ç‚¹ç©¿é€è¿› `prepared.points`ï¼ˆTripMap `rawPoints` ä¸Ž summaryã€ŒåŽŸå§‹ç‚¹ã€çš„éžç©ºå‰æï¼‰ï¼ŒèŒƒå›´å¤–ç‚¹ä¸å…¥ã€‚è‹¥ä»ŠåŽæŽ¥çº¿å†ä¸¢ `data.points`ï¼Œæ­¤æµ‹è¯•å³å¤±è´¥ã€‚
 
-**回归**：`npm run test` 111 → **112** passed / build（tsc+vite）✅ / lint 0 error。未 commit、未部署。
+**å›žå½’**ï¼š`npm run test` 111 â†’ **112** passed / buildï¼ˆtsc+viteï¼‰âœ… / lint 0 errorã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
 
-**归档（本轮不修，供后续参考）**：
-- A1: `RAW_POINT_CAP=20000` 整量渲染 1.5 万+ marker 潜在卡顿 → 建议降 cap 或分层预算（raw 点与路线点共预算）。
-- A2: `formatTimelineArray` 对象分支无 semanticSegments 但有 rawSignals 时丢弃 → 与 rawSignals 独立解析的行为不一致。
-- N1: 既有 `toInputDate(Date.UTC(...))` / `fmtRangeLabel(Date.UTC(...))` 断言在负时区 CI 漂移（+08 通过）。
-- N2: `endOfDayMs` 用 `startOfDayMs + DAY_MS - 1`，跨夏令时转换地区日长断言会有 ±1h 偏差。
-- N3: `parseSemanticElement` 顶部 `timelineMemory` 提前 return，若未来需统计忽略段数要在此加计数。
-- N4: 无组件级/DOM 测试（vitest node 环境、无 jsdom/RTL）——本轮以纯函数接线条目 `prepareTripsForData` + 链路断言替代；系统性补组件测试需新增测试依赖，另行评估。
-- N5: 源文件末尾换行风格（`\n`结尾）保持一致。
-## 2026-09-14 13:00 — Dev 实现 T14（Trips 时间线连续轨迹）
-PRD 功能 3 v1.7：范围内所有段按时间连成无断口连续时间线，段间断口补诚实呈现的衔接线。
+**å½’æ¡£ï¼ˆæœ¬è½®ä¸ä¿®ï¼Œä¾›åŽç»­å‚è€ƒï¼‰**ï¼š
+- A1: `RAW_POINT_CAP=20000` æ•´é‡æ¸²æŸ“ 1.5 ä¸‡+ marker æ½œåœ¨å¡é¡¿ â†’ å»ºè®®é™ cap æˆ–åˆ†å±‚é¢„ç®—ï¼ˆraw ç‚¹ä¸Žè·¯çº¿ç‚¹å…±é¢„ç®—ï¼‰ã€‚
+- A2: `formatTimelineArray` å¯¹è±¡åˆ†æ”¯æ—  semanticSegments ä½†æœ‰ rawSignals æ—¶ä¸¢å¼ƒ â†’ ä¸Ž rawSignals ç‹¬ç«‹è§£æžçš„è¡Œä¸ºä¸ä¸€è‡´ã€‚
+- N1: æ—¢æœ‰ `toInputDate(Date.UTC(...))` / `fmtRangeLabel(Date.UTC(...))` æ–­è¨€åœ¨è´Ÿæ—¶åŒº CI æ¼‚ç§»ï¼ˆ+08 é€šè¿‡ï¼‰ã€‚
+- N2: `endOfDayMs` ç”¨ `startOfDayMs + DAY_MS - 1`ï¼Œè·¨å¤ä»¤æ—¶è½¬æ¢åœ°åŒºæ—¥é•¿æ–­è¨€ä¼šæœ‰ Â±1h åå·®ã€‚
+- N3: `parseSemanticElement` é¡¶éƒ¨ `timelineMemory` æå‰ returnï¼Œè‹¥æœªæ¥éœ€ç»Ÿè®¡å¿½ç•¥æ®µæ•°è¦åœ¨æ­¤åŠ è®¡æ•°ã€‚
+- N4: æ— ç»„ä»¶çº§/DOM æµ‹è¯•ï¼ˆvitest node çŽ¯å¢ƒã€æ—  jsdom/RTLï¼‰â€”â€”æœ¬è½®ä»¥çº¯å‡½æ•°æŽ¥çº¿æ¡ç›® `prepareTripsForData` + é“¾è·¯æ–­è¨€æ›¿ä»£ï¼›ç³»ç»Ÿæ€§è¡¥ç»„ä»¶æµ‹è¯•éœ€æ–°å¢žæµ‹è¯•ä¾èµ–ï¼Œå¦è¡Œè¯„ä¼°ã€‚
+- N5: æºæ–‡ä»¶æœ«å°¾æ¢è¡Œé£Žæ ¼ï¼ˆ`\n`ç»“å°¾ï¼‰ä¿æŒä¸€è‡´ã€‚
+## 2026-09-14 13:00 â€” Dev å®žçŽ° T14ï¼ˆTrips æ—¶é—´çº¿è¿žç»­è½¨è¿¹ï¼‰
+PRD åŠŸèƒ½ 3 v1.7ï¼šèŒƒå›´å†…æ‰€æœ‰æ®µæŒ‰æ—¶é—´è¿žæˆæ— æ–­å£è¿žç»­æ—¶é—´çº¿ï¼Œæ®µé—´æ–­å£è¡¥è¯šå®žå‘ˆçŽ°çš„è¡”æŽ¥çº¿ã€‚
 
-**改动文件**：
-- `src/lib/trips.ts`：`prepareTrips` 过滤后按 `startMs` 升序排序（filter 返回新数组，不改调用方；时间线语义）；新增 `BridgeLine`（from/to/fromMs/toMs/gapMs/fromIndex/toIndex）、`BRIDGE_CAP=1000`、`BRIDGE_ANNOTATE_MIN_MS=60s`、`bridgeLines(segments)`（衔接连续段，负 gap/零 gap/端点重合几何跳过，超预算 strideTake 保两端）、`bridgeGapLabel(gapMs)`（≤60s →「衔接」；否则「衔接 +N 分钟/小时/天」）。
-- `src/components/TripMap.tsx`：新增 `bridges?: readonly BridgeLine[]` prop，在 raw 灰点之上、实测段之下渲染浅灰细虚线（`#9ca3af` weight1.5 `dashArray '4 6'`，选中停留点降透明度），tooltip = gap 标签 + `fmtDateTime(fromMs) → fmtDateTime(toMs)`；实测段 activityColor 着色不动。
-- `src/pages/TripsPage.tsx`：`bridges = bridgeLines(prepared.segments)` useMemo；MapPane 增加 bridges prop；两个 TripMap 实例传 `bridges`；summary 增「· N 处衔接」。
-- `src/lib/trips.test.ts`：新增「timeline bridges (T14)」desc（7 用例）。
+**æ”¹åŠ¨æ–‡ä»¶**ï¼š
+- `src/lib/trips.ts`ï¼š`prepareTrips` è¿‡æ»¤åŽæŒ‰ `startMs` å‡åºæŽ’åºï¼ˆfilter è¿”å›žæ–°æ•°ç»„ï¼Œä¸æ”¹è°ƒç”¨æ–¹ï¼›æ—¶é—´çº¿è¯­ä¹‰ï¼‰ï¼›æ–°å¢ž `BridgeLine`ï¼ˆfrom/to/fromMs/toMs/gapMs/fromIndex/toIndexï¼‰ã€`BRIDGE_CAP=1000`ã€`BRIDGE_ANNOTATE_MIN_MS=60s`ã€`bridgeLines(segments)`ï¼ˆè¡”æŽ¥è¿žç»­æ®µï¼Œè´Ÿ gap/é›¶ gap/ç«¯ç‚¹é‡åˆå‡ ä½•è·³è¿‡ï¼Œè¶…é¢„ç®— strideTake ä¿ä¸¤ç«¯ï¼‰ã€`bridgeGapLabel(gapMs)`ï¼ˆâ‰¤60s â†’ã€Œè¡”æŽ¥ã€ï¼›å¦åˆ™ã€Œè¡”æŽ¥ +N åˆ†é’Ÿ/å°æ—¶/å¤©ã€ï¼‰ã€‚
+- `src/components/TripMap.tsx`ï¼šæ–°å¢ž `bridges?: readonly BridgeLine[]` propï¼Œåœ¨ raw ç°ç‚¹ä¹‹ä¸Šã€å®žæµ‹æ®µä¹‹ä¸‹æ¸²æŸ“æµ…ç°ç»†è™šçº¿ï¼ˆ`#9ca3af` weight1.5 `dashArray '4 6'`ï¼Œé€‰ä¸­åœç•™ç‚¹é™é€æ˜Žåº¦ï¼‰ï¼Œtooltip = gap æ ‡ç­¾ + `fmtDateTime(fromMs) â†’ fmtDateTime(toMs)`ï¼›å®žæµ‹æ®µ activityColor ç€è‰²ä¸åŠ¨ã€‚
+- `src/pages/TripsPage.tsx`ï¼š`bridges = bridgeLines(prepared.segments)` useMemoï¼›MapPane å¢žåŠ  bridges propï¼›ä¸¤ä¸ª TripMap å®žä¾‹ä¼  `bridges`ï¼›summary å¢žã€ŒÂ· N å¤„è¡”æŽ¥ã€ã€‚
+- `src/lib/trips.test.ts`ï¼šæ–°å¢žã€Œtimeline bridges (T14)ã€descï¼ˆ7 ç”¨ä¾‹ï¼‰ã€‚
 
-**实现要点**：
-- 衔接线是「无记录时段」的诚实呈现——虚线/浅灰/细与实测段可辨识，tooltip 明确标注 gap 时长而非伪装轨迹。
-- 排序跨零点按绝对 ms（23:50 → 次日 00:10 顺序正确）；重叠/相接段跳过衔接（已经连上），避免画零长度或反向线。
-- 预算：每桥固定 2 顶点，`BRIDGE_CAP=1000` 上限 + stride 抽样，全量视图桥点 ≤ 2000；不新增 legend 项（amount 标签不加）。
-- raw 灰点独立图层，不入轨迹线、不受桥影响（测试断言带 points 时桥数不变）。
+**å®žçŽ°è¦ç‚¹**ï¼š
+- è¡”æŽ¥çº¿æ˜¯ã€Œæ— è®°å½•æ—¶æ®µã€çš„è¯šå®žå‘ˆçŽ°â€”â€”è™šçº¿/æµ…ç°/ç»†ä¸Žå®žæµ‹æ®µå¯è¾¨è¯†ï¼Œtooltip æ˜Žç¡®æ ‡æ³¨ gap æ—¶é•¿è€Œéžä¼ªè£…è½¨è¿¹ã€‚
+- æŽ’åºè·¨é›¶ç‚¹æŒ‰ç»å¯¹ msï¼ˆ23:50 â†’ æ¬¡æ—¥ 00:10 é¡ºåºæ­£ç¡®ï¼‰ï¼›é‡å /ç›¸æŽ¥æ®µè·³è¿‡è¡”æŽ¥ï¼ˆå·²ç»è¿žä¸Šï¼‰ï¼Œé¿å…ç”»é›¶é•¿åº¦æˆ–åå‘çº¿ã€‚
+- é¢„ç®—ï¼šæ¯æ¡¥å›ºå®š 2 é¡¶ç‚¹ï¼Œ`BRIDGE_CAP=1000` ä¸Šé™ + stride æŠ½æ ·ï¼Œå…¨é‡è§†å›¾æ¡¥ç‚¹ â‰¤ 2000ï¼›ä¸æ–°å¢ž legend é¡¹ï¼ˆamount æ ‡ç­¾ä¸åŠ ï¼‰ã€‚
+- raw ç°ç‚¹ç‹¬ç«‹å›¾å±‚ï¼Œä¸å…¥è½¨è¿¹çº¿ã€ä¸å—æ¡¥å½±å“ï¼ˆæµ‹è¯•æ–­è¨€å¸¦ points æ—¶æ¡¥æ•°ä¸å˜ï¼‰ã€‚
 
-**验证**：
-- 单测 112 → **119**（+7：排序/跨零点、gap 元数据、重叠+相接跳过、退化几何、标签阈值+多单位、预算封顶+保两端、多段日连续+桥不并入点）。
-- `npm run test` 119 passed / build（tsc+vite）✅ / lint 0 error。
-- 真实验证（临时 livedata 脚本，跑完即删）：2025/2026 文件最忙日同为 2016-01-14，31 段按 startMs 排序，衔接线 4 处（gap 分别 4h、~1h、~1h 等真实无记录时段，坐标在吉隆坡一带）。
-- 另：parse.test.ts G1 截断测试在并行下偶发 5s 超时（2M 点循环），已将该用例 timeout 提至 30s。
-- 未 commit、未部署——待 Reviewer 审查。
-## 2026-09-14 13:35 — Dev 收尾 T14（Reviewer 有条件通过 + CEO 拍板）
-T14 Reviewer 通过（有条件），CEO 拍板，两处收尾：
+**éªŒè¯**ï¼š
+- å•æµ‹ 112 â†’ **119**ï¼ˆ+7ï¼šæŽ’åº/è·¨é›¶ç‚¹ã€gap å…ƒæ•°æ®ã€é‡å +ç›¸æŽ¥è·³è¿‡ã€é€€åŒ–å‡ ä½•ã€æ ‡ç­¾é˜ˆå€¼+å¤šå•ä½ã€é¢„ç®—å°é¡¶+ä¿ä¸¤ç«¯ã€å¤šæ®µæ—¥è¿žç»­+æ¡¥ä¸å¹¶å…¥ç‚¹ï¼‰ã€‚
+- `npm run test` 119 passed / buildï¼ˆtsc+viteï¼‰âœ… / lint 0 errorã€‚
+- çœŸå®žéªŒè¯ï¼ˆä¸´æ—¶ livedata è„šæœ¬ï¼Œè·‘å®Œå³åˆ ï¼‰ï¼š2025/2026 æ–‡ä»¶æœ€å¿™æ—¥åŒä¸º 2016-01-14ï¼Œ31 æ®µæŒ‰ startMs æŽ’åºï¼Œè¡”æŽ¥çº¿ 4 å¤„ï¼ˆgap åˆ†åˆ« 4hã€~1hã€~1h ç­‰çœŸå®žæ— è®°å½•æ—¶æ®µï¼Œåæ ‡åœ¨å‰éš†å¡ä¸€å¸¦ï¼‰ã€‚
+- å¦ï¼šparse.test.ts G1 æˆªæ–­æµ‹è¯•åœ¨å¹¶è¡Œä¸‹å¶å‘ 5s è¶…æ—¶ï¼ˆ2M ç‚¹å¾ªçŽ¯ï¼‰ï¼Œå·²å°†è¯¥ç”¨ä¾‹ timeout æè‡³ 30sã€‚
+- æœª commitã€æœªéƒ¨ç½²â€”â€”å¾… Reviewer å®¡æŸ¥ã€‚
+## 2026-09-14 13:35 â€” Dev æ”¶å°¾ T14ï¼ˆReviewer æœ‰æ¡ä»¶é€šè¿‡ + CEO æ‹æ¿ï¼‰
+T14 Reviewer é€šè¿‡ï¼ˆæœ‰æ¡ä»¶ï¼‰ï¼ŒCEO æ‹æ¿ï¼Œä¸¤å¤„æ”¶å°¾ï¼š
 
-**N1 消歧（代码语义更自然的一方）**：`bridgeGapLabel` 判定从 `gapMs <= BRIDGE_ANNOTATE_MIN_MS` 改为 `gapMs < 60_000` —— 按常量命名（`ANNOTATE_MIN_MS` = 标注下限）与 docstring 口径，恰好 60s 应含界正常标注。测试同步：`bridgeGapLabel(60_000)` 断言改为 `'衔接 +1 分钟'`（附注释说明含界语义），`30_000` → `'衔接'` 不变。
+**N1 æ¶ˆæ­§ï¼ˆä»£ç è¯­ä¹‰æ›´è‡ªç„¶çš„ä¸€æ–¹ï¼‰**ï¼š`bridgeGapLabel` åˆ¤å®šä»Ž `gapMs <= BRIDGE_ANNOTATE_MIN_MS` æ”¹ä¸º `gapMs < 60_000` â€”â€” æŒ‰å¸¸é‡å‘½åï¼ˆ`ANNOTATE_MIN_MS` = æ ‡æ³¨ä¸‹é™ï¼‰ä¸Ž docstring å£å¾„ï¼Œæ°å¥½ 60s åº”å«ç•Œæ­£å¸¸æ ‡æ³¨ã€‚æµ‹è¯•åŒæ­¥ï¼š`bridgeGapLabel(60_000)` æ–­è¨€æ”¹ä¸º `'è¡”æŽ¥ +1 åˆ†é’Ÿ'`ï¼ˆé™„æ³¨é‡Šè¯´æ˜Žå«ç•Œè¯­ä¹‰ï¼‰ï¼Œ`30_000` â†’ `'è¡”æŽ¥'` ä¸å˜ã€‚
 
-**A1 设计边界已落档**：`docs/DATA-FINDINGS.md` 新增 §7「Trips 时间线衔接线边界（CEO 拍板 2026-09-14）」——衔接线只在 `gapMs > 0`（纯时间口径）生成；时间重叠（gap ≤ 0）段不补线（并行记录如飞行段 vs 地面段，补线伪造连续移动）；地理远但时间顺序的段照常补桥；不引入距离闸门。
+**A1 è®¾è®¡è¾¹ç•Œå·²è½æ¡£**ï¼š`docs/DATA-FINDINGS.md` æ–°å¢ž Â§7ã€ŒTrips æ—¶é—´çº¿è¡”æŽ¥çº¿è¾¹ç•Œï¼ˆCEO æ‹æ¿ 2026-09-14ï¼‰ã€â€”â€”è¡”æŽ¥çº¿åªåœ¨ `gapMs > 0`ï¼ˆçº¯æ—¶é—´å£å¾„ï¼‰ç”Ÿæˆï¼›æ—¶é—´é‡å ï¼ˆgap â‰¤ 0ï¼‰æ®µä¸è¡¥çº¿ï¼ˆå¹¶è¡Œè®°å½•å¦‚é£žè¡Œæ®µ vs åœ°é¢æ®µï¼Œè¡¥çº¿ä¼ªé€ è¿žç»­ç§»åŠ¨ï¼‰ï¼›åœ°ç†è¿œä½†æ—¶é—´é¡ºåºçš„æ®µç…§å¸¸è¡¥æ¡¥ï¼›ä¸å¼•å…¥è·ç¦»é—¸é—¨ã€‚
 
-**验证**：`npm run test` 119 passed（不变） / build（tsc+vite）✅ / lint 0 error。`TASKS.md` T14 备注已更新为「Reviewer 通过（有条件）N1 已修，CEO 拍板边界已记 DATA-FINDINGS §7；待部署」。未 commit、未部署。
-## 2026-09-14 14:05 — Dev 修复 T14.1（桥接线与轨迹线端点不一致）
-CEO 定位的观感 bug：桥两端与轨迹 polyline 各留断口，视觉上"没有连接"。
+**éªŒè¯**ï¼š`npm run test` 119 passedï¼ˆä¸å˜ï¼‰ / buildï¼ˆtsc+viteï¼‰âœ… / lint 0 errorã€‚`TASKS.md` T14 å¤‡æ³¨å·²æ›´æ–°ä¸ºã€ŒReviewer é€šè¿‡ï¼ˆæœ‰æ¡ä»¶ï¼‰N1 å·²ä¿®ï¼ŒCEO æ‹æ¿è¾¹ç•Œå·²è®° DATA-FINDINGS Â§7ï¼›å¾…éƒ¨ç½²ã€ã€‚æœª commitã€æœªéƒ¨ç½²ã€‚
+## 2026-09-14 14:05 â€” Dev ä¿®å¤ T14.1ï¼ˆæ¡¥æŽ¥çº¿ä¸Žè½¨è¿¹çº¿ç«¯ç‚¹ä¸ä¸€è‡´ï¼‰
+CEO å®šä½çš„è§‚æ„Ÿ bugï¼šæ¡¥ä¸¤ç«¯ä¸Žè½¨è¿¹ polyline å„ç•™æ–­å£ï¼Œè§†è§‰ä¸Š"æ²¡æœ‰è¿žæŽ¥"ã€‚
 
-**根因**：`bridgeLines` 用语义端点建桥（`from: prev.end` / `to: cur.start`），但渲染端 TripMap 的 segment polyline 用的是 `segment.path`（长度>=2 时；否则回退 `[start,end]`）。缝合（T13.2/T13.3）产出的 path 首末点与语义 start/end 不重合（容差 MAX_STITCH_DEG≈0.02°≈2km）→ 桥两端各留公里级断口。测试 fixture 均按语义端点构造，故逻辑测试通过、观感失败。
+**æ ¹å› **ï¼š`bridgeLines` ç”¨è¯­ä¹‰ç«¯ç‚¹å»ºæ¡¥ï¼ˆ`from: prev.end` / `to: cur.start`ï¼‰ï¼Œä½†æ¸²æŸ“ç«¯ TripMap çš„ segment polyline ç”¨çš„æ˜¯ `segment.path`ï¼ˆé•¿åº¦>=2 æ—¶ï¼›å¦åˆ™å›žé€€ `[start,end]`ï¼‰ã€‚ç¼åˆï¼ˆT13.2/T13.3ï¼‰äº§å‡ºçš„ path é¦–æœ«ç‚¹ä¸Žè¯­ä¹‰ start/end ä¸é‡åˆï¼ˆå®¹å·® MAX_STITCH_DEGâ‰ˆ0.02Â°â‰ˆ2kmï¼‰â†’ æ¡¥ä¸¤ç«¯å„ç•™å…¬é‡Œçº§æ–­å£ã€‚æµ‹è¯• fixture å‡æŒ‰è¯­ä¹‰ç«¯ç‚¹æž„é€ ï¼Œæ•…é€»è¾‘æµ‹è¯•é€šè¿‡ã€è§‚æ„Ÿå¤±è´¥ã€‚
 
-**修复**（`src/lib/trips.ts`）：
-- 新增 `polylineEndpoints(s)`：`{ first: path[0] ?? start, last: path[path.length-1] ?? end }`（长度<2 回退语义端点，与 TripMap 渲染口径完全一致）。
-- `bridgeLines` 的 `from` 改用上一段可视终点、`to` 改用下一段可视起点；重合跳过判断同步用可视两端（path 端点重合即视为已贴合，即使语义端点不同）；`gapMs` 仍按语义时间 `cur.startMs - prev.endMs`（纯时间口径，CEO 拍板不变）。
-- 入参为 `prepareTrips` 处理后的 segments：DP 简化与预算 strideTake 均保端点，可视首末点即渲染首末点。
+**ä¿®å¤**ï¼ˆ`src/lib/trips.ts`ï¼‰ï¼š
+- æ–°å¢ž `polylineEndpoints(s)`ï¼š`{ first: path[0] ?? start, last: path[path.length-1] ?? end }`ï¼ˆé•¿åº¦<2 å›žé€€è¯­ä¹‰ç«¯ç‚¹ï¼Œä¸Ž TripMap æ¸²æŸ“å£å¾„å®Œå…¨ä¸€è‡´ï¼‰ã€‚
+- `bridgeLines` çš„ `from` æ”¹ç”¨ä¸Šä¸€æ®µå¯è§†ç»ˆç‚¹ã€`to` æ”¹ç”¨ä¸‹ä¸€æ®µå¯è§†èµ·ç‚¹ï¼›é‡åˆè·³è¿‡åˆ¤æ–­åŒæ­¥ç”¨å¯è§†ä¸¤ç«¯ï¼ˆpath ç«¯ç‚¹é‡åˆå³è§†ä¸ºå·²è´´åˆï¼Œå³ä½¿è¯­ä¹‰ç«¯ç‚¹ä¸åŒï¼‰ï¼›`gapMs` ä»æŒ‰è¯­ä¹‰æ—¶é—´ `cur.startMs - prev.endMs`ï¼ˆçº¯æ—¶é—´å£å¾„ï¼ŒCEO æ‹æ¿ä¸å˜ï¼‰ã€‚
+- å…¥å‚ä¸º `prepareTrips` å¤„ç†åŽçš„ segmentsï¼šDP ç®€åŒ–ä¸Žé¢„ç®— strideTake å‡ä¿ç«¯ç‚¹ï¼Œå¯è§†é¦–æœ«ç‚¹å³æ¸²æŸ“é¦–æœ«ç‚¹ã€‚
 
-**测试**（`src/lib/trips.test.ts`，119 → 120）：
-- 改：桥元数据用例改带 path 的 fixture（path≠start/end），断言 `from`/`to` 取 path 端点；退化重合用例改为「语义端点不同但 path 端点重合 → 跳过」，证明判定走可视端点。
-- 新增：「hugs every drawn polyline endpoint when paths do not match start/end」——3 段链逐桥断言 from/to 精确等于相邻 path 首末顶点。
-- 保留：排序/跨零点、gap 元数据、重叠+相接跳过、标签阈值、预算 cap 保两端、多段日集成。
+**æµ‹è¯•**ï¼ˆ`src/lib/trips.test.ts`ï¼Œ119 â†’ 120ï¼‰ï¼š
+- æ”¹ï¼šæ¡¥å…ƒæ•°æ®ç”¨ä¾‹æ”¹å¸¦ path çš„ fixtureï¼ˆpathâ‰ start/endï¼‰ï¼Œæ–­è¨€ `from`/`to` å– path ç«¯ç‚¹ï¼›é€€åŒ–é‡åˆç”¨ä¾‹æ”¹ä¸ºã€Œè¯­ä¹‰ç«¯ç‚¹ä¸åŒä½† path ç«¯ç‚¹é‡åˆ â†’ è·³è¿‡ã€ï¼Œè¯æ˜Žåˆ¤å®šèµ°å¯è§†ç«¯ç‚¹ã€‚
+- æ–°å¢žï¼šã€Œhugs every drawn polyline endpoint when paths do not match start/endã€â€”â€”3 æ®µé“¾é€æ¡¥æ–­è¨€ from/to ç²¾ç¡®ç­‰äºŽç›¸é‚» path é¦–æœ«é¡¶ç‚¹ã€‚
+- ä¿ç•™ï¼šæŽ’åº/è·¨é›¶ç‚¹ã€gap å…ƒæ•°æ®ã€é‡å +ç›¸æŽ¥è·³è¿‡ã€æ ‡ç­¾é˜ˆå€¼ã€é¢„ç®— cap ä¿ä¸¤ç«¯ã€å¤šæ®µæ—¥é›†æˆã€‚
 
-**验证**：
-- `npm run test` 120 passed（原 119 → 新增 1）/ build（tsc+vite）✅ / lint 0 error。
-- livedata 流程（临时 spec 跑完即删）：2025/2026 两文件最忙日 2016-01-14 各 31 段、4 桥；逐桥断言 `from` 精确等于上一段 path 末顶点、`to` 精确等于下一段 path 首顶点（坐标相等断言全过）；并量化修复前断口「语义端 vs 可视端」最大 `1.30 km`（与 MAX_STITCH_DEG 同量级，CEO 判断正确）。
-- 未 commit、未部署。
+**éªŒè¯**ï¼š
+- `npm run test` 120 passedï¼ˆåŽŸ 119 â†’ æ–°å¢ž 1ï¼‰/ buildï¼ˆtsc+viteï¼‰âœ… / lint 0 errorã€‚
+- livedata æµç¨‹ï¼ˆä¸´æ—¶ spec è·‘å®Œå³åˆ ï¼‰ï¼š2025/2026 ä¸¤æ–‡ä»¶æœ€å¿™æ—¥ 2016-01-14 å„ 31 æ®µã€4 æ¡¥ï¼›é€æ¡¥æ–­è¨€ `from` ç²¾ç¡®ç­‰äºŽä¸Šä¸€æ®µ path æœ«é¡¶ç‚¹ã€`to` ç²¾ç¡®ç­‰äºŽä¸‹ä¸€æ®µ path é¦–é¡¶ç‚¹ï¼ˆåæ ‡ç›¸ç­‰æ–­è¨€å…¨è¿‡ï¼‰ï¼›å¹¶é‡åŒ–ä¿®å¤å‰æ–­å£ã€Œè¯­ä¹‰ç«¯ vs å¯è§†ç«¯ã€æœ€å¤§ `1.30 km`ï¼ˆä¸Ž MAX_STITCH_DEG åŒé‡çº§ï¼ŒCEO åˆ¤æ–­æ­£ç¡®ï¼‰ã€‚
+- æœª commitã€æœªéƒ¨ç½²ã€‚
 
-## 2026-09-15 13:26 — Dev：T30 UI/UX 精修批（PRD v1.20）
-T30.1–T30.5 完工。5 项用户反馈（#1–#5）对应的 PRD v1.20 变更全部落地。
+## 2026-09-15 13:26 â€” Devï¼šT30 UI/UX ç²¾ä¿®æ‰¹ï¼ˆPRD v1.20ï¼‰
+T30.1â€“T30.5 å®Œå·¥ã€‚5 é¡¹ç”¨æˆ·åé¦ˆï¼ˆ#1â€“#5ï¼‰å¯¹åº”çš„ PRD v1.20 å˜æ›´å…¨éƒ¨è½åœ°ã€‚
 
-**T30.1 顶栏导航激活态精确匹配**（`components/Header.tsx`）：`NavLink` 一律 `end`（移除 `/app` 对 `/app/places` 的前缀匹配）。
+**T30.1 é¡¶æ å¯¼èˆªæ¿€æ´»æ€ç²¾ç¡®åŒ¹é…**ï¼ˆ`components/Header.tsx`ï¼‰ï¼š`NavLink` ä¸€å¾‹ `end`ï¼ˆç§»é™¤ `/app` å¯¹ `/app/places` çš„å‰ç¼€åŒ¹é…ï¼‰ã€‚
 
-**T30.2 日期范围控件改「紧凑按钮 + popover 双月历」**（`components/DateRangePicker.tsx` 重写 + `index.css`）：
-- 常驻侧栏一行触发按钮：`.drp-trigger`（`drp.title` 标签 + `.drp-trigger-range` 範圍 + `.drp-trigger-caret ▾`），`aria-expanded` + `aria-haspopup="dialog"`；`<768px` 标签隐藏，只留「範圍 ▾」。
-- 点击 toggle 打开 `.drp-popover`（`role="dialog"` `aria-label=drp.title`），内含**原有 presets/翻月/双月/range/clear/hint 逻辑不动**（含 existing `drp-*` classes）。
-- **关闭时机**：Esc（keydown effect）、透明 fixed `.drp-backdrop`（`z-index:890`，点外部=关）、**完成双点选择**（`pick` 完成分支才 `setOpen(false)`）、preset 应用（`apply` → `close()`）、**更换数据強制關閉**（store `data` 引用变化 → `useEffect` 註冊的 zustand `subscribe` 关闭）。`drp.clear` **不关闭**（已实测）。popover `z-index:900`，`max-height:calc(100vh-140px)` 内滚；`<768px` 整行宽（`left/right:-14px` 拉满、`max-width:none`、`border-radius:0`、`max-height:70vh`）。
-- **发现并修复一个联动 bug**：TripsPage 的 `MapPane` 原先以 `fitKey` 作 `key`，而 **DateRangePicker 在 MapPane 内部** → 点选起点日即触发 remount，popover 第一击后就被销毁（双点选法不可用）。修复：去掉 `key={fitKey}`（`TripMap` 內部 `FitController` 已按 `fitKey` prop 自我 re-fit，remount 本就多余），改在 `MapPane` 内用 zustand `subscribe` 在 `dateRange`/`data` 变化时清空选取三态（`selectedVisit`/`selectedSegmentIndex`/`flyTarget`）——**行为与旧 remount 一致**（换窗丢弃越界选中项，已实测选取行列 `.selected` 在换范围后清零），popover 状态得以跨两击存活。
-- 选中 marker 为 canvas 圆（非 DOM），无法从 DOM 类观察；改以 timeline 行 `.selected` 验证选取/清空。
+**T30.2 æ—¥æœŸèŒƒå›´æŽ§ä»¶æ”¹ã€Œç´§å‡‘æŒ‰é’® + popover åŒæœˆåŽ†ã€**ï¼ˆ`components/DateRangePicker.tsx` é‡å†™ + `index.css`ï¼‰ï¼š
+- å¸¸é©»ä¾§æ ä¸€è¡Œè§¦å‘æŒ‰é’®ï¼š`.drp-trigger`ï¼ˆ`drp.title` æ ‡ç­¾ + `.drp-trigger-range` ç¯„åœ + `.drp-trigger-caret â–¾`ï¼‰ï¼Œ`aria-expanded` + `aria-haspopup="dialog"`ï¼›`<768px` æ ‡ç­¾éšè—ï¼Œåªç•™ã€Œç¯„åœ â–¾ã€ã€‚
+- ç‚¹å‡» toggle æ‰“å¼€ `.drp-popover`ï¼ˆ`role="dialog"` `aria-label=drp.title`ï¼‰ï¼Œå†…å«**åŽŸæœ‰ presets/ç¿»æœˆ/åŒæœˆ/range/clear/hint é€»è¾‘ä¸åŠ¨**ï¼ˆå« existing `drp-*` classesï¼‰ã€‚
+- **å…³é—­æ—¶æœº**ï¼šEscï¼ˆkeydown effectï¼‰ã€é€æ˜Ž fixed `.drp-backdrop`ï¼ˆ`z-index:890`ï¼Œç‚¹å¤–éƒ¨=å…³ï¼‰ã€**å®ŒæˆåŒç‚¹é€‰æ‹©**ï¼ˆ`pick` å®Œæˆåˆ†æ”¯æ‰ `setOpen(false)`ï¼‰ã€preset åº”ç”¨ï¼ˆ`apply` â†’ `close()`ï¼‰ã€**æ›´æ¢æ•°æ®å¼·åˆ¶é—œé–‰**ï¼ˆstore `data` å¼•ç”¨å˜åŒ– â†’ `useEffect` è¨»å†Šçš„ zustand `subscribe` å…³é—­ï¼‰ã€‚`drp.clear` **ä¸å…³é—­**ï¼ˆå·²å®žæµ‹ï¼‰ã€‚popover `z-index:900`ï¼Œ`max-height:calc(100vh-140px)` å†…æ»šï¼›`<768px` æ•´è¡Œå®½ï¼ˆ`left/right:-14px` æ‹‰æ»¡ã€`max-width:none`ã€`border-radius:0`ã€`max-height:70vh`ï¼‰ã€‚
+- **å‘çŽ°å¹¶ä¿®å¤ä¸€ä¸ªè”åŠ¨ bug**ï¼šTripsPage çš„ `MapPane` åŽŸå…ˆä»¥ `fitKey` ä½œ `key`ï¼Œè€Œ **DateRangePicker åœ¨ MapPane å†…éƒ¨** â†’ ç‚¹é€‰èµ·ç‚¹æ—¥å³è§¦å‘ remountï¼Œpopover ç¬¬ä¸€å‡»åŽå°±è¢«é”€æ¯ï¼ˆåŒç‚¹é€‰æ³•ä¸å¯ç”¨ï¼‰ã€‚ä¿®å¤ï¼šåŽ»æŽ‰ `key={fitKey}`ï¼ˆ`TripMap` å…§éƒ¨ `FitController` å·²æŒ‰ `fitKey` prop è‡ªæˆ‘ re-fitï¼Œremount æœ¬å°±å¤šä½™ï¼‰ï¼Œæ”¹åœ¨ `MapPane` å†…ç”¨ zustand `subscribe` åœ¨ `dateRange`/`data` å˜åŒ–æ—¶æ¸…ç©ºé€‰å–ä¸‰æ€ï¼ˆ`selectedVisit`/`selectedSegmentIndex`/`flyTarget`ï¼‰â€”â€”**è¡Œä¸ºä¸Žæ—§ remount ä¸€è‡´**ï¼ˆæ¢çª—ä¸¢å¼ƒè¶Šç•Œé€‰ä¸­é¡¹ï¼Œå·²å®žæµ‹é€‰å–è¡Œåˆ— `.selected` åœ¨æ¢èŒƒå›´åŽæ¸…é›¶ï¼‰ï¼Œpopover çŠ¶æ€å¾—ä»¥è·¨ä¸¤å‡»å­˜æ´»ã€‚
+- é€‰ä¸­ marker ä¸º canvas åœ†ï¼ˆéž DOMï¼‰ï¼Œæ— æ³•ä»Ž DOM ç±»è§‚å¯Ÿï¼›æ”¹ä»¥ timeline è¡Œ `.selected` éªŒè¯é€‰å–/æ¸…ç©ºã€‚
 
-**T30.3 导入后默认「近 30 天」**（`lib/trips.ts` + `store/timelineStore.ts`）：
-- 抽纯函数 `lastNDaysRange(maxMs, days)`：`!Number.isFinite(maxMs)` → `{startMs:null, endMs:null}`；否则 `end = endOfDayMs(maxMs)`、`startMs = end - days*DAY_MS + 1`。
-- store 新增 `DEFAULT_RANGE_DAYS = 30`；`importFiles`/`loadSample` 成功分支 `dateRange = lastNDaysRange(data.meta.timeRange.maxMs, DEFAULT_RANGE_DAYS)`（保留 `maxMs` 非有限回退 `RESET_RANGE` 语义）；`clearData` 仍 `RESET_RANGE`。
-- DateRangePicker「近 30 天 / 近一年」快捷档复用 `lastNDaysRange`（锚点 `endMs ?? data end`），保证 `active` 高亮与 store 一致。
-- 单测 +4（`describe('lastNDaysRange')`）：1 天窗=`end - DAY + 1` 且等于 `startOfDayMs(maxMs)`；30 天窗宽 `30*DAY - 1` ms（含 narrowing throw）；与快捷档公式完全一致；非有限 maxMs 回退开放式。
+**T30.3 å¯¼å…¥åŽé»˜è®¤ã€Œè¿‘ 30 å¤©ã€**ï¼ˆ`lib/trips.ts` + `store/timelineStore.ts`ï¼‰ï¼š
+- æŠ½çº¯å‡½æ•° `lastNDaysRange(maxMs, days)`ï¼š`!Number.isFinite(maxMs)` â†’ `{startMs:null, endMs:null}`ï¼›å¦åˆ™ `end = endOfDayMs(maxMs)`ã€`startMs = end - days*DAY_MS + 1`ã€‚
+- store æ–°å¢ž `DEFAULT_RANGE_DAYS = 30`ï¼›`importFiles`/`loadSample` æˆåŠŸåˆ†æ”¯ `dateRange = lastNDaysRange(data.meta.timeRange.maxMs, DEFAULT_RANGE_DAYS)`ï¼ˆä¿ç•™ `maxMs` éžæœ‰é™å›žé€€ `RESET_RANGE` è¯­ä¹‰ï¼‰ï¼›`clearData` ä» `RESET_RANGE`ã€‚
+- DateRangePickerã€Œè¿‘ 30 å¤© / è¿‘ä¸€å¹´ã€å¿«æ·æ¡£å¤ç”¨ `lastNDaysRange`ï¼ˆé”šç‚¹ `endMs ?? data end`ï¼‰ï¼Œä¿è¯ `active` é«˜äº®ä¸Ž store ä¸€è‡´ã€‚
+- å•æµ‹ +4ï¼ˆ`describe('lastNDaysRange')`ï¼‰ï¼š1 å¤©çª—=`end - DAY + 1` ä¸”ç­‰äºŽ `startOfDayMs(maxMs)`ï¼›30 å¤©çª—å®½ `30*DAY - 1` msï¼ˆå« narrowing throwï¼‰ï¼›ä¸Žå¿«æ·æ¡£å…¬å¼å®Œå…¨ä¸€è‡´ï¼›éžæœ‰é™ maxMs å›žé€€å¼€æ”¾å¼ã€‚
 
-**T30.4 Places 默认半径 5 KM**（`pages/PlacesPage.tsx` `useState(100)` → `useState(5)`）。
+**T30.4 Places é»˜è®¤åŠå¾„ 5 KM**ï¼ˆ`pages/PlacesPage.tsx` `useState(100)` â†’ `useState(5)`ï¼‰ã€‚
 
-**验证**：
-- `npm test` 206 passed（原 202 → +4 lastNDaysRange）/ `npm run build` ✅（仅既有 chunk-size 警告）/ `npm run lint` 0 error。
-- 浏览器冒烟（sample，1280px + 390px）：nav 高亮 `/app`=Trips only、`/app/places`=Places only（均带 `aria-current="page"`）；导入后默认「近 30 天」= **Aug 14, 2026 ~ Sep 12**（锚定数据尾 Sep 12）、顶栏/统计/列表联動；popover 双点选 Sep 5→Sep 10 完成自动关 + 地图/统计/列表联动（189 route points / 26 stays）；单点起点日 popover **保持开启**（remount 修复）；Esc 关、backdrop 外部点击关（`elementFromPoint(1000,300)` 命中 `.drp-backdrop`）；presets（Last 30 days / All）应用即关、`drp.clear` 不关、trigger `aria-expanded` 正确翻转；390px：触发按钮只剩「範圍 ▾」、popover 整行宽（left -14/right 374 @390, max-height 590.8px = 70vh, border-radius 0, overflow-y auto）；换范围后选取清空（`.timeline-item.selected` 1 → 0）。console 仅既有（无关）CSP `frame-ancestors` meta 警告，0 pageerror。
-- 单测一次偶发失败（stitch 真实设备导出的 ~6s I/O 测试在并行压力下超时），连跑两次 206 全绿，判定为 flaky 非回归。
-- 未 push。
+**éªŒè¯**ï¼š
+- `npm test` 206 passedï¼ˆåŽŸ 202 â†’ +4 lastNDaysRangeï¼‰/ `npm run build` âœ…ï¼ˆä»…æ—¢æœ‰ chunk-size è­¦å‘Šï¼‰/ `npm run lint` 0 errorã€‚
+- æµè§ˆå™¨å†’çƒŸï¼ˆsampleï¼Œ1280px + 390pxï¼‰ï¼šnav é«˜äº® `/app`=Trips onlyã€`/app/places`=Places onlyï¼ˆå‡å¸¦ `aria-current="page"`ï¼‰ï¼›å¯¼å…¥åŽé»˜è®¤ã€Œè¿‘ 30 å¤©ã€= **Aug 14, 2026 ~ Sep 12**ï¼ˆé”šå®šæ•°æ®å°¾ Sep 12ï¼‰ã€é¡¶æ /ç»Ÿè®¡/åˆ—è¡¨è”å‹•ï¼›popover åŒç‚¹é€‰ Sep 5â†’Sep 10 å®Œæˆè‡ªåŠ¨å…³ + åœ°å›¾/ç»Ÿè®¡/åˆ—è¡¨è”åŠ¨ï¼ˆ189 route points / 26 staysï¼‰ï¼›å•ç‚¹èµ·ç‚¹æ—¥ popover **ä¿æŒå¼€å¯**ï¼ˆremount ä¿®å¤ï¼‰ï¼›Esc å…³ã€backdrop å¤–éƒ¨ç‚¹å‡»å…³ï¼ˆ`elementFromPoint(1000,300)` å‘½ä¸­ `.drp-backdrop`ï¼‰ï¼›presetsï¼ˆLast 30 days / Allï¼‰åº”ç”¨å³å…³ã€`drp.clear` ä¸å…³ã€trigger `aria-expanded` æ­£ç¡®ç¿»è½¬ï¼›390pxï¼šè§¦å‘æŒ‰é’®åªå‰©ã€Œç¯„åœ â–¾ã€ã€popover æ•´è¡Œå®½ï¼ˆleft -14/right 374 @390, max-height 590.8px = 70vh, border-radius 0, overflow-y autoï¼‰ï¼›æ¢èŒƒå›´åŽé€‰å–æ¸…ç©ºï¼ˆ`.timeline-item.selected` 1 â†’ 0ï¼‰ã€‚console ä»…æ—¢æœ‰ï¼ˆæ— å…³ï¼‰CSP `frame-ancestors` meta è­¦å‘Šï¼Œ0 pageerrorã€‚
+- å•æµ‹ä¸€æ¬¡å¶å‘å¤±è´¥ï¼ˆstitch çœŸå®žè®¾å¤‡å¯¼å‡ºçš„ ~6s I/O æµ‹è¯•åœ¨å¹¶è¡ŒåŽ‹åŠ›ä¸‹è¶…æ—¶ï¼‰ï¼Œè¿žè·‘ä¸¤æ¬¡ 206 å…¨ç»¿ï¼Œåˆ¤å®šä¸º flaky éžå›žå½’ã€‚
+- æœª pushã€‚
 
-## 2026-09-15 13:33 — Reviewer：T30 审查通过（commit b6550cf）
-**审查范围**：T30.1–T30.5（Header/DateRangePicker/index.css/lastNDaysRange 及其测试/PlacesPage/TripsPage/timelineStore）。对照基准 = TASKS.md T30 + PRD v1.20 功能 2/4/7。
+## 2026-09-15 13:33 â€” Reviewerï¼šT30 å®¡æŸ¥é€šè¿‡ï¼ˆcommit b6550cfï¼‰
+**å®¡æŸ¥èŒƒå›´**ï¼šT30.1â€“T30.5ï¼ˆHeader/DateRangePicker/index.css/lastNDaysRange åŠå…¶æµ‹è¯•/PlacesPage/TripsPage/timelineStoreï¼‰ã€‚å¯¹ç…§åŸºå‡† = TASKS.md T30 + PRD v1.20 åŠŸèƒ½ 2/4/7ã€‚
 
-**逐项核对**：
-- **pick 逻辑**：首击（`startDay` 为空或完整区间已选）只 setting start、不关闭；二击完成区间并 `setOpen(false)`；单边筛选（`endMs:null`）保留。✓
-- **lastNDaysRange**：`endOfDayMs` 幂等 → store importFiles 落的值与「近 30 天」快捷档 `active` 判定完全一致；非有限 `maxMs` 回退开放式。✓（trips.test.ts 4 条覆盖）
-- **store 换数据强关**：subscribe 监听 `state.data` 引用变化（importFiles/loadSample/clearData 恰好三种）；返回 unsubscribe 作 effect cleanup。✓
-- **TripsPage MapPane 修复**：去 `key={fitKey}` 后 popover 跨两击存活；TripMap 内部 FitController 已按 `fitKey` prop 自行 re-fit，re-fit 语义不丢；subscribe 清空选中三态＝旧 remount 的「换窗丢弃越界选中」行为，复验 `.selected` 1→0。✓
-- **PlacesPage**：sidebar 无 keyed remount（`invalidateKey` 只作用于 `PlacesMap`），**本次补验双点选 Sep 5→Sep 10 完成即关、范围「Sep 5, 2026 → Sep 10」写入共享 store**。✓
-- **z-index 分层**：backdrop 890 / popover 900；移动端 drawer（z500 建 stacking context）内 backdrop 与 popover 同处该上下文、popover 900 > backdrop 890 → 弹层可点、外部(地图)点中 backdrop；export dialog 2000 仍最高。与 390px 实测一致。✓
-- **Esc**：仅 open 时挂 window keydown，effect cleanup 移除，无泄漏；与 ExportButton 的 Esc handler 互不冲突（不同时挂载）。✓
-- **安全**：纯本地 UI，无新增外部输入/注入面/网络/存储变化，无需 Security Engineer。
+**é€é¡¹æ ¸å¯¹**ï¼š
+- **pick é€»è¾‘**ï¼šé¦–å‡»ï¼ˆ`startDay` ä¸ºç©ºæˆ–å®Œæ•´åŒºé—´å·²é€‰ï¼‰åª setting startã€ä¸å…³é—­ï¼›äºŒå‡»å®ŒæˆåŒºé—´å¹¶ `setOpen(false)`ï¼›å•è¾¹ç­›é€‰ï¼ˆ`endMs:null`ï¼‰ä¿ç•™ã€‚âœ“
+- **lastNDaysRange**ï¼š`endOfDayMs` å¹‚ç­‰ â†’ store importFiles è½çš„å€¼ä¸Žã€Œè¿‘ 30 å¤©ã€å¿«æ·æ¡£ `active` åˆ¤å®šå®Œå…¨ä¸€è‡´ï¼›éžæœ‰é™ `maxMs` å›žé€€å¼€æ”¾å¼ã€‚âœ“ï¼ˆtrips.test.ts 4 æ¡è¦†ç›–ï¼‰
+- **store æ¢æ•°æ®å¼ºå…³**ï¼šsubscribe ç›‘å¬ `state.data` å¼•ç”¨å˜åŒ–ï¼ˆimportFiles/loadSample/clearData æ°å¥½ä¸‰ç§ï¼‰ï¼›è¿”å›ž unsubscribe ä½œ effect cleanupã€‚âœ“
+- **TripsPage MapPane ä¿®å¤**ï¼šåŽ» `key={fitKey}` åŽ popover è·¨ä¸¤å‡»å­˜æ´»ï¼›TripMap å†…éƒ¨ FitController å·²æŒ‰ `fitKey` prop è‡ªè¡Œ re-fitï¼Œre-fit è¯­ä¹‰ä¸ä¸¢ï¼›subscribe æ¸…ç©ºé€‰ä¸­ä¸‰æ€ï¼æ—§ remount çš„ã€Œæ¢çª—ä¸¢å¼ƒè¶Šç•Œé€‰ä¸­ã€è¡Œä¸ºï¼Œå¤éªŒ `.selected` 1â†’0ã€‚âœ“
+- **PlacesPage**ï¼šsidebar æ—  keyed remountï¼ˆ`invalidateKey` åªä½œç”¨äºŽ `PlacesMap`ï¼‰ï¼Œ**æœ¬æ¬¡è¡¥éªŒåŒç‚¹é€‰ Sep 5â†’Sep 10 å®Œæˆå³å…³ã€èŒƒå›´ã€ŒSep 5, 2026 â†’ Sep 10ã€å†™å…¥å…±äº« store**ã€‚âœ“
+- **z-index åˆ†å±‚**ï¼šbackdrop 890 / popover 900ï¼›ç§»åŠ¨ç«¯ drawerï¼ˆz500 å»º stacking contextï¼‰å†… backdrop ä¸Ž popover åŒå¤„è¯¥ä¸Šä¸‹æ–‡ã€popover 900 > backdrop 890 â†’ å¼¹å±‚å¯ç‚¹ã€å¤–éƒ¨(åœ°å›¾)ç‚¹ä¸­ backdropï¼›export dialog 2000 ä»æœ€é«˜ã€‚ä¸Ž 390px å®žæµ‹ä¸€è‡´ã€‚âœ“
+- **Esc**ï¼šä»… open æ—¶æŒ‚ window keydownï¼Œeffect cleanup ç§»é™¤ï¼Œæ— æ³„æ¼ï¼›ä¸Ž ExportButton çš„ Esc handler äº’ä¸å†²çªï¼ˆä¸åŒæ—¶æŒ‚è½½ï¼‰ã€‚âœ“
+- **å®‰å…¨**ï¼šçº¯æœ¬åœ° UIï¼Œæ— æ–°å¢žå¤–éƒ¨è¾“å…¥/æ³¨å…¥é¢/ç½‘ç»œ/å­˜å‚¨å˜åŒ–ï¼Œæ— éœ€ Security Engineerã€‚
 
-**一般/建议级（放行不阻塞）**：
-1. `DateRangePicker.tsx` 文件尾缺换行（`\ No newline at end of file`）。
-2. popover 无焦点陷阱（focus 不进 dialog、Tab 可逸出）——ARIA dialog 规范理想态，v1 可接受，无障碍打磨时再补。
-3. 无数据态下 presets 的 `endAnchor=0` → last30/last365 为 1970 区间（apply 会写 1970 范围）；但 picker 仅在有数据视图可见，实际不可达，沿用旧逻辑。
+**ä¸€èˆ¬/å»ºè®®çº§ï¼ˆæ”¾è¡Œä¸é˜»å¡žï¼‰**ï¼š
+1. `DateRangePicker.tsx` æ–‡ä»¶å°¾ç¼ºæ¢è¡Œï¼ˆ`\ No newline at end of file`ï¼‰ã€‚
+2. popover æ— ç„¦ç‚¹é™·é˜±ï¼ˆfocus ä¸è¿› dialogã€Tab å¯é€¸å‡ºï¼‰â€”â€”ARIA dialog è§„èŒƒç†æƒ³æ€ï¼Œv1 å¯æŽ¥å—ï¼Œæ— éšœç¢æ‰“ç£¨æ—¶å†è¡¥ã€‚
+3. æ— æ•°æ®æ€ä¸‹ presets çš„ `endAnchor=0` â†’ last30/last365 ä¸º 1970 åŒºé—´ï¼ˆapply ä¼šå†™ 1970 èŒƒå›´ï¼‰ï¼›ä½† picker ä»…åœ¨æœ‰æ•°æ®è§†å›¾å¯è§ï¼Œå®žé™…ä¸å¯è¾¾ï¼Œæ²¿ç”¨æ—§é€»è¾‘ã€‚
 
-**流程备注**：本次 Dev 在 Reviewer 过审前即 commit（规则 11「代码提交前必须 Reviewer 审查」的偏差）；审查通过后该 commit 成立，后续修复点与本次一般/建议项可并入后续任务，无需改历史。补验改动仅本文档，无代码变更。
+**æµç¨‹å¤‡æ³¨**ï¼šæœ¬æ¬¡ Dev åœ¨ Reviewer è¿‡å®¡å‰å³ commitï¼ˆè§„åˆ™ 11ã€Œä»£ç æäº¤å‰å¿…é¡» Reviewer å®¡æŸ¥ã€çš„åå·®ï¼‰ï¼›å®¡æŸ¥é€šè¿‡åŽè¯¥ commit æˆç«‹ï¼ŒåŽç»­ä¿®å¤ç‚¹ä¸Žæœ¬æ¬¡ä¸€èˆ¬/å»ºè®®é¡¹å¯å¹¶å…¥åŽç»­ä»»åŠ¡ï¼Œæ— éœ€æ”¹åŽ†å²ã€‚è¡¥éªŒæ”¹åŠ¨ä»…æœ¬æ–‡æ¡£ï¼Œæ— ä»£ç å˜æ›´ã€‚
 
-## 2026-09-16 06:57 — Dev T35 导入进度显示修复（PRD v1.22 单文件 + 不确定进度条）
+## 2026-09-16 06:57 â€” Dev T35 å¯¼å…¥è¿›åº¦æ˜¾ç¤ºä¿®å¤ï¼ˆPRD v1.22 å•æ–‡ä»¶ + ä¸ç¡®å®šè¿›åº¦æ¡ï¼‰
 
-**问题根因（CEO 已定位）**：`parse.worker.ts` 进度事件 `progress = index / fileCount`，单文件恒 0（start/reading/parsing 全程 0%，done 才 1）；`parseTimelineFile` 是同步大块（JSON.parse + 逐段遍历），worker 内无中断点，真实中间百分比不存在。UI 却渲染 `parseProgress%` → 113MB 导入进度条静止 0%。
+**é—®é¢˜æ ¹å› ï¼ˆCEO å·²å®šä½ï¼‰**ï¼š`parse.worker.ts` è¿›åº¦äº‹ä»¶ `progress = index / fileCount`ï¼Œå•æ–‡ä»¶æ’ 0ï¼ˆstart/reading/parsing å…¨ç¨‹ 0%ï¼Œdone æ‰ 1ï¼‰ï¼›`parseTimelineFile` æ˜¯åŒæ­¥å¤§å—ï¼ˆJSON.parse + é€æ®µéåŽ†ï¼‰ï¼Œworker å†…æ— ä¸­æ–­ç‚¹ï¼ŒçœŸå®žä¸­é—´ç™¾åˆ†æ¯”ä¸å­˜åœ¨ã€‚UI å´æ¸²æŸ“ `parseProgress%` â†’ 113MB å¯¼å…¥è¿›åº¦æ¡é™æ­¢ 0%ã€‚
 
-**方案落地（诚实原则——不假造数字）**：
+**æ–¹æ¡ˆè½åœ°ï¼ˆè¯šå®žåŽŸåˆ™â€”â€”ä¸å‡é€ æ•°å­—ï¼‰**ï¼š
 
-1. **单文件导入**：`ImportPanel` `<input>` 去掉 `multiple`；drag-drop 多文件时只取第一个（`importFiles([files[0]])`）——与 PRD 功能 1「单文件查看器」一致，功能 14（多 Takeout 合并）独立页承接。`import.supported` 文案同步去「一次选多个」改为「one file at a time / 每次一个文件」。
-2. **不确定进度条**：`.progress-fill--indeterminate`（40% 宽滑块 + `@keyframes progress-slide` `translateX(-100% → 250%)` 1.2s ease-in-out infinite）；`prefers-reduced-motion: reduce` 降级为静态 50% 条（不闪）。文案去百分比：en `'Parsing… large files may take a moment'`、zh `'正在解析… 大文件可能需要一小段时间'`。解析完成直接进 Trips，无 100% 过渡。
-3. **worker 语义与 UI 脱钩**：`parse.worker.ts` / `worker.ts` 消息结构**未动**（reading/parsing/done 仍是 worker↔主线程协议）。
-4. **parseProgress 决策：删除**。grep 证实 ImportPanel 是唯一 UI 消费方；store 保留 `onProgress` 骨架（warning/done 仍要收）但删除 `set({ parseProgress })` 写与 `parseProgress` 字段——类型/初值/clearData/loadSample 的 0/100 赋值全部清理，零死代码。
+1. **å•æ–‡ä»¶å¯¼å…¥**ï¼š`ImportPanel` `<input>` åŽ»æŽ‰ `multiple`ï¼›drag-drop å¤šæ–‡ä»¶æ—¶åªå–ç¬¬ä¸€ä¸ªï¼ˆ`importFiles([files[0]])`ï¼‰â€”â€”ä¸Ž PRD åŠŸèƒ½ 1ã€Œå•æ–‡ä»¶æŸ¥çœ‹å™¨ã€ä¸€è‡´ï¼ŒåŠŸèƒ½ 14ï¼ˆå¤š Takeout åˆå¹¶ï¼‰ç‹¬ç«‹é¡µæ‰¿æŽ¥ã€‚`import.supported` æ–‡æ¡ˆåŒæ­¥åŽ»ã€Œä¸€æ¬¡é€‰å¤šä¸ªã€æ”¹ä¸ºã€Œone file at a time / æ¯æ¬¡ä¸€ä¸ªæ–‡ä»¶ã€ã€‚
+2. **ä¸ç¡®å®šè¿›åº¦æ¡**ï¼š`.progress-fill--indeterminate`ï¼ˆ40% å®½æ»‘å— + `@keyframes progress-slide` `translateX(-100% â†’ 250%)` 1.2s ease-in-out infiniteï¼‰ï¼›`prefers-reduced-motion: reduce` é™çº§ä¸ºé™æ€ 50% æ¡ï¼ˆä¸é—ªï¼‰ã€‚æ–‡æ¡ˆåŽ»ç™¾åˆ†æ¯”ï¼šen `'Parsingâ€¦ large files may take a moment'`ã€zh `'æ­£åœ¨è§£æžâ€¦ å¤§æ–‡ä»¶å¯èƒ½éœ€è¦ä¸€å°æ®µæ—¶é—´'`ã€‚è§£æžå®Œæˆç›´æŽ¥è¿› Tripsï¼Œæ—  100% è¿‡æ¸¡ã€‚
+3. **worker è¯­ä¹‰ä¸Ž UI è„±é’©**ï¼š`parse.worker.ts` / `worker.ts` æ¶ˆæ¯ç»“æž„**æœªåŠ¨**ï¼ˆreading/parsing/done ä»æ˜¯ workerâ†”ä¸»çº¿ç¨‹åè®®ï¼‰ã€‚
+4. **parseProgress å†³ç­–ï¼šåˆ é™¤**ã€‚grep è¯å®ž ImportPanel æ˜¯å”¯ä¸€ UI æ¶ˆè´¹æ–¹ï¼›store ä¿ç•™ `onProgress` éª¨æž¶ï¼ˆwarning/done ä»è¦æ”¶ï¼‰ä½†åˆ é™¤ `set({ parseProgress })` å†™ä¸Ž `parseProgress` å­—æ®µâ€”â€”ç±»åž‹/åˆå€¼/clearData/loadSample çš„ 0/100 èµ‹å€¼å…¨éƒ¨æ¸…ç†ï¼Œé›¶æ­»ä»£ç ã€‚
 
-**改动文件**：`ImportPanel.tsx`（去 multiple、去 parseProgress 订阅、动画条、`t('import.parsing')` 无参）、`index.css`（indeterminate 动画 + reduced-motion）、`en.ts`/`zh.ts`（`import.parsing` 去 `{progress}`、`import.supported` 单文件文案）、`timelineStore.ts`（删 parseProgress 全量）、`vite.config.ts`（test include 加 `.tsx`）、新增 `ImportPanel.test.tsx`。
+**æ”¹åŠ¨æ–‡ä»¶**ï¼š`ImportPanel.tsx`ï¼ˆåŽ» multipleã€åŽ» parseProgress è®¢é˜…ã€åŠ¨ç”»æ¡ã€`t('import.parsing')` æ— å‚ï¼‰ã€`index.css`ï¼ˆindeterminate åŠ¨ç”» + reduced-motionï¼‰ã€`en.ts`/`zh.ts`ï¼ˆ`import.parsing` åŽ» `{progress}`ã€`import.supported` å•æ–‡ä»¶æ–‡æ¡ˆï¼‰ã€`timelineStore.ts`ï¼ˆåˆ  parseProgress å…¨é‡ï¼‰ã€`vite.config.ts`ï¼ˆtest include åŠ  `.tsx`ï¼‰ã€æ–°å¢ž `ImportPanel.test.tsx`ã€‚
 
-**测试**：216 → **220 单测全绿**（16 档：新增 ImportPanel 3 条——动画 class 存在/无行内 width%、parsing 文案无 `%` 且非 `(0%)`、input 无 `multiple`；i18n +1 条——en/zh `import.parsing` 均无 `{progress}`/`%`）。`ImportPanel.test.tsx` 用 `react-dom/server.renderToString`（node 环境无需新增 jsdom/testing-library 依赖）+ `vi.mock` store（zustand SSR getServerSnapshot 恒返回初态，mock 才可渲染 parsing 分支）。lint ✓ / build ✓（仅既有 chunk-size 警告）。
+**æµ‹è¯•**ï¼š216 â†’ **220 å•æµ‹å…¨ç»¿**ï¼ˆ16 æ¡£ï¼šæ–°å¢ž ImportPanel 3 æ¡â€”â€”åŠ¨ç”» class å­˜åœ¨/æ— è¡Œå†… width%ã€parsing æ–‡æ¡ˆæ—  `%` ä¸”éž `(0%)`ã€input æ—  `multiple`ï¼›i18n +1 æ¡â€”â€”en/zh `import.parsing` å‡æ—  `{progress}`/`%`ï¼‰ã€‚`ImportPanel.test.tsx` ç”¨ `react-dom/server.renderToString`ï¼ˆnode çŽ¯å¢ƒæ— éœ€æ–°å¢ž jsdom/testing-library ä¾èµ–ï¼‰+ `vi.mock` storeï¼ˆzustand SSR getServerSnapshot æ’è¿”å›žåˆæ€ï¼Œmock æ‰å¯æ¸²æŸ“ parsing åˆ†æ”¯ï¼‰ã€‚lint âœ“ / build âœ“ï¼ˆä»…æ—¢æœ‰ chunk-size è­¦å‘Šï¼‰ã€‚
 
-**浏览器冒烟（A 导入类，SMOKE-CHECKLIST）**：
-- 0 pageerror（唯一 console.error = 既有 CSP `frame-ancestors` meta 告警，非回归）
-- `input[type=file]` 无 `multiple` ✓
-- 载入 sample → Trips（`Aug 14, 2026 ~ Sep 12 · 952 route points · 115 stays`）✓
-- 「更换数据」→ 回到空状态 ✓
-- **导入 113MB livedata（Timeline-20250213.json）**：`.progress-fill--indeterminate` 出现且 `animationName=progress-slide, duration=1.2s, iteration=infinite`；解析中取样 1.2s 前后 transform x 移动（-226.0 → -219.7）——**动画流动非静止**；主线程 rAF 最大间隔 29ms（<100ms）——解析在 worker、UI 不卡；纯 text 含「Parsing…」无 `%` ✓
-- 完成后进 Trips：label=Timeline-20250213.json，summary=`Jan 15, 2025 ~ Feb 13 · 11,386 route points · 260 stays`，屏上无 `%` 残留 ✓
+**æµè§ˆå™¨å†’çƒŸï¼ˆA å¯¼å…¥ç±»ï¼ŒSMOKE-CHECKLISTï¼‰**ï¼š
+- 0 pageerrorï¼ˆå”¯ä¸€ console.error = æ—¢æœ‰ CSP `frame-ancestors` meta å‘Šè­¦ï¼Œéžå›žå½’ï¼‰
+- `input[type=file]` æ—  `multiple` âœ“
+- è½½å…¥ sample â†’ Tripsï¼ˆ`Aug 14, 2026 ~ Sep 12 Â· 952 route points Â· 115 stays`ï¼‰âœ“
+- ã€Œæ›´æ¢æ•°æ®ã€â†’ å›žåˆ°ç©ºçŠ¶æ€ âœ“
+- **å¯¼å…¥ 113MB livedataï¼ˆTimeline-20250213.jsonï¼‰**ï¼š`.progress-fill--indeterminate` å‡ºçŽ°ä¸” `animationName=progress-slide, duration=1.2s, iteration=infinite`ï¼›è§£æžä¸­å–æ · 1.2s å‰åŽ transform x ç§»åŠ¨ï¼ˆ-226.0 â†’ -219.7ï¼‰â€”â€”**åŠ¨ç”»æµåŠ¨éžé™æ­¢**ï¼›ä¸»çº¿ç¨‹ rAF æœ€å¤§é—´éš” 29msï¼ˆ<100msï¼‰â€”â€”è§£æžåœ¨ workerã€UI ä¸å¡ï¼›çº¯ text å«ã€ŒParsingâ€¦ã€æ—  `%` âœ“
+- å®ŒæˆåŽè¿› Tripsï¼šlabel=Timeline-20250213.jsonï¼Œsummary=`Jan 15, 2025 ~ Feb 13 Â· 11,386 route points Â· 260 stays`ï¼Œå±ä¸Šæ—  `%` æ®‹ç•™ âœ“
 
-**与 PRD v1.22 一致性（验收⑤）**：功能 1 实作 = 单文件导入 + 解析期不确定进度条动画 + 不显示百分比 → 一致。PRD 未改。
+**ä¸Ž PRD v1.22 ä¸€è‡´æ€§ï¼ˆéªŒæ”¶â‘¤ï¼‰**ï¼šåŠŸèƒ½ 1 å®žä½œ = å•æ–‡ä»¶å¯¼å…¥ + è§£æžæœŸä¸ç¡®å®šè¿›åº¦æ¡åŠ¨ç”» + ä¸æ˜¾ç¤ºç™¾åˆ†æ¯” â†’ ä¸€è‡´ã€‚PRD æœªæ”¹ã€‚
 
-## 2026-09-16 07:05 — Dev T35 收尾（Reviewer G1/S3 修正，commit 79a7bea）
+## 2026-09-16 07:05 â€” Dev T35 æ”¶å°¾ï¼ˆReviewer G1/S3 ä¿®æ­£ï¼Œcommit 79a7beaï¼‰
 
-Reviewer 审查 T35 后 PASS，附 1 建议级（G1）+ 1 规范级（S3），本轮顺手修掉：
+Reviewer å®¡æŸ¥ T35 åŽ PASSï¼Œé™„ 1 å»ºè®®çº§ï¼ˆG1ï¼‰+ 1 è§„èŒƒçº§ï¼ˆS3ï¼‰ï¼Œæœ¬è½®é¡ºæ‰‹ä¿®æŽ‰ï¼š
 
-1. **G1 文案单数化**（单文件导入语义一致）：
-   - `en.ts` `import.dropHint`：`'or drag & drop files here'` → `'or drag & drop a file here'`
-   - `zh.ts` `import.dropHint`：`'或把文件拖拽到此处'` → `'或把单个文件拖拽到此处'`
-2. **扫描邻接残留**：同一 import 面板内 `import.retry`（en）`'Choose files again'` → `'Choose the file again'`（与 errorHint「pick the file again」单数口径对齐）；zh `'重新选择文件'` 中文无量，不动。`import.supported`（T35 已改）复核为单数 ✓。
-3. **S3 补换行**：`ImportPanel.test.tsx` 末尾补 `\n`。
+1. **G1 æ–‡æ¡ˆå•æ•°åŒ–**ï¼ˆå•æ–‡ä»¶å¯¼å…¥è¯­ä¹‰ä¸€è‡´ï¼‰ï¼š
+   - `en.ts` `import.dropHint`ï¼š`'or drag & drop files here'` â†’ `'or drag & drop a file here'`
+   - `zh.ts` `import.dropHint`ï¼š`'æˆ–æŠŠæ–‡ä»¶æ‹–æ‹½åˆ°æ­¤å¤„'` â†’ `'æˆ–æŠŠå•ä¸ªæ–‡ä»¶æ‹–æ‹½åˆ°æ­¤å¤„'`
+2. **æ‰«æé‚»æŽ¥æ®‹ç•™**ï¼šåŒä¸€ import é¢æ¿å†… `import.retry`ï¼ˆenï¼‰`'Choose files again'` â†’ `'Choose the file again'`ï¼ˆä¸Ž errorHintã€Œpick the file againã€å•æ•°å£å¾„å¯¹é½ï¼‰ï¼›zh `'é‡æ–°é€‰æ‹©æ–‡ä»¶'` ä¸­æ–‡æ— é‡ï¼Œä¸åŠ¨ã€‚`import.supported`ï¼ˆT35 å·²æ”¹ï¼‰å¤æ ¸ä¸ºå•æ•° âœ“ã€‚
+3. **S3 è¡¥æ¢è¡Œ**ï¼š`ImportPanel.test.tsx` æœ«å°¾è¡¥ `\n`ã€‚
 
-**扫描备注（未改，供 CEO 参考）**：`help.formatsTip`（en/zh）与 FAQ q3 提到「多文件一次性合并导入」——那是 PRD v1.22 划给**功能 14 独立页**（未立项未实现）的语义，非 import 面板复数残留，本轮不越界改 help 文案。
+**æ‰«æå¤‡æ³¨ï¼ˆæœªæ”¹ï¼Œä¾› CEO å‚è€ƒï¼‰**ï¼š`help.formatsTip`ï¼ˆen/zhï¼‰ä¸Ž FAQ q3 æåˆ°ã€Œå¤šæ–‡ä»¶ä¸€æ¬¡æ€§åˆå¹¶å¯¼å…¥ã€â€”â€”é‚£æ˜¯ PRD v1.22 åˆ’ç»™**åŠŸèƒ½ 14 ç‹¬ç«‹é¡µ**ï¼ˆæœªç«‹é¡¹æœªå®žçŽ°ï¼‰çš„è¯­ä¹‰ï¼Œéž import é¢æ¿å¤æ•°æ®‹ç•™ï¼Œæœ¬è½®ä¸è¶Šç•Œæ”¹ help æ–‡æ¡ˆã€‚
 
-**自测**：grep `drag & drop files|拖拽文件|把文件` in `src/src/lib/i18n/` 零命中；`npm test` **220 全绿**（16 档，与 T35 基线一致）；lint ✓ / build ✓（仅既有 chunk-size 警告）。
+**è‡ªæµ‹**ï¼šgrep `drag & drop files|æ‹–æ‹½æ–‡ä»¶|æŠŠæ–‡ä»¶` in `src/src/lib/i18n/` é›¶å‘½ä¸­ï¼›`npm test` **220 å…¨ç»¿**ï¼ˆ16 æ¡£ï¼Œä¸Ž T35 åŸºçº¿ä¸€è‡´ï¼‰ï¼›lint âœ“ / build âœ“ï¼ˆä»…æ—¢æœ‰ chunk-size è­¦å‘Šï¼‰ã€‚
 
-## 2026-09-16 07:10 — Dev Help 文案单文件化（PRD v1.22 对齐，commit 69edd64，L1）
+## 2026-09-16 07:10 â€” Dev Help æ–‡æ¡ˆå•æ–‡ä»¶åŒ–ï¼ˆPRD v1.22 å¯¹é½ï¼Œcommit 69edd64ï¼ŒL1ï¼‰
 
-CEO 指派跟进 T35 扫描备注中的 help 残留（多文件宣传与 PRD v1.22「import = 单文件查看器，合并去重移入功能 14 规划」矛盾）：
+CEO æŒ‡æ´¾è·Ÿè¿› T35 æ‰«æå¤‡æ³¨ä¸­çš„ help æ®‹ç•™ï¼ˆå¤šæ–‡ä»¶å®£ä¼ ä¸Ž PRD v1.22ã€Œimport = å•æ–‡ä»¶æŸ¥çœ‹å™¨ï¼Œåˆå¹¶åŽ»é‡ç§»å…¥åŠŸèƒ½ 14 è§„åˆ’ã€çŸ›ç›¾ï¼‰ï¼š
 
-1. `help.formatsTip`（en/zh）：「可以一次性全选、合并导入」/「select them all and import in one go」→「目前每次导入一个文件；跨设备多份导出的合并去重功能（规划中）将支持先生成合并文件、再导入」/「For now, import one file at a time. … planned … generate a merged file and import it.」
-2. FAQ 额外找到 2 处同类表述一并改（en/zh）：
-   - `help.faq.a2`：「恢复前后的文件可以一起导入本工具，互不冲突」→「恢复后导出的文件可直接导入查看；合并新旧数据待功能 14 规划」
-   - `help.faq.a3`：「分时段多次导出后一次性导入」→「跨时段合并多份导出待合并去重功能（规划中）上线后先生成合并文件再导入」
-3. `HelpPage.tsx` 无写死中文文案（全部走 `t()`），无需改。
+1. `help.formatsTip`ï¼ˆen/zhï¼‰ï¼šã€Œå¯ä»¥ä¸€æ¬¡æ€§å…¨é€‰ã€åˆå¹¶å¯¼å…¥ã€/ã€Œselect them all and import in one goã€â†’ã€Œç›®å‰æ¯æ¬¡å¯¼å…¥ä¸€ä¸ªæ–‡ä»¶ï¼›è·¨è®¾å¤‡å¤šä»½å¯¼å‡ºçš„åˆå¹¶åŽ»é‡åŠŸèƒ½ï¼ˆè§„åˆ’ä¸­ï¼‰å°†æ”¯æŒå…ˆç”Ÿæˆåˆå¹¶æ–‡ä»¶ã€å†å¯¼å…¥ã€/ã€ŒFor now, import one file at a time. â€¦ planned â€¦ generate a merged file and import it.ã€
+2. FAQ é¢å¤–æ‰¾åˆ° 2 å¤„åŒç±»è¡¨è¿°ä¸€å¹¶æ”¹ï¼ˆen/zhï¼‰ï¼š
+   - `help.faq.a2`ï¼šã€Œæ¢å¤å‰åŽçš„æ–‡ä»¶å¯ä»¥ä¸€èµ·å¯¼å…¥æœ¬å·¥å…·ï¼Œäº’ä¸å†²çªã€â†’ã€Œæ¢å¤åŽå¯¼å‡ºçš„æ–‡ä»¶å¯ç›´æŽ¥å¯¼å…¥æŸ¥çœ‹ï¼›åˆå¹¶æ–°æ—§æ•°æ®å¾…åŠŸèƒ½ 14 è§„åˆ’ã€
+   - `help.faq.a3`ï¼šã€Œåˆ†æ—¶æ®µå¤šæ¬¡å¯¼å‡ºåŽä¸€æ¬¡æ€§å¯¼å…¥ã€â†’ã€Œè·¨æ—¶æ®µåˆå¹¶å¤šä»½å¯¼å‡ºå¾…åˆå¹¶åŽ»é‡åŠŸèƒ½ï¼ˆè§„åˆ’ä¸­ï¼‰ä¸Šçº¿åŽå…ˆç”Ÿæˆåˆå¹¶æ–‡ä»¶å†å¯¼å…¥ã€
+3. `HelpPage.tsx` æ— å†™æ­»ä¸­æ–‡æ–‡æ¡ˆï¼ˆå…¨éƒ¨èµ° `t()`ï¼‰ï¼Œæ— éœ€æ”¹ã€‚
 
-**自测**：grep `一次性全选|合并导入|多文件` in en.ts/zh.ts **零命中**；`npm test` **220 全绿**；lint ✓ / build ✓（仅既有 chunk-size 警告）。
+**è‡ªæµ‹**ï¼šgrep `ä¸€æ¬¡æ€§å…¨é€‰|åˆå¹¶å¯¼å…¥|å¤šæ–‡ä»¶` in en.ts/zh.ts **é›¶å‘½ä¸­**ï¼›`npm test` **220 å…¨ç»¿**ï¼›lint âœ“ / build âœ“ï¼ˆä»…æ—¢æœ‰ chunk-size è­¦å‘Šï¼‰ã€‚
 
-## 2026-09-16 08:06 — Dev T36 合并归档独立页（功能 14，rawSignals 累积）
+## 2026-09-16 08:06 â€” Dev T36 åˆå¹¶å½’æ¡£ç‹¬ç«‹é¡µï¼ˆåŠŸèƒ½ 14ï¼ŒrawSignals ç´¯ç§¯ï¼‰
 
-CEO 已立项（TASKS Doing），本轮从零实现 `/app/merge` 独立页（与 import 流程零耦合）。
+CEO å·²ç«‹é¡¹ï¼ˆTASKS Doingï¼‰ï¼Œæœ¬è½®ä»Žé›¶å®žçŽ° `/app/merge` ç‹¬ç«‹é¡µï¼ˆä¸Ž import æµç¨‹é›¶è€¦åˆï¼‰ã€‚
 
-**架构**：
-- `src/lib/merge/index.ts` — 纯算法核心（无 DOM/网络）：
-  - `semanticSegments` → 新导出 verbatim（永久历史，最新=最全；替换不做去重/拼接）——合并档恒为**单层语义**
-  - `rawSignals` → 窗口互补累积：不重叠窗口拼接；重叠按「时间 ±60s + 位置 ~100m」折叠，**保留新导出的点**
-  - `userLocationProfile` → 取新导出
-  - 输出 `{semanticSegments, rawSignals, userLocationProfile?}` 紧凑序列化（无 pretty print，120MB 级文档翻倍无意义），stats 含 segments/rawSignals/points/windowEndMs（文件名用）
-  - 折叠 O((nOld+nNew) log n)：ts 排序 + 二分下界扫 ±60s 窗口，haversine 判 100m
-- 复用 `formatTimelineArray.extractFormat1Slices`（本次重构导出，parse 与 merge 共享格式①遍历）→ array/object 双形态都吃
-- worker：`src/lib/merge/merge.worker.ts` + facade `worker.ts`——120MB 级合并不卡主线程、不确定动画真实流动（T35 教训）
-- `src/pages/MergePage.tsx`：双 Select File（主档案可选/新导出必需）+ 合并并下载（新导出未选时禁用）+ 不确定进度条 + 结果统计 + 隐私说明；Blob 下载 `timeline-merged-YYYYMMDD.json`
+**æž¶æž„**ï¼š
+- `src/lib/merge/index.ts` â€” çº¯ç®—æ³•æ ¸å¿ƒï¼ˆæ—  DOM/ç½‘ç»œï¼‰ï¼š
+  - `semanticSegments` â†’ æ–°å¯¼å‡º verbatimï¼ˆæ°¸ä¹…åŽ†å²ï¼Œæœ€æ–°=æœ€å…¨ï¼›æ›¿æ¢ä¸åšåŽ»é‡/æ‹¼æŽ¥ï¼‰â€”â€”åˆå¹¶æ¡£æ’ä¸º**å•å±‚è¯­ä¹‰**
+  - `rawSignals` â†’ çª—å£äº’è¡¥ç´¯ç§¯ï¼šä¸é‡å çª—å£æ‹¼æŽ¥ï¼›é‡å æŒ‰ã€Œæ—¶é—´ Â±60s + ä½ç½® ~100mã€æŠ˜å ï¼Œ**ä¿ç•™æ–°å¯¼å‡ºçš„ç‚¹**
+  - `userLocationProfile` â†’ å–æ–°å¯¼å‡º
+  - è¾“å‡º `{semanticSegments, rawSignals, userLocationProfile?}` ç´§å‡‘åºåˆ—åŒ–ï¼ˆæ—  pretty printï¼Œ120MB çº§æ–‡æ¡£ç¿»å€æ— æ„ä¹‰ï¼‰ï¼Œstats å« segments/rawSignals/points/windowEndMsï¼ˆæ–‡ä»¶åç”¨ï¼‰
+  - æŠ˜å  O((nOld+nNew) log n)ï¼šts æŽ’åº + äºŒåˆ†ä¸‹ç•Œæ‰« Â±60s çª—å£ï¼Œhaversine åˆ¤ 100m
+- å¤ç”¨ `formatTimelineArray.extractFormat1Slices`ï¼ˆæœ¬æ¬¡é‡æž„å¯¼å‡ºï¼Œparse ä¸Ž merge å…±äº«æ ¼å¼â‘ éåŽ†ï¼‰â†’ array/object åŒå½¢æ€éƒ½åƒ
+- workerï¼š`src/lib/merge/merge.worker.ts` + facade `worker.ts`â€”â€”120MB çº§åˆå¹¶ä¸å¡ä¸»çº¿ç¨‹ã€ä¸ç¡®å®šåŠ¨ç”»çœŸå®žæµåŠ¨ï¼ˆT35 æ•™è®­ï¼‰
+- `src/pages/MergePage.tsx`ï¼šåŒ Select Fileï¼ˆä¸»æ¡£æ¡ˆå¯é€‰/æ–°å¯¼å‡ºå¿…éœ€ï¼‰+ åˆå¹¶å¹¶ä¸‹è½½ï¼ˆæ–°å¯¼å‡ºæœªé€‰æ—¶ç¦ç”¨ï¼‰+ ä¸ç¡®å®šè¿›åº¦æ¡ + ç»“æžœç»Ÿè®¡ + éšç§è¯´æ˜Žï¼›Blob ä¸‹è½½ `timeline-merged-YYYYMMDD.json`
 
-**关键设计决策（与 Reviewer 沟通后确认）**：
-1. **去掉「新文件内部去重」**：livedata 实测新版导出内部 ~2980 个近重复点（±60s/100m，多为静止/慢移连续 ping）——那是**真信号密度**，内部折叠会静默削掉 ~20% 原始数据，违背「原始 GPS 长期保留」。跨窗口去重（旧点 vs 新点）已足够让「同一份合并两次」幂等：
-   - 同文件两次：两条旧点均命中新点被折叠 → 无重复点、语义段单层 ✓
-   - 折叠判据只作用于**旧→新**方向（旧点被新点替换）
-2. `windowEndMs` 用于下载文件名 / 成功文案日期，取合并后最晚点
-3. coordless（wifiScan/activityRecord）双份穿透——fold 判据是「时间+位置」，无坐标入口不参与；同文件合并两次时 coordless 会出现两份（import 直接跳过，无害）。PRD 判据未覆盖，N/A。
+**å…³é”®è®¾è®¡å†³ç­–ï¼ˆä¸Ž Reviewer æ²Ÿé€šåŽç¡®è®¤ï¼‰**ï¼š
+1. **åŽ»æŽ‰ã€Œæ–°æ–‡ä»¶å†…éƒ¨åŽ»é‡ã€**ï¼šlivedata å®žæµ‹æ–°ç‰ˆå¯¼å‡ºå†…éƒ¨ ~2980 ä¸ªè¿‘é‡å¤ç‚¹ï¼ˆÂ±60s/100mï¼Œå¤šä¸ºé™æ­¢/æ…¢ç§»è¿žç»­ pingï¼‰â€”â€”é‚£æ˜¯**çœŸä¿¡å·å¯†åº¦**ï¼Œå†…éƒ¨æŠ˜å ä¼šé™é»˜å‰ŠæŽ‰ ~20% åŽŸå§‹æ•°æ®ï¼Œè¿èƒŒã€ŒåŽŸå§‹ GPS é•¿æœŸä¿ç•™ã€ã€‚è·¨çª—å£åŽ»é‡ï¼ˆæ—§ç‚¹ vs æ–°ç‚¹ï¼‰å·²è¶³å¤Ÿè®©ã€ŒåŒä¸€ä»½åˆå¹¶ä¸¤æ¬¡ã€å¹‚ç­‰ï¼š
+   - åŒæ–‡ä»¶ä¸¤æ¬¡ï¼šä¸¤æ¡æ—§ç‚¹å‡å‘½ä¸­æ–°ç‚¹è¢«æŠ˜å  â†’ æ— é‡å¤ç‚¹ã€è¯­ä¹‰æ®µå•å±‚ âœ“
+   - æŠ˜å åˆ¤æ®åªä½œç”¨äºŽ**æ—§â†’æ–°**æ–¹å‘ï¼ˆæ—§ç‚¹è¢«æ–°ç‚¹æ›¿æ¢ï¼‰
+2. `windowEndMs` ç”¨äºŽä¸‹è½½æ–‡ä»¶å / æˆåŠŸæ–‡æ¡ˆæ—¥æœŸï¼Œå–åˆå¹¶åŽæœ€æ™šç‚¹
+3. coordlessï¼ˆwifiScan/activityRecordï¼‰åŒä»½ç©¿é€â€”â€”fold åˆ¤æ®æ˜¯ã€Œæ—¶é—´+ä½ç½®ã€ï¼Œæ— åæ ‡å…¥å£ä¸å‚ä¸Žï¼›åŒæ–‡ä»¶åˆå¹¶ä¸¤æ¬¡æ—¶ coordless ä¼šå‡ºçŽ°ä¸¤ä»½ï¼ˆimport ç›´æŽ¥è·³è¿‡ï¼Œæ— å®³ï¼‰ã€‚PRD åˆ¤æ®æœªè¦†ç›–ï¼ŒN/Aã€‚
 
-**livedata 冒烟（真实端到端）**：
-- 2025(108MB) + 2026(123MB) 合并 → `semanticSegments=97382`（新）、`rawSignals=106171`（50662+55509）、`points=27252`（11773+15479）✓ 无损累积
-- 合并档**再导入**（走正常 parse）→ points 27252、segments/visits 与 2026 单独解析一致、span 2025-01-14 → 2026-08-20 ✓
+**livedata å†’çƒŸï¼ˆçœŸå®žç«¯åˆ°ç«¯ï¼‰**ï¼š
+- 2025(108MB) + 2026(123MB) åˆå¹¶ â†’ `semanticSegments=97382`ï¼ˆæ–°ï¼‰ã€`rawSignals=106171`ï¼ˆ50662+55509ï¼‰ã€`points=27252`ï¼ˆ11773+15479ï¼‰âœ“ æ— æŸç´¯ç§¯
+- åˆå¹¶æ¡£**å†å¯¼å…¥**ï¼ˆèµ°æ­£å¸¸ parseï¼‰â†’ points 27252ã€segments/visits ä¸Ž 2026 å•ç‹¬è§£æžä¸€è‡´ã€span 2025-01-14 â†’ 2026-08-20 âœ“
 
-**错误通道**：`MergeError{key, params}`（复用 `import.notJson`/`import.emptyData`；新增 `merge.error.needTimeline`/`merge.error.unexpected`）→ worker 回传 key/params → 页面 `t(key, params)` 本地渲染（与 tiles 错误模式一致）。新增 13 个 i18n key（en/zh 同步，parity 测试守卫）。
+**é”™è¯¯é€šé“**ï¼š`MergeError{key, params}`ï¼ˆå¤ç”¨ `import.notJson`/`import.emptyData`ï¼›æ–°å¢ž `merge.error.needTimeline`/`merge.error.unexpected`ï¼‰â†’ worker å›žä¼  key/params â†’ é¡µé¢ `t(key, params)` æœ¬åœ°æ¸²æŸ“ï¼ˆä¸Ž tiles é”™è¯¯æ¨¡å¼ä¸€è‡´ï¼‰ã€‚æ–°å¢ž 13 ä¸ª i18n keyï¼ˆen/zh åŒæ­¥ï¼Œparity æµ‹è¯•å®ˆå«ï¼‰ã€‚
 
-**自测**：新增 `merge.test.ts`（17 件：首次合并/同文件两次/不重叠/重叠折叠/±60s 与 100m 边界/coordless 穿透/双形态/错误/真实 livedata 冒烟）+ `MergePage.test.tsx`（renderToString，mock worker facade 避开 `?worker` transform）；`npm test` **237 全绿**（18 档，基线 220→+17）；lint ✓；build ✓（merge.worker chunk 5.2kB，仅既有 chunk-size 警告）。
+**è‡ªæµ‹**ï¼šæ–°å¢ž `merge.test.ts`ï¼ˆ17 ä»¶ï¼šé¦–æ¬¡åˆå¹¶/åŒæ–‡ä»¶ä¸¤æ¬¡/ä¸é‡å /é‡å æŠ˜å /Â±60s ä¸Ž 100m è¾¹ç•Œ/coordless ç©¿é€/åŒå½¢æ€/é”™è¯¯/çœŸå®ž livedata å†’çƒŸï¼‰+ `MergePage.test.tsx`ï¼ˆrenderToStringï¼Œmock worker facade é¿å¼€ `?worker` transformï¼‰ï¼›`npm test` **237 å…¨ç»¿**ï¼ˆ18 æ¡£ï¼ŒåŸºçº¿ 220â†’+17ï¼‰ï¼›lint âœ“ï¼›build âœ“ï¼ˆmerge.worker chunk 5.2kBï¼Œä»…æ—¢æœ‰ chunk-size è­¦å‘Šï¼‰ã€‚
 
-**已知问题**：无阻塞项。`/app/merge` 手工浏览器验证留给 Reviewer 环境复测（解析/合并已由 livedata 自动测试覆盖）。T37（raw 点渲染压测）在合并档可产出 27k 点窗口后更有意义——可作为 T37 的真实数据源。
+**å·²çŸ¥é—®é¢˜**ï¼šæ— é˜»å¡žé¡¹ã€‚`/app/merge` æ‰‹å·¥æµè§ˆå™¨éªŒè¯ç•™ç»™ Reviewer çŽ¯å¢ƒå¤æµ‹ï¼ˆè§£æž/åˆå¹¶å·²ç”± livedata è‡ªåŠ¨æµ‹è¯•è¦†ç›–ï¼‰ã€‚T37ï¼ˆraw ç‚¹æ¸²æŸ“åŽ‹æµ‹ï¼‰åœ¨åˆå¹¶æ¡£å¯äº§å‡º 27k ç‚¹çª—å£åŽæ›´æœ‰æ„ä¹‰â€”â€”å¯ä½œä¸º T37 çš„çœŸå®žæ•°æ®æºã€‚
 
-## 2026-09-16 08:56 — Dev T36 一般级修复（Reviewer PASS 附 3 项，CEO 拍板全修）
+## 2026-09-16 08:56 â€” Dev T36 ä¸€èˆ¬çº§ä¿®å¤ï¼ˆReviewer PASS é™„ 3 é¡¹ï¼ŒCEO æ‹æ¿å…¨ä¿®ï¼‰
 
-Reviewer 审查 T36 后 PASS，附 3 个一般级问题，CEO 拍板全部修复（本轮 1 commit）。
+Reviewer å®¡æŸ¥ T36 åŽ PASSï¼Œé™„ 3 ä¸ªä¸€èˆ¬çº§é—®é¢˜ï¼ŒCEO æ‹æ¿å…¨éƒ¨ä¿®å¤ï¼ˆæœ¬è½® 1 commitï¼‰ã€‚
 
-**#1 空语义段防护（数据安全，必修）**：
-- `requireFormat1` 在「全空 → `import.emptyData`」之后新增 `slices.semanticSegments.length === 0` → 抛 `MergeError('merge.error.needSemanticSegments')`。
-- 动机：`semanticSegments` 合并档恒取新导出 verbatim，放行「rawSignals 非空但语义段为空」会把旧档案累积语义层**静默替换为空**。guard 顺序保留：invalidTopObject/missingSegments → 全空(emptyData) → 仅空语义段(新 key)，既有 emptyData 语义不变。
-- 新增 2 个 i18n key（en/zh 同步，中文含「semanticSegments」术语便于定位）。
+**#1 ç©ºè¯­ä¹‰æ®µé˜²æŠ¤ï¼ˆæ•°æ®å®‰å…¨ï¼Œå¿…ä¿®ï¼‰**ï¼š
+- `requireFormat1` åœ¨ã€Œå…¨ç©º â†’ `import.emptyData`ã€ä¹‹åŽæ–°å¢ž `slices.semanticSegments.length === 0` â†’ æŠ› `MergeError('merge.error.needSemanticSegments')`ã€‚
+- åŠ¨æœºï¼š`semanticSegments` åˆå¹¶æ¡£æ’å–æ–°å¯¼å‡º verbatimï¼Œæ”¾è¡Œã€ŒrawSignals éžç©ºä½†è¯­ä¹‰æ®µä¸ºç©ºã€ä¼šæŠŠæ—§æ¡£æ¡ˆç´¯ç§¯è¯­ä¹‰å±‚**é™é»˜æ›¿æ¢ä¸ºç©º**ã€‚guard é¡ºåºä¿ç•™ï¼šinvalidTopObject/missingSegments â†’ å…¨ç©º(emptyData) â†’ ä»…ç©ºè¯­ä¹‰æ®µ(æ–° key)ï¼Œæ—¢æœ‰ emptyData è¯­ä¹‰ä¸å˜ã€‚
+- æ–°å¢ž 2 ä¸ª i18n keyï¼ˆen/zh åŒæ­¥ï¼Œä¸­æ–‡å«ã€ŒsemanticSegmentsã€æœ¯è¯­ä¾¿äºŽå®šä½ï¼‰ã€‚
 
-**#2 coordless exact-identity 去重**：
-- `foldRawSignals` 新增 coordless 扫描：旧池 coordless 条目 `JSON.stringify` 入 Set（O(n)）——新的 coordless 条目与旧池 **byte-identical** 则折叠（池内既有副本胜出），真实增量（同形状不同值）保留；有坐标点维持 ±60s + 100m + 保留新点现逻辑不动。
-- 方向选择「折新留旧」：与任务描述「只折叠与旧池完全相同的条目」一致，且新导出内部重复恰与旧池同抄时也收敛（更强幂等）。
-- livedata 交叉验证：2025/2026 两份真实导出 coordless 精确重叠 **0 条** → 原有冒烟统计（rawSignals=106171）不受影响，端到端断言原样保持。
-- ⚠️ 既有 6 个 merge 用例的 fixture 用 raw-only `objectFile([])` 构造「合法文件」——新护栏下本就应被拒，已补 `[seg(...)]` 使 fixture 合法（测试意图不变）。
+**#2 coordless exact-identity åŽ»é‡**ï¼š
+- `foldRawSignals` æ–°å¢ž coordless æ‰«æï¼šæ—§æ±  coordless æ¡ç›® `JSON.stringify` å…¥ Setï¼ˆO(n)ï¼‰â€”â€”æ–°çš„ coordless æ¡ç›®ä¸Žæ—§æ±  **byte-identical** åˆ™æŠ˜å ï¼ˆæ± å†…æ—¢æœ‰å‰¯æœ¬èƒœå‡ºï¼‰ï¼ŒçœŸå®žå¢žé‡ï¼ˆåŒå½¢çŠ¶ä¸åŒå€¼ï¼‰ä¿ç•™ï¼›æœ‰åæ ‡ç‚¹ç»´æŒ Â±60s + 100m + ä¿ç•™æ–°ç‚¹çŽ°é€»è¾‘ä¸åŠ¨ã€‚
+- æ–¹å‘é€‰æ‹©ã€ŒæŠ˜æ–°ç•™æ—§ã€ï¼šä¸Žä»»åŠ¡æè¿°ã€ŒåªæŠ˜å ä¸Žæ—§æ± å®Œå…¨ç›¸åŒçš„æ¡ç›®ã€ä¸€è‡´ï¼Œä¸”æ–°å¯¼å‡ºå†…éƒ¨é‡å¤æ°ä¸Žæ—§æ± åŒæŠ„æ—¶ä¹Ÿæ”¶æ•›ï¼ˆæ›´å¼ºå¹‚ç­‰ï¼‰ã€‚
+- livedata äº¤å‰éªŒè¯ï¼š2025/2026 ä¸¤ä»½çœŸå®žå¯¼å‡º coordless ç²¾ç¡®é‡å  **0 æ¡** â†’ åŽŸæœ‰å†’çƒŸç»Ÿè®¡ï¼ˆrawSignals=106171ï¼‰ä¸å—å½±å“ï¼Œç«¯åˆ°ç«¯æ–­è¨€åŽŸæ ·ä¿æŒã€‚
+- âš ï¸ æ—¢æœ‰ 6 ä¸ª merge ç”¨ä¾‹çš„ fixture ç”¨ raw-only `objectFile([])` æž„é€ ã€Œåˆæ³•æ–‡ä»¶ã€â€”â€”æ–°æŠ¤æ ä¸‹æœ¬å°±åº”è¢«æ‹’ï¼Œå·²è¡¥ `[seg(...)]` ä½¿ fixture åˆæ³•ï¼ˆæµ‹è¯•æ„å›¾ä¸å˜ï¼‰ã€‚
 
-**#3 合并页大文件护栏**：
-- 新增 `src/lib/merge/largeFile.ts` 纯函数（`MERGE_LARGE_THRESHOLD_BYTES=200MB`、`mergeInputBytes`、`isLargeMerge`）。
-- `MergePage.onMerge`：输入合计 >200MB 先 `window.confirm(t('merge.largeConfirm', {size}))`（说明内存峰值约 6 倍、>300MB 建议分次导出），确认才进 worker；cancel 通道不做（评审建议级，PRD/README 记上限一句即可）。
-- PRD 功能 14 追加「数据护栏 + 上限」一句；README 格式节追加合并页上限说明。
+**#3 åˆå¹¶é¡µå¤§æ–‡ä»¶æŠ¤æ **ï¼š
+- æ–°å¢ž `src/lib/merge/largeFile.ts` çº¯å‡½æ•°ï¼ˆ`MERGE_LARGE_THRESHOLD_BYTES=200MB`ã€`mergeInputBytes`ã€`isLargeMerge`ï¼‰ã€‚
+- `MergePage.onMerge`ï¼šè¾“å…¥åˆè®¡ >200MB å…ˆ `window.confirm(t('merge.largeConfirm', {size}))`ï¼ˆè¯´æ˜Žå†…å­˜å³°å€¼çº¦ 6 å€ã€>300MB å»ºè®®åˆ†æ¬¡å¯¼å‡ºï¼‰ï¼Œç¡®è®¤æ‰è¿› workerï¼›cancel é€šé“ä¸åšï¼ˆè¯„å®¡å»ºè®®çº§ï¼ŒPRD/README è®°ä¸Šé™ä¸€å¥å³å¯ï¼‰ã€‚
+- PRD åŠŸèƒ½ 14 è¿½åŠ ã€Œæ•°æ®æŠ¤æ  + ä¸Šé™ã€ä¸€å¥ï¼›README æ ¼å¼èŠ‚è¿½åŠ åˆå¹¶é¡µä¸Šé™è¯´æ˜Žã€‚
 
-**自测**：`npm test` **243 全绿**（237 基线 → +6：空语义段抛错含 en/zh i18n 断言、raw-only 主档案同护栏、coordless 同文件两次幂等、coordless 精确去重+真实增量、200MB 阈值、largeConfirm 双语文案）；lint ✓；build ✓（仅既有 chunk-size 警告）。
+**è‡ªæµ‹**ï¼š`npm test` **243 å…¨ç»¿**ï¼ˆ237 åŸºçº¿ â†’ +6ï¼šç©ºè¯­ä¹‰æ®µæŠ›é”™å« en/zh i18n æ–­è¨€ã€raw-only ä¸»æ¡£æ¡ˆåŒæŠ¤æ ã€coordless åŒæ–‡ä»¶ä¸¤æ¬¡å¹‚ç­‰ã€coordless ç²¾ç¡®åŽ»é‡+çœŸå®žå¢žé‡ã€200MB é˜ˆå€¼ã€largeConfirm åŒè¯­æ–‡æ¡ˆï¼‰ï¼›lint âœ“ï¼›build âœ“ï¼ˆä»…æ—¢æœ‰ chunk-size è­¦å‘Šï¼‰ã€‚
 
-**冒烟（#3，真实浏览器）**：headless Chrome CDP 驱动生产构建 `/app/merge`，选 livedata 双文件（108+123=**231.6MB > 200MB**：`Timeline-20250213.json` 主档案 + `Timeline-20260820.json` 新导出）→ 点「Merge & download」→ `window.confirm` 弹出（消息含 200MB/300MB/231.6MB、内存峰值约 6 倍），decline 后合并中止（无 busy 进度、无下载、无 result）。✅
-**已知问题**：无阻塞项。合并页中文/英文确认弹窗文案已单测覆盖；真实交互确认弹窗留给 Reviewer 复测。
+**å†’çƒŸï¼ˆ#3ï¼ŒçœŸå®žæµè§ˆå™¨ï¼‰**ï¼šheadless Chrome CDP é©±åŠ¨ç”Ÿäº§æž„å»º `/app/merge`ï¼Œé€‰ livedata åŒæ–‡ä»¶ï¼ˆ108+123=**231.6MB > 200MB**ï¼š`Timeline-20250213.json` ä¸»æ¡£æ¡ˆ + `Timeline-20260820.json` æ–°å¯¼å‡ºï¼‰â†’ ç‚¹ã€ŒMerge & downloadã€â†’ `window.confirm` å¼¹å‡ºï¼ˆæ¶ˆæ¯å« 200MB/300MB/231.6MBã€å†…å­˜å³°å€¼çº¦ 6 å€ï¼‰ï¼Œdecline åŽåˆå¹¶ä¸­æ­¢ï¼ˆæ—  busy è¿›åº¦ã€æ— ä¸‹è½½ã€æ—  resultï¼‰ã€‚âœ…
+**å·²çŸ¥é—®é¢˜**ï¼šæ— é˜»å¡žé¡¹ã€‚åˆå¹¶é¡µä¸­æ–‡/è‹±æ–‡ç¡®è®¤å¼¹çª—æ–‡æ¡ˆå·²å•æµ‹è¦†ç›–ï¼›çœŸå®žäº¤äº’ç¡®è®¤å¼¹çª—ç•™ç»™ Reviewer å¤æµ‹ã€‚
 
-## 2026-09-16 10:05 — Dev T37 发布前性能复测（15k 点窗口）完成
+## 2026-09-16 10:05 â€” Dev T37 å‘å¸ƒå‰æ€§èƒ½å¤æµ‹ï¼ˆ15k ç‚¹çª—å£ï¼‰å®Œæˆ
 
-**结论先写**：**核心验收通过，产品代码零修改**。15k raw 点窗口（默认 30 天，cap 后 12,000 绘制）缩放/平移
-无卡顿无秒级冻结，指标优于 §8 pre-fix 基线；附带发现范围切换有一次 1.3–2.3s 冻结（非阻塞，已记录）。
-报告全文：**DATA-FINDINGS §10**；完整逐帧数据：`scripts/out/perf-report.json`。
+**ç»“è®ºå…ˆå†™**ï¼š**æ ¸å¿ƒéªŒæ”¶é€šè¿‡ï¼Œäº§å“ä»£ç é›¶ä¿®æ”¹**ã€‚15k raw ç‚¹çª—å£ï¼ˆé»˜è®¤ 30 å¤©ï¼Œcap åŽ 12,000 ç»˜åˆ¶ï¼‰ç¼©æ”¾/å¹³ç§»
+æ— å¡é¡¿æ— ç§’çº§å†»ç»“ï¼ŒæŒ‡æ ‡ä¼˜äºŽ Â§8 pre-fix åŸºçº¿ï¼›é™„å¸¦å‘çŽ°èŒƒå›´åˆ‡æ¢æœ‰ä¸€æ¬¡ 1.3â€“2.3s å†»ç»“ï¼ˆéžé˜»å¡žï¼Œå·²è®°å½•ï¼‰ã€‚
+æŠ¥å‘Šå…¨æ–‡ï¼š**DATA-FINDINGS Â§10**ï¼›å®Œæ•´é€å¸§æ•°æ®ï¼š`scripts/out/perf-report.json`ã€‚
 
-**主场景（真实 2026 文件默认窗口 = 15,072 raw → 12,000 绘制）**：
-- 导入首绘：wall 7.2s（summary@6.4s / map@4.1s），解析在 worker 主线程 0 longtask，heap 82MB。
-- 缩放 14 步 z5↔12：帧 p95 pooled **183ms**（单步 100–283ms）；每步 longtask max **219ms**（无秒级冻结）——
-  对照 §8 pre-fix p95 461ms / longtask max 1796ms。
-- z5→6 首挂 12k：durMs 1418ms / lt max 196ms；z6→5 卸载：durMs 1070ms / lt max 94ms。
-- 滚轮连打 6 格（z6）：连续路径峰值 longtask **303ms**（15 次，durMs 4022ms）。
-- 平移 low（z4）/ high（z12）各 8 拖：avg 23.4 / 24.7ms ≈ **43 / 41fps**，longtask **0**——
-  对照 §8 post-fix ~34fps。
+**ä¸»åœºæ™¯ï¼ˆçœŸå®ž 2026 æ–‡ä»¶é»˜è®¤çª—å£ = 15,072 raw â†’ 12,000 ç»˜åˆ¶ï¼‰**ï¼š
+- å¯¼å…¥é¦–ç»˜ï¼šwall 7.2sï¼ˆsummary@6.4s / map@4.1sï¼‰ï¼Œè§£æžåœ¨ worker ä¸»çº¿ç¨‹ 0 longtaskï¼Œheap 82MBã€‚
+- ç¼©æ”¾ 14 æ­¥ z5â†”12ï¼šå¸§ p95 pooled **183ms**ï¼ˆå•æ­¥ 100â€“283msï¼‰ï¼›æ¯æ­¥ longtask max **219ms**ï¼ˆæ— ç§’çº§å†»ç»“ï¼‰â€”â€”
+  å¯¹ç…§ Â§8 pre-fix p95 461ms / longtask max 1796msã€‚
+- z5â†’6 é¦–æŒ‚ 12kï¼šdurMs 1418ms / lt max 196msï¼›z6â†’5 å¸è½½ï¼šdurMs 1070ms / lt max 94msã€‚
+- æ»šè½®è¿žæ‰“ 6 æ ¼ï¼ˆz6ï¼‰ï¼šè¿žç»­è·¯å¾„å³°å€¼ longtask **303ms**ï¼ˆ15 æ¬¡ï¼ŒdurMs 4022msï¼‰ã€‚
+- å¹³ç§» lowï¼ˆz4ï¼‰/ highï¼ˆz12ï¼‰å„ 8 æ‹–ï¼šavg 23.4 / 24.7ms â‰ˆ **43 / 41fps**ï¼Œlongtask **0**â€”â€”
+  å¯¹ç…§ Â§8 post-fix ~34fpsã€‚
 
-**附加场景（合并 62 天档：27,252 raw / 37,287 stays 全量）**：平移 p95 50ms 无 longtask；
-「全部」5→6 挂载 lt max 474ms；切范围为最大阻塞（All 1343ms / Last year 839ms）。
+**é™„åŠ åœºæ™¯ï¼ˆåˆå¹¶ 62 å¤©æ¡£ï¼š27,252 raw / 37,287 stays å…¨é‡ï¼‰**ï¼šå¹³ç§» p95 50ms æ—  longtaskï¼›
+ã€Œå…¨éƒ¨ã€5â†’6 æŒ‚è½½ lt max 474msï¼›åˆ‡èŒƒå›´ä¸ºæœ€å¤§é˜»å¡žï¼ˆAll 1343ms / Last year 839msï¼‰ã€‚
 
-**关键发现（非阻塞，Backlog 候选）**：《切「Last year」预设》触发 **2291ms** 单 longtask（15k 窗口全量重建
-4,593 stays + 12k 点重挂载）。一次性操作冻结 ≈2.3s，连续交互不受影响 → 已知局限。
+**å…³é”®å‘çŽ°ï¼ˆéžé˜»å¡žï¼ŒBacklog å€™é€‰ï¼‰**ï¼šã€Šåˆ‡ã€ŒLast yearã€é¢„è®¾ã€‹è§¦å‘ **2291ms** å• longtaskï¼ˆ15k çª—å£å…¨é‡é‡å»º
+4,593 stays + 12k ç‚¹é‡æŒ‚è½½ï¼‰ã€‚ä¸€æ¬¡æ€§æ“ä½œå†»ç»“ â‰ˆ2.3sï¼Œè¿žç»­äº¤äº’ä¸å—å½±å“ â†’ å·²çŸ¥å±€é™ã€‚
 
-**可复现**（scripts 三件套）：
-- `node scripts/perf-raw-window.mjs` — 数据窗口/密日分析（15,072 / 15,479 / 27,252 统计来源）
-- `node scripts/perf-make-merged.mjs` — 生成 `scripts/out/timeline-merged-perf.json`（96.8MB）
-- `node scripts/perf-browser.mjs` — 主压测（Playwright，自动起 vite preview :4174；`--smoke` 子集）
-- 报告落盘 `scripts/out/perf-report.json`
+**å¯å¤çŽ°**ï¼ˆscripts ä¸‰ä»¶å¥—ï¼‰ï¼š
+- `node scripts/perf-raw-window.mjs` â€” æ•°æ®çª—å£/å¯†æ—¥åˆ†æžï¼ˆ15,072 / 15,479 / 27,252 ç»Ÿè®¡æ¥æºï¼‰
+- `node scripts/perf-make-merged.mjs` â€” ç”Ÿæˆ `scripts/out/timeline-merged-perf.json`ï¼ˆ96.8MBï¼‰
+- `node scripts/perf-browser.mjs` â€” ä¸»åŽ‹æµ‹ï¼ˆPlaywrightï¼Œè‡ªåŠ¨èµ· vite preview :4174ï¼›`--smoke` å­é›†ï¼‰
+- æŠ¥å‘Šè½ç›˜ `scripts/out/perf-report.json`
 
-**踩坑记录（脚本自身，非产品）**：①`resolve('..')` 是相对 cwd 解析 → 全部路径锚定脚本目录
-（`fileURLToPath(import.meta.url)`），任意 cwd 可跑；②文件输入带 `hidden` 属性 → `waitForSelector`
-默认等 visible 永不满足，改用 `locator.waitFor({state:'attached'})`；③headless 下叠加「输入静默窗
-300ms + 帧静默 300ms」双条件 settle，录制在 settle 时冻结（防 readPerf 往返延迟污染帧数据）；
-④手势测量在每次输入事件后打 `lastInputAt` 时间戳，静默窗从真实输入结束起算。
+**è¸©å‘è®°å½•ï¼ˆè„šæœ¬è‡ªèº«ï¼Œéžäº§å“ï¼‰**ï¼šâ‘ `resolve('..')` æ˜¯ç›¸å¯¹ cwd è§£æž â†’ å…¨éƒ¨è·¯å¾„é”šå®šè„šæœ¬ç›®å½•
+ï¼ˆ`fileURLToPath(import.meta.url)`ï¼‰ï¼Œä»»æ„ cwd å¯è·‘ï¼›â‘¡æ–‡ä»¶è¾“å…¥å¸¦ `hidden` å±žæ€§ â†’ `waitForSelector`
+é»˜è®¤ç­‰ visible æ°¸ä¸æ»¡è¶³ï¼Œæ”¹ç”¨ `locator.waitFor({state:'attached'})`ï¼›â‘¢headless ä¸‹å åŠ ã€Œè¾“å…¥é™é»˜çª—
+300ms + å¸§é™é»˜ 300msã€åŒæ¡ä»¶ settleï¼Œå½•åˆ¶åœ¨ settle æ—¶å†»ç»“ï¼ˆé˜² readPerf å¾€è¿”å»¶è¿Ÿæ±¡æŸ“å¸§æ•°æ®ï¼‰ï¼›
+â‘£æ‰‹åŠ¿æµ‹é‡åœ¨æ¯æ¬¡è¾“å…¥äº‹ä»¶åŽæ‰“ `lastInputAt` æ—¶é—´æˆ³ï¼Œé™é»˜çª—ä»ŽçœŸå®žè¾“å…¥ç»“æŸèµ·ç®—ã€‚
 
-## 2026-09-16 10:21 — Dev T37 Reviewer 记录修正（4 项修复）
+## 2026-09-16 10:21 â€” Dev T37 Reviewer è®°å½•ä¿®æ­£ï¼ˆ4 é¡¹ä¿®å¤ï¼‰
 
-**背景**：T37 已过审，但 Reviewer 发现 §10 表述与入库数据矛盾 / 脚本聚合缺陷（G1-G3）+ Backlog 落子（S3）。本轮纯文档 + 脚本修复，**src/ 零改动**，未跑 npm test。
+**èƒŒæ™¯**ï¼šT37 å·²è¿‡å®¡ï¼Œä½† Reviewer å‘çŽ° Â§10 è¡¨è¿°ä¸Žå…¥åº“æ•°æ®çŸ›ç›¾ / è„šæœ¬èšåˆç¼ºé™·ï¼ˆG1-G3ï¼‰+ Backlog è½å­ï¼ˆS3ï¼‰ã€‚æœ¬è½®çº¯æ–‡æ¡£ + è„šæœ¬ä¿®å¤ï¼Œ**src/ é›¶æ”¹åŠ¨**ï¼Œæœªè·‘ npm testã€‚
 
-**G1【诚实原则】DATA-FINDINGS §10 平移 longtask 如实化**：
-- 事实（`scripts/out/perf-report.json`）：panLow[0]=122ms、[4]=56ms、[7]=165ms；panHigh[0]=647ms、[6]=72ms——**16 拖中 5 拖有 longtask（11 拖干净）**，原 §10.1 写「longtask **0**」矛盾。
-- 改 `docs/DATA-FINDINGS.md`：§10.1 平移两行（L314-315）按拖细化（low 3 拖 122/56/165ms 零星 tile/GC；high 首拖 647ms z12 点层 + tile 冷启动一次性 + [6] 72ms）；注段追加 16 拖口径（11/16 干净）；§10.3 结论行（L361）同步「5 拖零星 longtask max 647ms 仅首拖」。
-- 注：CEO 建议文案「15/16 拖无长任务」与入库数据不符（实际 11/16），未照抄，用真实数字。
-- 遗留提醒：TASKS.md Done 区 T37 条目与 NOTES 10:05 旧日志仍含「longtask 0」历史表述（改写历史不合追加式约定），以本节为准，如需修订请 CEO 拍板。
+**G1ã€è¯šå®žåŽŸåˆ™ã€‘DATA-FINDINGS Â§10 å¹³ç§» longtask å¦‚å®žåŒ–**ï¼š
+- äº‹å®žï¼ˆ`scripts/out/perf-report.json`ï¼‰ï¼španLow[0]=122msã€[4]=56msã€[7]=165msï¼›panHigh[0]=647msã€[6]=72msâ€”â€”**16 æ‹–ä¸­ 5 æ‹–æœ‰ longtaskï¼ˆ11 æ‹–å¹²å‡€ï¼‰**ï¼ŒåŽŸ Â§10.1 å†™ã€Œlongtask **0**ã€çŸ›ç›¾ã€‚
+- æ”¹ `docs/DATA-FINDINGS.md`ï¼šÂ§10.1 å¹³ç§»ä¸¤è¡Œï¼ˆL314-315ï¼‰æŒ‰æ‹–ç»†åŒ–ï¼ˆlow 3 æ‹– 122/56/165ms é›¶æ˜Ÿ tile/GCï¼›high é¦–æ‹– 647ms z12 ç‚¹å±‚ + tile å†·å¯åŠ¨ä¸€æ¬¡æ€§ + [6] 72msï¼‰ï¼›æ³¨æ®µè¿½åŠ  16 æ‹–å£å¾„ï¼ˆ11/16 å¹²å‡€ï¼‰ï¼›Â§10.3 ç»“è®ºè¡Œï¼ˆL361ï¼‰åŒæ­¥ã€Œ5 æ‹–é›¶æ˜Ÿ longtask max 647ms ä»…é¦–æ‹–ã€ã€‚
+- æ³¨ï¼šCEO å»ºè®®æ–‡æ¡ˆã€Œ15/16 æ‹–æ— é•¿ä»»åŠ¡ã€ä¸Žå…¥åº“æ•°æ®ä¸ç¬¦ï¼ˆå®žé™… 11/16ï¼‰ï¼Œæœªç…§æŠ„ï¼Œç”¨çœŸå®žæ•°å­—ã€‚
+- é—ç•™æé†’ï¼šTASKS.md Done åŒº T37 æ¡ç›®ä¸Ž NOTES 10:05 æ—§æ—¥å¿—ä»å«ã€Œlongtask 0ã€åŽ†å²è¡¨è¿°ï¼ˆæ”¹å†™åŽ†å²ä¸åˆè¿½åŠ å¼çº¦å®šï¼‰ï¼Œä»¥æœ¬èŠ‚ä¸ºå‡†ï¼Œå¦‚éœ€ä¿®è®¢è¯· CEO æ‹æ¿ã€‚
 
-**G2【聚合 bug】`scripts/perf-browser.mjs` summary/聚合 longtask 恒 0**：
-- 根因：`readPerf` 只返回 `longtaskCount`/`longtaskMax`，无 `longtasks` 数组；5 处 `push(...m.longtasks ?? [])` 恒推空 → summary `zoomLongtaskMax` 恒 0（实际缩放 max 219ms、滚轮 303ms）。
-- 修：聚合改为 `Math.max` over `m.longtaskMax`（zoom 2 处、panLow/panHigh 拆独立聚合器各 1 处、s2 pano 1 处）；console 行补 `ltMax`；summary 新增 `panLowLongtaskMax`/`panHighLongtaskMax`；`zoomLongtaskMax` 反映真实 max。
-- `node --check scripts/perf-browser.mjs` ✅ 语法通过；`src/` 未触碰。
+**G2ã€èšåˆ bugã€‘`scripts/perf-browser.mjs` summary/èšåˆ longtask æ’ 0**ï¼š
+- æ ¹å› ï¼š`readPerf` åªè¿”å›ž `longtaskCount`/`longtaskMax`ï¼Œæ—  `longtasks` æ•°ç»„ï¼›5 å¤„ `push(...m.longtasks ?? [])` æ’æŽ¨ç©º â†’ summary `zoomLongtaskMax` æ’ 0ï¼ˆå®žé™…ç¼©æ”¾ max 219msã€æ»šè½® 303msï¼‰ã€‚
+- ä¿®ï¼šèšåˆæ”¹ä¸º `Math.max` over `m.longtaskMax`ï¼ˆzoom 2 å¤„ã€panLow/panHigh æ‹†ç‹¬ç«‹èšåˆå™¨å„ 1 å¤„ã€s2 pano 1 å¤„ï¼‰ï¼›console è¡Œè¡¥ `ltMax`ï¼›summary æ–°å¢ž `panLowLongtaskMax`/`panHighLongtaskMax`ï¼›`zoomLongtaskMax` åæ˜ çœŸå®ž maxã€‚
+- `node --check scripts/perf-browser.mjs` âœ… è¯­æ³•é€šè¿‡ï¼›`src/` æœªè§¦ç¢°ã€‚
 
-**G3【可复现缺口】Session 2 全景平移未入库**：
-- `panoPans` 局部数组从未赋给 `s2` → perf-report.json 无 `s2.panoPans`，§10.2「全景平移 8 拖」行只能靠 console（且其 lt 数来自同一 G2 空数组 bug，不可信）。
-- 修：`s2.panoPans = panoPans.map(strip rawFrames)` 入库（下轮运行持久化）；DATA-FINDINGS §10.2 该行标「未核验 \*」+ 补注（脚本缺陷、console 统计、下轮补齐），结论行去掉「平移全程无 longtask」断言。
+**G3ã€å¯å¤çŽ°ç¼ºå£ã€‘Session 2 å…¨æ™¯å¹³ç§»æœªå…¥åº“**ï¼š
+- `panoPans` å±€éƒ¨æ•°ç»„ä»Žæœªèµ‹ç»™ `s2` â†’ perf-report.json æ—  `s2.panoPans`ï¼ŒÂ§10.2ã€Œå…¨æ™¯å¹³ç§» 8 æ‹–ã€è¡Œåªèƒ½é  consoleï¼ˆä¸”å…¶ lt æ•°æ¥è‡ªåŒä¸€ G2 ç©ºæ•°ç»„ bugï¼Œä¸å¯ä¿¡ï¼‰ã€‚
+- ä¿®ï¼š`s2.panoPans = panoPans.map(strip rawFrames)` å…¥åº“ï¼ˆä¸‹è½®è¿è¡ŒæŒä¹…åŒ–ï¼‰ï¼›DATA-FINDINGS Â§10.2 è¯¥è¡Œæ ‡ã€Œæœªæ ¸éªŒ \*ã€+ è¡¥æ³¨ï¼ˆè„šæœ¬ç¼ºé™·ã€console ç»Ÿè®¡ã€ä¸‹è½®è¡¥é½ï¼‰ï¼Œç»“è®ºè¡ŒåŽ»æŽ‰ã€Œå¹³ç§»å…¨ç¨‹æ—  longtaskã€æ–­è¨€ã€‚
 
-**S3【Backlog 落子】**：`docs/TASKS.md` Backlog 顶部新增 `[P2] 范围切换性能——Last year/All 预设全量重建 2.3s 单 longtask（4,593 stays + 12k 点重挂载）；…（T37 附带发现）(09-16)`。
+**S3ã€Backlog è½å­ã€‘**ï¼š`docs/TASKS.md` Backlog é¡¶éƒ¨æ–°å¢ž `[P2] èŒƒå›´åˆ‡æ¢æ€§èƒ½â€”â€”Last year/All é¢„è®¾å…¨é‡é‡å»º 2.3s å• longtaskï¼ˆ4,593 stays + 12k ç‚¹é‡æŒ‚è½½ï¼‰ï¼›â€¦ï¼ˆT37 é™„å¸¦å‘çŽ°ï¼‰(09-16)`ã€‚
 
-**验收自测**：①§10 平移行已含 647ms 如实表述、无「longtask 0」矛盾（grep 复查：余「longtask 0」仅 L309 导入行——report 三指标全 0 有据——与 L350 自述不可信的注解）；②聚合已改 `Math.max` over longtaskMax；③Backlog 条目已加；④src/ 零改动；⑤未跑 npm test（无产品变更）。
+**éªŒæ”¶è‡ªæµ‹**ï¼šâ‘ Â§10 å¹³ç§»è¡Œå·²å« 647ms å¦‚å®žè¡¨è¿°ã€æ— ã€Œlongtask 0ã€çŸ›ç›¾ï¼ˆgrep å¤æŸ¥ï¼šä½™ã€Œlongtask 0ã€ä»… L309 å¯¼å…¥è¡Œâ€”â€”report ä¸‰æŒ‡æ ‡å…¨ 0 æœ‰æ®â€”â€”ä¸Ž L350 è‡ªè¿°ä¸å¯ä¿¡çš„æ³¨è§£ï¼‰ï¼›â‘¡èšåˆå·²æ”¹ `Math.max` over longtaskMaxï¼›â‘¢Backlog æ¡ç›®å·²åŠ ï¼›â‘£src/ é›¶æ”¹åŠ¨ï¼›â‘¤æœªè·‘ npm testï¼ˆæ— äº§å“å˜æ›´ï¼‰ã€‚
 
-## 2026-09-16 10:55 — Dev T38: 发布前收尾（README/i18n 单文件化 + 合并已实现 + 双视口冒烟）
+## 2026-09-16 10:55 â€” Dev T38: å‘å¸ƒå‰æ”¶å°¾ï¼ˆREADME/i18n å•æ–‡ä»¶åŒ– + åˆå¹¶å·²å®žçŽ° + åŒè§†å£å†’çƒŸï¼‰
 
-**背景**：T35（单文件化）+ T36（合并归档已实现）后，README 与 i18n 仍有「多文件合并导入」「合并规划中」等过时宣传，发布阻断。本轮改文案 + 双视口冒烟，**src/ 仅 i18n 文案**，无逻辑改动。
+**èƒŒæ™¯**ï¼šT35ï¼ˆå•æ–‡ä»¶åŒ–ï¼‰+ T36ï¼ˆåˆå¹¶å½’æ¡£å·²å®žçŽ°ï¼‰åŽï¼ŒREADME ä¸Ž i18n ä»æœ‰ã€Œå¤šæ–‡ä»¶åˆå¹¶å¯¼å…¥ã€ã€Œåˆå¹¶è§„åˆ’ä¸­ã€ç­‰è¿‡æ—¶å®£ä¼ ï¼Œå‘å¸ƒé˜»æ–­ã€‚æœ¬è½®æ”¹æ–‡æ¡ˆ + åŒè§†å£å†’çƒŸï¼Œ**src/ ä»… i18n æ–‡æ¡ˆ**ï¼Œæ— é€»è¾‘æ”¹åŠ¨ã€‚
 
-**①README（3 处必改 + 1 处补强）**：
-- L117 `多文件可一次性合并导入` → `每次导入一份`
-- L126 `如有多份文件…全选后一次性导入自动合并` → `如有跨时段多份导出需要合并，请在「合并归档」页生成合并文件后再导入。（见下）`（衔接 L128 合并档说明）
-- L166 架构图 `- 多文件合并` → `- 单文件解析`（同字符数、对齐不变；`- 四格式自动识别` 保留）
-- 架构图下补一条 **合并归档（独立 Worker）** 说明铭文：合并档先在本机生成、再走正常导入流程
+**â‘ READMEï¼ˆ3 å¤„å¿…æ”¹ + 1 å¤„è¡¥å¼ºï¼‰**ï¼š
+- L117 `å¤šæ–‡ä»¶å¯ä¸€æ¬¡æ€§åˆå¹¶å¯¼å…¥` â†’ `æ¯æ¬¡å¯¼å…¥ä¸€ä»½`
+- L126 `å¦‚æœ‰å¤šä»½æ–‡ä»¶â€¦å…¨é€‰åŽä¸€æ¬¡æ€§å¯¼å…¥è‡ªåŠ¨åˆå¹¶` â†’ `å¦‚æœ‰è·¨æ—¶æ®µå¤šä»½å¯¼å‡ºéœ€è¦åˆå¹¶ï¼Œè¯·åœ¨ã€Œåˆå¹¶å½’æ¡£ã€é¡µç”Ÿæˆåˆå¹¶æ–‡ä»¶åŽå†å¯¼å…¥ã€‚ï¼ˆè§ä¸‹ï¼‰`ï¼ˆè¡”æŽ¥ L128 åˆå¹¶æ¡£è¯´æ˜Žï¼‰
+- L166 æž¶æž„å›¾ `- å¤šæ–‡ä»¶åˆå¹¶` â†’ `- å•æ–‡ä»¶è§£æž`ï¼ˆåŒå­—ç¬¦æ•°ã€å¯¹é½ä¸å˜ï¼›`- å››æ ¼å¼è‡ªåŠ¨è¯†åˆ«` ä¿ç•™ï¼‰
+- æž¶æž„å›¾ä¸‹è¡¥ä¸€æ¡ **åˆå¹¶å½’æ¡£ï¼ˆç‹¬ç«‹ Workerï¼‰** è¯´æ˜Žé“­æ–‡ï¼šåˆå¹¶æ¡£å…ˆåœ¨æœ¬æœºç”Ÿæˆã€å†èµ°æ­£å¸¸å¯¼å…¥æµç¨‹
 
-**②i18n（3 key × en/zh，parity 双同步）**：
-- `help.formatsTip`（en/zh）：删「planned→可生成合并文件」未来时 → 「想合并跨设备/跨月多份 → 打开 Merge/合并归档 页生成合并文件，再像普通文件一样导入」
-- `help.faq.a2`（换机问答）：`the planned cross-device merge & dedup feature` → `open the "Merge" page to generate a merged file and import it`（zh 对应）
-- `help.faq.a3`（超大文件问答）：同上，`planned merge & dedup` → 已实现指路「合并归档」页
-- 措辞依 merge 实现语义（semantic 取新 + raw 累积，不夸大 dedup）：「open the Merge page to generate a merged file and import it」
+**â‘¡i18nï¼ˆ3 key Ã— en/zhï¼Œparity åŒåŒæ­¥ï¼‰**ï¼š
+- `help.formatsTip`ï¼ˆen/zhï¼‰ï¼šåˆ ã€Œplannedâ†’å¯ç”Ÿæˆåˆå¹¶æ–‡ä»¶ã€æœªæ¥æ—¶ â†’ ã€Œæƒ³åˆå¹¶è·¨è®¾å¤‡/è·¨æœˆå¤šä»½ â†’ æ‰“å¼€ Merge/åˆå¹¶å½’æ¡£ é¡µç”Ÿæˆåˆå¹¶æ–‡ä»¶ï¼Œå†åƒæ™®é€šæ–‡ä»¶ä¸€æ ·å¯¼å…¥ã€
+- `help.faq.a2`ï¼ˆæ¢æœºé—®ç­”ï¼‰ï¼š`the planned cross-device merge & dedup feature` â†’ `open the "Merge" page to generate a merged file and import it`ï¼ˆzh å¯¹åº”ï¼‰
+- `help.faq.a3`ï¼ˆè¶…å¤§æ–‡ä»¶é—®ç­”ï¼‰ï¼šåŒä¸Šï¼Œ`planned merge & dedup` â†’ å·²å®žçŽ°æŒ‡è·¯ã€Œåˆå¹¶å½’æ¡£ã€é¡µ
+- æŽªè¾žä¾ merge å®žçŽ°è¯­ä¹‰ï¼ˆsemantic å–æ–° + raw ç´¯ç§¯ï¼Œä¸å¤¸å¤§ dedupï¼‰ï¼šã€Œopen the Merge page to generate a merged file and import itã€
 
-**③全仓审计**：`grep -rn "多文件|合并导入|一次性导入|全选后|planned|规划中" README.md src/src/` → **clean（exit 1 无命中）**。遗留合理用词核查：`merge.lead` 解释「不堆多份完整文件」（非宣传多文件导入）、`import.supported` 已单文件语义、HelpPage 无写死中文（全 i18n）。
+**â‘¢å…¨ä»“å®¡è®¡**ï¼š`grep -rn "å¤šæ–‡ä»¶|åˆå¹¶å¯¼å…¥|ä¸€æ¬¡æ€§å¯¼å…¥|å…¨é€‰åŽ|planned|è§„åˆ’ä¸­" README.md src/src/` â†’ **cleanï¼ˆexit 1 æ— å‘½ä¸­ï¼‰**ã€‚é—ç•™åˆç†ç”¨è¯æ ¸æŸ¥ï¼š`merge.lead` è§£é‡Šã€Œä¸å †å¤šä»½å®Œæ•´æ–‡ä»¶ã€ï¼ˆéžå®£ä¼ å¤šæ–‡ä»¶å¯¼å…¥ï¼‰ã€`import.supported` å·²å•æ–‡ä»¶è¯­ä¹‰ã€HelpPage æ— å†™æ­»ä¸­æ–‡ï¼ˆå…¨ i18nï¼‰ã€‚
 
-**④Landing 功能卡**：按指令不动结构。现有 3 卡复核 **无过时表述**（f1 Trips/f2 Places/f3 隐私——「刷新即弃」与现况一致）；`landing.featuresTitle` 仍写「三个能力」，若 CEO 决定加「合并归档」第 4 卡需同步改标题——方案见下（待 CEO 拍板，二期做）。
+**â‘£Landing åŠŸèƒ½å¡**ï¼šæŒ‰æŒ‡ä»¤ä¸åŠ¨ç»“æž„ã€‚çŽ°æœ‰ 3 å¡å¤æ ¸ **æ— è¿‡æ—¶è¡¨è¿°**ï¼ˆf1 Trips/f2 Places/f3 éšç§â€”â€”ã€Œåˆ·æ–°å³å¼ƒã€ä¸ŽçŽ°å†µä¸€è‡´ï¼‰ï¼›`landing.featuresTitle` ä»å†™ã€Œä¸‰ä¸ªèƒ½åŠ›ã€ï¼Œè‹¥ CEO å†³å®šåŠ ã€Œåˆå¹¶å½’æ¡£ã€ç¬¬ 4 å¡éœ€åŒæ­¥æ”¹æ ‡é¢˜â€”â€”æ–¹æ¡ˆè§ä¸‹ï¼ˆå¾… CEO æ‹æ¿ï¼ŒäºŒæœŸåšï¼‰ã€‚
 
-**⑤双视口末轮冒烟（production build + vite preview + headless Chromium）**：
-- 脚本 `/tmp/opencode/smoke-t38.mjs`（临时、未入库；Playwright 复用 scripts/node_modules）
-- 视口：desktop 1440×900 + mobile 390×844，各 19 项断言全过
-- 流程全通：Landing 空态 → 载入 sample → Trips（默认近 30 天 `Aug 14→Sep 12` + 时间轴模式 + 列表点停留 → 标记 tooltip 弹窗）→ Places（地图点击出停留卡 + 半径 5 档可切）→ 更换数据（回到空态后再导入）→ 合并归档页（双文件选择 UI + **真实跑通一次小档合并**，`.merge-ok` 成功、prod 构建下 merge worker chunk 被真实执行）→ 设置 → 帮助（4 节 + FAQ 手风琴展开）→ 中英切换（nav 合并归档 ↔ Merge）
-- **0 pageerror**（双视口）；consoles 仅 1 条已知噪音：`CSP 'frame-ancestors' is ignored when delivered via a <meta> element`（index.html meta CSP，发布前已知，非回归）
+**â‘¤åŒè§†å£æœ«è½®å†’çƒŸï¼ˆproduction build + vite preview + headless Chromiumï¼‰**ï¼š
+- è„šæœ¬ `/tmp/opencode/smoke-t38.mjs`ï¼ˆä¸´æ—¶ã€æœªå…¥åº“ï¼›Playwright å¤ç”¨ scripts/node_modulesï¼‰
+- è§†å£ï¼šdesktop 1440Ã—900 + mobile 390Ã—844ï¼Œå„ 19 é¡¹æ–­è¨€å…¨è¿‡
+- æµç¨‹å…¨é€šï¼šLanding ç©ºæ€ â†’ è½½å…¥ sample â†’ Tripsï¼ˆé»˜è®¤è¿‘ 30 å¤© `Aug 14â†’Sep 12` + æ—¶é—´è½´æ¨¡å¼ + åˆ—è¡¨ç‚¹åœç•™ â†’ æ ‡è®° tooltip å¼¹çª—ï¼‰â†’ Placesï¼ˆåœ°å›¾ç‚¹å‡»å‡ºåœç•™å¡ + åŠå¾„ 5 æ¡£å¯åˆ‡ï¼‰â†’ æ›´æ¢æ•°æ®ï¼ˆå›žåˆ°ç©ºæ€åŽå†å¯¼å…¥ï¼‰â†’ åˆå¹¶å½’æ¡£é¡µï¼ˆåŒæ–‡ä»¶é€‰æ‹© UI + **çœŸå®žè·‘é€šä¸€æ¬¡å°æ¡£åˆå¹¶**ï¼Œ`.merge-ok` æˆåŠŸã€prod æž„å»ºä¸‹ merge worker chunk è¢«çœŸå®žæ‰§è¡Œï¼‰â†’ è®¾ç½® â†’ å¸®åŠ©ï¼ˆ4 èŠ‚ + FAQ æ‰‹é£Žç´å±•å¼€ï¼‰â†’ ä¸­è‹±åˆ‡æ¢ï¼ˆnav åˆå¹¶å½’æ¡£ â†” Mergeï¼‰
+- **0 pageerror**ï¼ˆåŒè§†å£ï¼‰ï¼›consoles ä»… 1 æ¡å·²çŸ¥å™ªéŸ³ï¼š`CSP 'frame-ancestors' is ignored when delivered via a <meta> element`ï¼ˆindex.html meta CSPï¼Œå‘å¸ƒå‰å·²çŸ¥ï¼Œéžå›žå½’ï¼‰
 
-**⑥单测/lint/build**：**243 tests 全绿**（18 文件，i18n parity 与无 CJK 守卫通过）、`npm run lint` 0 问题、`npm run build`（tsc + vite）绿——chunk >500kB 为既有体积告警，非新增。
+**â‘¥å•æµ‹/lint/build**ï¼š**243 tests å…¨ç»¿**ï¼ˆ18 æ–‡ä»¶ï¼Œi18n parity ä¸Žæ—  CJK å®ˆå«é€šè¿‡ï¼‰ã€`npm run lint` 0 é—®é¢˜ã€`npm run build`ï¼ˆtsc + viteï¼‰ç»¿â€”â€”chunk >500kB ä¸ºæ—¢æœ‰ä½“ç§¯å‘Šè­¦ï¼Œéžæ–°å¢žã€‚
 
-**评审待办**：Reviewer 复核后，TASKS T38 卡移 Done + 验收；Landing 第 4 卡加不加由 CEO 拍板（建议：加，理由与文案草稿见汇报）。
+**è¯„å®¡å¾…åŠž**ï¼šReviewer å¤æ ¸åŽï¼ŒTASKS T38 å¡ç§» Done + éªŒæ”¶ï¼›Landing ç¬¬ 4 å¡åŠ ä¸åŠ ç”± CEO æ‹æ¿ï¼ˆå»ºè®®ï¼šåŠ ï¼Œç†ç”±ä¸Žæ–‡æ¡ˆè‰ç¨¿è§æ±‡æŠ¥ï¼‰ã€‚
 
-## 2026-09-16 11:25 — Dev T39: 发布前终批（N1 mobile 竞态修复 + Landing 合并归档第 4 卡）
+## 2026-09-16 11:25 â€” Dev T39: å‘å¸ƒå‰ç»ˆæ‰¹ï¼ˆN1 mobile ç«žæ€ä¿®å¤ + Landing åˆå¹¶å½’æ¡£ç¬¬ 4 å¡ï¼‰
 
-### ①N1 mobile `_leaflet_pos` 竞态 — 真根因定位 + 修复
+### â‘ N1 mobile `_leaflet_pos` ç«žæ€ â€” çœŸæ ¹å› å®šä½ + ä¿®å¤
 
-**捕获的完整抛出栈**（step-tag 冒烟 + 全栈捕获，`pageerror`，mobile 390×844）：
+**æ•èŽ·çš„å®Œæ•´æŠ›å‡ºæ ˆ**ï¼ˆstep-tag å†’çƒŸ + å…¨æ ˆæ•èŽ·ï¼Œ`pageerror`ï¼Œmobile 390Ã—844ï¼‰ï¼š
 ```
 TypeError: Cannot read properties of undefined (reading '_leaflet_pos')
   at Rt (getPosition: el.style[POSITION])
@@ -1296,178 +1296,178 @@ TypeError: Cannot read properties of undefined (reading '_leaflet_pos')
   at t._onZoomTransitionEnd      // Leaflet 1.9.4
 ```
 
-**根因（与 TASKS 初始假设不同——不是 tooltip 弹出本身）**：Leaflet `_animateZoom` 在启动 zoom 过渡时 `setTimeout(_onZoomTransitionEnd, 250)` 并把 `_animatingZoom=true`；`_onZoomTransitionEnd` 只对 `removeClass` 做了 `if(this._mapPane)` 守卫，**接下来无守卫地调用 `_move(...)`**，而 `_move` → `_getNewPixelOrigin` → `_getMapPanePos` 读 `this._mapPane`。`Map.remove()`（react-leaflet `MapContainer` cleanup）会 `delete this._mapPane`，**但既不取消该 250ms 定时器、也不复位 `_animatingZoom`** → 定时器在 map 销毁后触发 → 读 undefined 抛错。step-tag 冒烟把抛出点定位在**「重新导入 → 立即导航离开 Trips（如进 Merge 页）」**的高频窗口（fitBounds 的 zoom 过渡恰在 unmount 时进行中）——同一旧 N1 族（T27 记录的 `_onZoomTransitionEnd` teardown 竞态），mobile 因布局/时序更慢复现率更高（Reviewer 3/4）。
-**为何与旧 T27 处置不同**：T27 曾在 FitController cleanup 调 `map.stop()` → `setZoom/getCenter` 读 detached pane 致命白屏。本轮**不调用任何 map 方法**：仅在一个**空依赖** effect 的 cleanup（只在最终 unmount 跑，不影响 fitKey/invalidateKey 变更时的在途过渡）把私有字段置 `map._animatingZoom=false`——纯 JS 字段复位、零 DOM 访问。250ms 定时器随后触发时，`_onZoomTransitionEnd` 首行 `if(!this._animatingZoom) return` 直接 no-op。为什么不会复发：所有 teardown-during-zoom-transition 路径（导航离开/侧栏收起/换数据 unmount）都被该守卫覆盖；Leaflet 内其余异步（`_flyToFrame`/`_panAnim`/`_resizeRequest`）`remove()` 的 `_stop()` 本就取消。
+**æ ¹å› ï¼ˆä¸Ž TASKS åˆå§‹å‡è®¾ä¸åŒâ€”â€”ä¸æ˜¯ tooltip å¼¹å‡ºæœ¬èº«ï¼‰**ï¼šLeaflet `_animateZoom` åœ¨å¯åŠ¨ zoom è¿‡æ¸¡æ—¶ `setTimeout(_onZoomTransitionEnd, 250)` å¹¶æŠŠ `_animatingZoom=true`ï¼›`_onZoomTransitionEnd` åªå¯¹ `removeClass` åšäº† `if(this._mapPane)` å®ˆå«ï¼Œ**æŽ¥ä¸‹æ¥æ— å®ˆå«åœ°è°ƒç”¨ `_move(...)`**ï¼Œè€Œ `_move` â†’ `_getNewPixelOrigin` â†’ `_getMapPanePos` è¯» `this._mapPane`ã€‚`Map.remove()`ï¼ˆreact-leaflet `MapContainer` cleanupï¼‰ä¼š `delete this._mapPane`ï¼Œ**ä½†æ—¢ä¸å–æ¶ˆè¯¥ 250ms å®šæ—¶å™¨ã€ä¹Ÿä¸å¤ä½ `_animatingZoom`** â†’ å®šæ—¶å™¨åœ¨ map é”€æ¯åŽè§¦å‘ â†’ è¯» undefined æŠ›é”™ã€‚step-tag å†’çƒŸæŠŠæŠ›å‡ºç‚¹å®šä½åœ¨**ã€Œé‡æ–°å¯¼å…¥ â†’ ç«‹å³å¯¼èˆªç¦»å¼€ Tripsï¼ˆå¦‚è¿› Merge é¡µï¼‰ã€**çš„é«˜é¢‘çª—å£ï¼ˆfitBounds çš„ zoom è¿‡æ¸¡æ°åœ¨ unmount æ—¶è¿›è¡Œä¸­ï¼‰â€”â€”åŒä¸€æ—§ N1 æ—ï¼ˆT27 è®°å½•çš„ `_onZoomTransitionEnd` teardown ç«žæ€ï¼‰ï¼Œmobile å› å¸ƒå±€/æ—¶åºæ›´æ…¢å¤çŽ°çŽ‡æ›´é«˜ï¼ˆReviewer 3/4ï¼‰ã€‚
+**ä¸ºä½•ä¸Žæ—§ T27 å¤„ç½®ä¸åŒ**ï¼šT27 æ›¾åœ¨ FitController cleanup è°ƒ `map.stop()` â†’ `setZoom/getCenter` è¯» detached pane è‡´å‘½ç™½å±ã€‚æœ¬è½®**ä¸è°ƒç”¨ä»»ä½• map æ–¹æ³•**ï¼šä»…åœ¨ä¸€ä¸ª**ç©ºä¾èµ–** effect çš„ cleanupï¼ˆåªåœ¨æœ€ç»ˆ unmount è·‘ï¼Œä¸å½±å“ fitKey/invalidateKey å˜æ›´æ—¶çš„åœ¨é€”è¿‡æ¸¡ï¼‰æŠŠç§æœ‰å­—æ®µç½® `map._animatingZoom=false`â€”â€”çº¯ JS å­—æ®µå¤ä½ã€é›¶ DOM è®¿é—®ã€‚250ms å®šæ—¶å™¨éšåŽè§¦å‘æ—¶ï¼Œ`_onZoomTransitionEnd` é¦–è¡Œ `if(!this._animatingZoom) return` ç›´æŽ¥ no-opã€‚ä¸ºä»€ä¹ˆä¸ä¼šå¤å‘ï¼šæ‰€æœ‰ teardown-during-zoom-transition è·¯å¾„ï¼ˆå¯¼èˆªç¦»å¼€/ä¾§æ æ”¶èµ·/æ¢æ•°æ® unmountï¼‰éƒ½è¢«è¯¥å®ˆå«è¦†ç›–ï¼›Leaflet å†…å…¶ä½™å¼‚æ­¥ï¼ˆ`_flyToFrame`/`_panAnim`/`_resizeRequest`ï¼‰`remove()` çš„ `_stop()` æœ¬å°±å–æ¶ˆã€‚
 
-**验证**：
-- smoke-t38 全流程（19 步 × desktop 1440×900 + mobile 390×844）修复前后对照：修前 mobile `pageerrors=1`（3/4 复现）→ 修后 **5/5 轮 0 pageerror**；
-- 竞态 whammy：mobile 重新导入×3 + 立即跳 Merge（不等待 settle，专打 250ms 窗口）0 `_leaflet_pos`；desktop 侧栏收起/展开×3（T27 白屏回归路径）`#root children=1` 恒成立 + 0 `_leaflet_pos`；
-- desktop 原功能零回归（点列表 → tooltip、点地图 → popup、侧栏开合），无新白屏/卡顿。
+**éªŒè¯**ï¼š
+- smoke-t38 å…¨æµç¨‹ï¼ˆ19 æ­¥ Ã— desktop 1440Ã—900 + mobile 390Ã—844ï¼‰ä¿®å¤å‰åŽå¯¹ç…§ï¼šä¿®å‰ mobile `pageerrors=1`ï¼ˆ3/4 å¤çŽ°ï¼‰â†’ ä¿®åŽ **5/5 è½® 0 pageerror**ï¼›
+- ç«žæ€ whammyï¼šmobile é‡æ–°å¯¼å…¥Ã—3 + ç«‹å³è·³ Mergeï¼ˆä¸ç­‰å¾… settleï¼Œä¸“æ‰“ 250ms çª—å£ï¼‰0 `_leaflet_pos`ï¼›desktop ä¾§æ æ”¶èµ·/å±•å¼€Ã—3ï¼ˆT27 ç™½å±å›žå½’è·¯å¾„ï¼‰`#root children=1` æ’æˆç«‹ + 0 `_leaflet_pos`ï¼›
+- desktop åŽŸåŠŸèƒ½é›¶å›žå½’ï¼ˆç‚¹åˆ—è¡¨ â†’ tooltipã€ç‚¹åœ°å›¾ â†’ popupã€ä¾§æ å¼€åˆï¼‰ï¼Œæ— æ–°ç™½å±/å¡é¡¿ã€‚
 
-### ②Landing 第 4 卡「合并归档」（CEO 拍板）
+### â‘¡Landing ç¬¬ 4 å¡ã€Œåˆå¹¶å½’æ¡£ã€ï¼ˆCEO æ‹æ¿ï¼‰
 
-- i18n en/zh 双同步：`landing.featuresTitle`「Three/三个 能力」→「**Four/四个 能力**」；新增 `landing.f4Title`/`f4Text`——en `Merge exports, keep it all`/`Phone exports only carry ~29 days of raw GPS…`；zh `合并归档，只留一份`/`手机导出只带最近约 29 天原始 GPS…`（沿用 Dev T38 草稿，**无 dedup 字眼**，语义=语义段取最新 + rawSignals 累积）。i18n parity guard 通过（en/zh key 完全一致、en 无 CJK）。
-- `Landing.tsx` 第 4 张 `.feature-card`（fc-tag `Merge`），纯展示不跳转，与现三卡一致。
-- CSS `.feature-cards`：`repeat(3,1fr)` → `repeat(4,1fr)`；`@media ≤860px` 1 列 → **2 列**（平板）；新增 `@media ≤480px` → 1 列（手机 390 四卡太窄，单列可读）。双视口实测：1440×900 + 390×844 均 4 卡、`scrollWidth-clientWidth=0`（无水平溢出）、0 pageerror。
-- PRD 功能 7 同步：功能亮点列表 + 「合并归档」并列合并入；补验收「四卡展示」；修订历史 + **v1.24**（来源 T39）。
+- i18n en/zh åŒåŒæ­¥ï¼š`landing.featuresTitle`ã€ŒThree/ä¸‰ä¸ª èƒ½åŠ›ã€â†’ã€Œ**Four/å››ä¸ª èƒ½åŠ›**ã€ï¼›æ–°å¢ž `landing.f4Title`/`f4Text`â€”â€”en `Merge exports, keep it all`/`Phone exports only carry ~29 days of raw GPSâ€¦`ï¼›zh `åˆå¹¶å½’æ¡£ï¼Œåªç•™ä¸€ä»½`/`æ‰‹æœºå¯¼å‡ºåªå¸¦æœ€è¿‘çº¦ 29 å¤©åŽŸå§‹ GPSâ€¦`ï¼ˆæ²¿ç”¨ Dev T38 è‰ç¨¿ï¼Œ**æ—  dedup å­—çœ¼**ï¼Œè¯­ä¹‰=è¯­ä¹‰æ®µå–æœ€æ–° + rawSignals ç´¯ç§¯ï¼‰ã€‚i18n parity guard é€šè¿‡ï¼ˆen/zh key å®Œå…¨ä¸€è‡´ã€en æ—  CJKï¼‰ã€‚
+- `Landing.tsx` ç¬¬ 4 å¼  `.feature-card`ï¼ˆfc-tag `Merge`ï¼‰ï¼Œçº¯å±•ç¤ºä¸è·³è½¬ï¼Œä¸ŽçŽ°ä¸‰å¡ä¸€è‡´ã€‚
+- CSS `.feature-cards`ï¼š`repeat(3,1fr)` â†’ `repeat(4,1fr)`ï¼›`@media â‰¤860px` 1 åˆ— â†’ **2 åˆ—**ï¼ˆå¹³æ¿ï¼‰ï¼›æ–°å¢ž `@media â‰¤480px` â†’ 1 åˆ—ï¼ˆæ‰‹æœº 390 å››å¡å¤ªçª„ï¼Œå•åˆ—å¯è¯»ï¼‰ã€‚åŒè§†å£å®žæµ‹ï¼š1440Ã—900 + 390Ã—844 å‡ 4 å¡ã€`scrollWidth-clientWidth=0`ï¼ˆæ— æ°´å¹³æº¢å‡ºï¼‰ã€0 pageerrorã€‚
+- PRD åŠŸèƒ½ 7 åŒæ­¥ï¼šåŠŸèƒ½äº®ç‚¹åˆ—è¡¨ + ã€Œåˆå¹¶å½’æ¡£ã€å¹¶åˆ—åˆå¹¶å…¥ï¼›è¡¥éªŒæ”¶ã€Œå››å¡å±•ç¤ºã€ï¼›ä¿®è®¢åŽ†å² + **v1.24**ï¼ˆæ¥æº T39ï¼‰ã€‚
 
-### ③验证与收尾
-- **243 单测全绿**（18 文件）+ `npm run lint` 0 问题 + `npm run build`（tsc+vite）绿（>500kB 为既有告警）。N1 未加单测：竞态为浏览器时序问题，node 环境（SSR renderToString）无法覆盖 Leaflet 运行时，采用 Playwright 轮数验证（L2 冒烟项 C/B）。
-- 全栈捕获脚本 `/tmp/opencode/repro-n1c.mjs`（step-tag + e.stack）、竞态 whammy `/tmp/opencode/verify-n1-fixed.mjs`、Landing 校验 `/tmp/opencode/verify-landing2.mjs`（临时、未入库）。
-- 已知噪音：CSP `frame-ancestors` meta 提示 1 条（双视口各 1，发布前已知，非回归）。
+### â‘¢éªŒè¯ä¸Žæ”¶å°¾
+- **243 å•æµ‹å…¨ç»¿**ï¼ˆ18 æ–‡ä»¶ï¼‰+ `npm run lint` 0 é—®é¢˜ + `npm run build`ï¼ˆtsc+viteï¼‰ç»¿ï¼ˆ>500kB ä¸ºæ—¢æœ‰å‘Šè­¦ï¼‰ã€‚N1 æœªåŠ å•æµ‹ï¼šç«žæ€ä¸ºæµè§ˆå™¨æ—¶åºé—®é¢˜ï¼Œnode çŽ¯å¢ƒï¼ˆSSR renderToStringï¼‰æ— æ³•è¦†ç›– Leaflet è¿è¡Œæ—¶ï¼Œé‡‡ç”¨ Playwright è½®æ•°éªŒè¯ï¼ˆL2 å†’çƒŸé¡¹ C/Bï¼‰ã€‚
+- å…¨æ ˆæ•èŽ·è„šæœ¬ `/tmp/opencode/repro-n1c.mjs`ï¼ˆstep-tag + e.stackï¼‰ã€ç«žæ€ whammy `/tmp/opencode/verify-n1-fixed.mjs`ã€Landing æ ¡éªŒ `/tmp/opencode/verify-landing2.mjs`ï¼ˆä¸´æ—¶ã€æœªå…¥åº“ï¼‰ã€‚
+- å·²çŸ¥å™ªéŸ³ï¼šCSP `frame-ancestors` meta æç¤º 1 æ¡ï¼ˆåŒè§†å£å„ 1ï¼Œå‘å¸ƒå‰å·²çŸ¥ï¼Œéžå›žå½’ï¼‰ã€‚
 
-**评审待办**：Reviewer 复核后 T39 移 Done + CEO 验收。commit hash 见提交时记录。
+**è¯„å®¡å¾…åŠž**ï¼šReviewer å¤æ ¸åŽ T39 ç§» Done + CEO éªŒæ”¶ã€‚commit hash è§æäº¤æ—¶è®°å½•ã€‚
 
-## 2026-09-16 11:53 — Dev T39 REJECT 修复: Places 同族 zoom 竞态（共享 hook）
+## 2026-09-16 11:53 â€” Dev T39 REJECT ä¿®å¤: Places åŒæ— zoom ç«žæ€ï¼ˆå…±äº« hookï¼‰
 
-### ①Reviewer REJECT 结论
-Trips 侧 N1 修复（`map._animatingZoom=false` unmount 复位）正确，但同族竞态在 **Places 视图未覆盖**——PlacesMap `RadiusCircle`（约 L73）`map.fitBounds(..., { animate: true })` 的 ring-fit 动画与 Trips 修的是**同一根因链**：用户先滚轮放大到中间层级（zoom 差 ≤ `zoomAnimationThreshold(4)`）再点地图 → ring-fit 启动动画 zoom 过渡 → 过渡中（250ms `_onZoomTransitionEnd` timer 窗口）导航离开 → `Map.remove()` 删 `_mapPane` 但不取消 timer、不复位 `_animatingZoom` → timer 触发 → 无守卫 `_move()` → `getPosition(undefined)` → `_leaflet_pos` pageerror。Reviewer 修前实测 **6/6 复现**（`/tmp/opencode/reviewer-probe-places-race3.mjs`）。我先前 smoke 撞不到是因为初始 zoom-5 全景 zoom 差 >4 → `_tryAnimatedZoom` 降级无动画路径。
+### â‘ Reviewer REJECT ç»“è®º
+Trips ä¾§ N1 ä¿®å¤ï¼ˆ`map._animatingZoom=false` unmount å¤ä½ï¼‰æ­£ç¡®ï¼Œä½†åŒæ—ç«žæ€åœ¨ **Places è§†å›¾æœªè¦†ç›–**â€”â€”PlacesMap `RadiusCircle`ï¼ˆçº¦ L73ï¼‰`map.fitBounds(..., { animate: true })` çš„ ring-fit åŠ¨ç”»ä¸Ž Trips ä¿®çš„æ˜¯**åŒä¸€æ ¹å› é“¾**ï¼šç”¨æˆ·å…ˆæ»šè½®æ”¾å¤§åˆ°ä¸­é—´å±‚çº§ï¼ˆzoom å·® â‰¤ `zoomAnimationThreshold(4)`ï¼‰å†ç‚¹åœ°å›¾ â†’ ring-fit å¯åŠ¨åŠ¨ç”» zoom è¿‡æ¸¡ â†’ è¿‡æ¸¡ä¸­ï¼ˆ250ms `_onZoomTransitionEnd` timer çª—å£ï¼‰å¯¼èˆªç¦»å¼€ â†’ `Map.remove()` åˆ  `_mapPane` ä½†ä¸å–æ¶ˆ timerã€ä¸å¤ä½ `_animatingZoom` â†’ timer è§¦å‘ â†’ æ— å®ˆå« `_move()` â†’ `getPosition(undefined)` â†’ `_leaflet_pos` pageerrorã€‚Reviewer ä¿®å‰å®žæµ‹ **6/6 å¤çŽ°**ï¼ˆ`/tmp/opencode/reviewer-probe-places-race3.mjs`ï¼‰ã€‚æˆ‘å…ˆå‰ smoke æ’žä¸åˆ°æ˜¯å› ä¸ºåˆå§‹ zoom-5 å…¨æ™¯ zoom å·® >4 â†’ `_tryAnimatedZoom` é™çº§æ— åŠ¨ç”»è·¯å¾„ã€‚
 
-### ②修复方式（采纳 Reviewer 更优做法：共享 hook）
-**抽共享 hook `src/src/lib/useResetZoomAnimOnUnmount.ts`**——`useEffect(cleanup → map._animatingZoom=false, [map])`，唯一 deps 是稳定 map 实例，等价空依赖：**只在最终 unmount 执行**（fitKey/invalidateKey/fly 变更不触发），纯字段复位、零 map 方法调用（T27 `map.stop()` 白屏教训不回归）。挂载两处：
-- **Trips `FitController`**：原内联 effect 替换为 hook 调用（注释保留在 hook 文件，调用点留指引）
-- **Places 新增常驻 `ResetZoomAnimController`**（`useMap()` + hook，返回 null）：**不挂 RadiusCircle**（它是 `{center && ...}` 条件渲染，且 ring-fit 由它发起；常驻控制器保证「无论哪个 controller 启动的动画，teardown 时复位必触发」，覆盖 flyTo/future 路径），挂 MapContainer 子组件树——导航离开即 unmount，map 生命周期内正常使用永不提前复位
+### â‘¡ä¿®å¤æ–¹å¼ï¼ˆé‡‡çº³ Reviewer æ›´ä¼˜åšæ³•ï¼šå…±äº« hookï¼‰
+**æŠ½å…±äº« hook `src/src/lib/useResetZoomAnimOnUnmount.ts`**â€”â€”`useEffect(cleanup â†’ map._animatingZoom=false, [map])`ï¼Œå”¯ä¸€ deps æ˜¯ç¨³å®š map å®žä¾‹ï¼Œç­‰ä»·ç©ºä¾èµ–ï¼š**åªåœ¨æœ€ç»ˆ unmount æ‰§è¡Œ**ï¼ˆfitKey/invalidateKey/fly å˜æ›´ä¸è§¦å‘ï¼‰ï¼Œçº¯å­—æ®µå¤ä½ã€é›¶ map æ–¹æ³•è°ƒç”¨ï¼ˆT27 `map.stop()` ç™½å±æ•™è®­ä¸å›žå½’ï¼‰ã€‚æŒ‚è½½ä¸¤å¤„ï¼š
+- **Trips `FitController`**ï¼šåŽŸå†…è” effect æ›¿æ¢ä¸º hook è°ƒç”¨ï¼ˆæ³¨é‡Šä¿ç•™åœ¨ hook æ–‡ä»¶ï¼Œè°ƒç”¨ç‚¹ç•™æŒ‡å¼•ï¼‰
+- **Places æ–°å¢žå¸¸é©» `ResetZoomAnimController`**ï¼ˆ`useMap()` + hookï¼Œè¿”å›ž nullï¼‰ï¼š**ä¸æŒ‚ RadiusCircle**ï¼ˆå®ƒæ˜¯ `{center && ...}` æ¡ä»¶æ¸²æŸ“ï¼Œä¸” ring-fit ç”±å®ƒå‘èµ·ï¼›å¸¸é©»æŽ§åˆ¶å™¨ä¿è¯ã€Œæ— è®ºå“ªä¸ª controller å¯åŠ¨çš„åŠ¨ç”»ï¼Œteardown æ—¶å¤ä½å¿…è§¦å‘ã€ï¼Œè¦†ç›– flyTo/future è·¯å¾„ï¼‰ï¼ŒæŒ‚ MapContainer å­ç»„ä»¶æ ‘â€”â€”å¯¼èˆªç¦»å¼€å³ unmountï¼Œmap ç”Ÿå‘½å‘¨æœŸå†…æ­£å¸¸ä½¿ç”¨æ°¸ä¸æå‰å¤ä½
 
-### ③验证证据
-1. **Reviewer 复现路径**（`reviewer-probe-places-race3.mjs`，mobile 390×844，滚轮放大中间 zoom → 点地图 → 瞬跳 Merge，6 轮）：**修前 reviewer 6/6 → 修后 6/6 轮 0 pageerror / 0 totalError**；每轮 `navAt=t+150~153ms < 250ms`（timer 全在窗口内）+ `animSeen=6/6`（动画真实启动），`animAtNav=false` 轮次即 pane 已 detach 的竞态窗口——**6 轮全部真正踩中竞态**
-2. **Trips 回归**：`verify-n1-fixed.mjs`——mobile 停留点击→tooltip（`visitClickTooltip=true`）+ 重新导入×3+瞬跳 Merge **0 `_leaflet_pos`**；唯一 totalError=1 = 已知 CSP `frame-ancestors` meta 噪音（已单独实测确认，非回归）
-3. **desktop 零回归**：侧栏收展×3 `#root children=1` 恒成立（T27 白屏路径）+ 0 `_leaflet_pos`
-4. **封印脚本入库**：`scripts/smoke-race-check.mjs`（A: Places 竞态×6 + B: Trips whammy×3 + C: desktop 收展×3，退出码门控），实测 **A 6/6 navAt=184~216ms（均 <250ms 窗口）0 race + B tooltip=true 0 race + C rootOk=true 0 race，全 PASS**；SMOKE-CHECKLIST B 段加「发布前必跑」指引行
-5. **243 单测 / lint / build 全绿**（改动：PlacesMap +16 行、TripMap -24/+1 行、新增 hook +1 文件、scripts/smoke-race-check.mjs +1）
+### â‘¢éªŒè¯è¯æ®
+1. **Reviewer å¤çŽ°è·¯å¾„**ï¼ˆ`reviewer-probe-places-race3.mjs`ï¼Œmobile 390Ã—844ï¼Œæ»šè½®æ”¾å¤§ä¸­é—´ zoom â†’ ç‚¹åœ°å›¾ â†’ çž¬è·³ Mergeï¼Œ6 è½®ï¼‰ï¼š**ä¿®å‰ reviewer 6/6 â†’ ä¿®åŽ 6/6 è½® 0 pageerror / 0 totalError**ï¼›æ¯è½® `navAt=t+150~153ms < 250ms`ï¼ˆtimer å…¨åœ¨çª—å£å†…ï¼‰+ `animSeen=6/6`ï¼ˆåŠ¨ç”»çœŸå®žå¯åŠ¨ï¼‰ï¼Œ`animAtNav=false` è½®æ¬¡å³ pane å·² detach çš„ç«žæ€çª—å£â€”â€”**6 è½®å…¨éƒ¨çœŸæ­£è¸©ä¸­ç«žæ€**
+2. **Trips å›žå½’**ï¼š`verify-n1-fixed.mjs`â€”â€”mobile åœç•™ç‚¹å‡»â†’tooltipï¼ˆ`visitClickTooltip=true`ï¼‰+ é‡æ–°å¯¼å…¥Ã—3+çž¬è·³ Merge **0 `_leaflet_pos`**ï¼›å”¯ä¸€ totalError=1 = å·²çŸ¥ CSP `frame-ancestors` meta å™ªéŸ³ï¼ˆå·²å•ç‹¬å®žæµ‹ç¡®è®¤ï¼Œéžå›žå½’ï¼‰
+3. **desktop é›¶å›žå½’**ï¼šä¾§æ æ”¶å±•Ã—3 `#root children=1` æ’æˆç«‹ï¼ˆT27 ç™½å±è·¯å¾„ï¼‰+ 0 `_leaflet_pos`
+4. **å°å°è„šæœ¬å…¥åº“**ï¼š`scripts/smoke-race-check.mjs`ï¼ˆA: Places ç«žæ€Ã—6 + B: Trips whammyÃ—3 + C: desktop æ”¶å±•Ã—3ï¼Œé€€å‡ºç é—¨æŽ§ï¼‰ï¼Œå®žæµ‹ **A 6/6 navAt=184~216msï¼ˆå‡ <250ms çª—å£ï¼‰0 race + B tooltip=true 0 race + C rootOk=true 0 raceï¼Œå…¨ PASS**ï¼›SMOKE-CHECKLIST B æ®µåŠ ã€Œå‘å¸ƒå‰å¿…è·‘ã€æŒ‡å¼•è¡Œ
+5. **243 å•æµ‹ / lint / build å…¨ç»¿**ï¼ˆæ”¹åŠ¨ï¼šPlacesMap +16 è¡Œã€TripMap -24/+1 è¡Œã€æ–°å¢ž hook +1 æ–‡ä»¶ã€scripts/smoke-race-check.mjs +1ï¼‰
 
-### ④为什么不会复发
-- 双视图统一走共享 hook，「第三处再漏」在结构上被消除；hook 文档内写明 T27→T38/T39 两中招史
-- 封印脚本 + checklist 指引 → 下次发布 1 条命令重跑
-- 竞态为浏览器时序问题不加 node 单测（与 T39 首次一致），Playwright 轮数为验证主体
+### â‘£ä¸ºä»€ä¹ˆä¸ä¼šå¤å‘
+- åŒè§†å›¾ç»Ÿä¸€èµ°å…±äº« hookï¼Œã€Œç¬¬ä¸‰å¤„å†æ¼ã€åœ¨ç»“æž„ä¸Šè¢«æ¶ˆé™¤ï¼›hook æ–‡æ¡£å†…å†™æ˜Ž T27â†’T38/T39 ä¸¤ä¸­æ‹›å²
+- å°å°è„šæœ¬ + checklist æŒ‡å¼• â†’ ä¸‹æ¬¡å‘å¸ƒ 1 æ¡å‘½ä»¤é‡è·‘
+- ç«žæ€ä¸ºæµè§ˆå™¨æ—¶åºé—®é¢˜ä¸åŠ  node å•æµ‹ï¼ˆä¸Ž T39 é¦–æ¬¡ä¸€è‡´ï¼‰ï¼ŒPlaywright è½®æ•°ä¸ºéªŒè¯ä¸»ä½“
 
-## 2026-09-16 12:32 — Dev T39: 修复 smoke-race-check 门禁 S1 server 泄漏 + G1 runError 计败
+## 2026-09-16 12:32 â€” Dev T39: ä¿®å¤ smoke-race-check é—¨ç¦ S1 server æ³„æ¼ + G1 runError è®¡è´¥
 
-### ①S1【严重】vite preview 子进程残留 → 假信号
-- 现状：`spawn('npx', ['vite','preview','--port','4194','--strictPort',...])` + 末尾 `server.kill()`；`kill()` 只杀 npx 包装进程，**vite preview 子进程残留**。固定端口 → 下次运行 spawn 失败但旧 server 还在 → `fetch(BASE)` 打到任意残留 server → 假 FAIL / 假 PASS（Reviewer 两种都亲历过）。发布门禁自身出假信号不可接受。
-- 修复（组合方案，**②随机端口 + stdout 解析**为主，①进程组 kill 兜底）：
-  1. `--port 0`：vite 8.3.0 实测支持 0=OS 分配空闲端口（probe 验证），彻底消除固定端口冲突与残留 server 误连；
-  2. **解析 `vite preview` stdout 的 `Local: http://...` 行构造 BASE**（`--host 127.0.0.1` 下即 `http://127.0.0.1:<port>/`），不再硬编码；
-  3. `spawn(..., { detached: true })` → npx 成为新进程组组长，清理用 `process.kill(-pid, SIGTERM)` → 轮询等待进程组消失 → `-pid SIGKILL` 兜底杀残余。清理在**全局 finally** 执行，正常退出（exitCode 0/1）与异常崩溃（throw，exitCode 2）**都不留 server 进程**。
-- 判别性验证（在修复版 build 上连跑 2 次 + 注入故障 1 次）：
-  - 正常运行 ×2：**退出码 0**、A 6/6 轮 `navAt=182~217ms 全 <250ms` 0 race + B tooltip=true 0 race + C rootOk=true 0 race，全部 PASS；每次跑完 `pgrep -f 'vite preview'` **零残留**；
-  - 注入故障路径（A 段首行 throw）：A 计 badRounds=6/6 → **FAIL → 退出码 1**（非 2），B/C 继续跑完不被屏蔽；脚本退出后**仍然零 vite 残留**（finally 清理对失败路径同样生效）。
+### â‘ S1ã€ä¸¥é‡ã€‘vite preview å­è¿›ç¨‹æ®‹ç•™ â†’ å‡ä¿¡å·
+- çŽ°çŠ¶ï¼š`spawn('npx', ['vite','preview','--port','4194','--strictPort',...])` + æœ«å°¾ `server.kill()`ï¼›`kill()` åªæ€ npx åŒ…è£…è¿›ç¨‹ï¼Œ**vite preview å­è¿›ç¨‹æ®‹ç•™**ã€‚å›ºå®šç«¯å£ â†’ ä¸‹æ¬¡è¿è¡Œ spawn å¤±è´¥ä½†æ—§ server è¿˜åœ¨ â†’ `fetch(BASE)` æ‰“åˆ°ä»»æ„æ®‹ç•™ server â†’ å‡ FAIL / å‡ PASSï¼ˆReviewer ä¸¤ç§éƒ½äº²åŽ†è¿‡ï¼‰ã€‚å‘å¸ƒé—¨ç¦è‡ªèº«å‡ºå‡ä¿¡å·ä¸å¯æŽ¥å—ã€‚
+- ä¿®å¤ï¼ˆç»„åˆæ–¹æ¡ˆï¼Œ**â‘¡éšæœºç«¯å£ + stdout è§£æž**ä¸ºä¸»ï¼Œâ‘ è¿›ç¨‹ç»„ kill å…œåº•ï¼‰ï¼š
+  1. `--port 0`ï¼švite 8.3.0 å®žæµ‹æ”¯æŒ 0=OS åˆ†é…ç©ºé—²ç«¯å£ï¼ˆprobe éªŒè¯ï¼‰ï¼Œå½»åº•æ¶ˆé™¤å›ºå®šç«¯å£å†²çªä¸Žæ®‹ç•™ server è¯¯è¿žï¼›
+  2. **è§£æž `vite preview` stdout çš„ `Local: http://...` è¡Œæž„é€  BASE**ï¼ˆ`--host 127.0.0.1` ä¸‹å³ `http://127.0.0.1:<port>/`ï¼‰ï¼Œä¸å†ç¡¬ç¼–ç ï¼›
+  3. `spawn(..., { detached: true })` â†’ npx æˆä¸ºæ–°è¿›ç¨‹ç»„ç»„é•¿ï¼Œæ¸…ç†ç”¨ `process.kill(-pid, SIGTERM)` â†’ è½®è¯¢ç­‰å¾…è¿›ç¨‹ç»„æ¶ˆå¤± â†’ `-pid SIGKILL` å…œåº•æ€æ®‹ä½™ã€‚æ¸…ç†åœ¨**å…¨å±€ finally** æ‰§è¡Œï¼Œæ­£å¸¸é€€å‡ºï¼ˆexitCode 0/1ï¼‰ä¸Žå¼‚å¸¸å´©æºƒï¼ˆthrowï¼ŒexitCode 2ï¼‰**éƒ½ä¸ç•™ server è¿›ç¨‹**ã€‚
+- åˆ¤åˆ«æ€§éªŒè¯ï¼ˆåœ¨ä¿®å¤ç‰ˆ build ä¸Šè¿žè·‘ 2 æ¬¡ + æ³¨å…¥æ•…éšœ 1 æ¬¡ï¼‰ï¼š
+  - æ­£å¸¸è¿è¡Œ Ã—2ï¼š**é€€å‡ºç  0**ã€A 6/6 è½® `navAt=182~217ms å…¨ <250ms` 0 race + B tooltip=true 0 race + C rootOk=true 0 raceï¼Œå…¨éƒ¨ PASSï¼›æ¯æ¬¡è·‘å®Œ `pgrep -f 'vite preview'` **é›¶æ®‹ç•™**ï¼›
+  - æ³¨å…¥æ•…éšœè·¯å¾„ï¼ˆA æ®µé¦–è¡Œ throwï¼‰ï¼šA è®¡ badRounds=6/6 â†’ **FAIL â†’ é€€å‡ºç  1**ï¼ˆéž 2ï¼‰ï¼ŒB/C ç»§ç»­è·‘å®Œä¸è¢«å±è”½ï¼›è„šæœ¬é€€å‡ºåŽ**ä»ç„¶é›¶ vite æ®‹ç•™**ï¼ˆfinally æ¸…ç†å¯¹å¤±è´¥è·¯å¾„åŒæ ·ç”Ÿæ•ˆï¼‰ã€‚
 
-### ②G1【一般】A 段 catch 吞 runError
-- 现状：轮跑挂（selector 超时等）按 `leafletRace=0` 计入且 section 仍 PASS → 空转段也算通过。
-- 修复：catch 分支 `aBadRounds++`，且每轮新增 **`navAt<250ms` 进判定**（`WIDE(>=250)` 未真正踩中竞态窗口的轮也计 badRound，不再纯打印）；section ok = `aRaces===0 && aBadRounds===0`。detail 行带 `badRounds=n/6`。验证：注入 throw 后 A `badRounds=6/6` FAIL、exit 1。
+### â‘¡G1ã€ä¸€èˆ¬ã€‘A æ®µ catch åž runError
+- çŽ°çŠ¶ï¼šè½®è·‘æŒ‚ï¼ˆselector è¶…æ—¶ç­‰ï¼‰æŒ‰ `leafletRace=0` è®¡å…¥ä¸” section ä» PASS â†’ ç©ºè½¬æ®µä¹Ÿç®—é€šè¿‡ã€‚
+- ä¿®å¤ï¼šcatch åˆ†æ”¯ `aBadRounds++`ï¼Œä¸”æ¯è½®æ–°å¢ž **`navAt<250ms` è¿›åˆ¤å®š**ï¼ˆ`WIDE(>=250)` æœªçœŸæ­£è¸©ä¸­ç«žæ€çª—å£çš„è½®ä¹Ÿè®¡ badRoundï¼Œä¸å†çº¯æ‰“å°ï¼‰ï¼›section ok = `aRaces===0 && aBadRounds===0`ã€‚detail è¡Œå¸¦ `badRounds=n/6`ã€‚éªŒè¯ï¼šæ³¨å…¥ throw åŽ A `badRounds=6/6` FAILã€exit 1ã€‚
 
-### ③其他验证 / 未动项
-- B/C 段补 catch（runError 计本 section FAIL，不崩全脚本）+ 全局 finally 进程组清理。
-- 产品代码**零改动**（git diff 仅 `scripts/smoke-race-check.mjs` + 本 NOTES）；`npm run lint` 0 问题、`npm run build` 绿（>500kB 既有告警）、**243 单测全绿**（脚本不在测试范围）。
-- 临时对照脚本 `/tmp/opencode/` 均已清理，未入库。
+### â‘¢å…¶ä»–éªŒè¯ / æœªåŠ¨é¡¹
+- B/C æ®µè¡¥ catchï¼ˆrunError è®¡æœ¬ section FAILï¼Œä¸å´©å…¨è„šæœ¬ï¼‰+ å…¨å±€ finally è¿›ç¨‹ç»„æ¸…ç†ã€‚
+- äº§å“ä»£ç **é›¶æ”¹åŠ¨**ï¼ˆgit diff ä»… `scripts/smoke-race-check.mjs` + æœ¬ NOTESï¼‰ï¼›`npm run lint` 0 é—®é¢˜ã€`npm run build` ç»¿ï¼ˆ>500kB æ—¢æœ‰å‘Šè­¦ï¼‰ã€**243 å•æµ‹å…¨ç»¿**ï¼ˆè„šæœ¬ä¸åœ¨æµ‹è¯•èŒƒå›´ï¼‰ã€‚
+- ä¸´æ—¶å¯¹ç…§è„šæœ¬ `/tmp/opencode/` å‡å·²æ¸…ç†ï¼Œæœªå…¥åº“ã€‚
 
-## 2026-09-16 13:15 — v1.0.0 发布 + 发布 Retro（CEO + Dev + Reviewer）
-- **T40 发布闭环**：GitHub Pages 部署（push 自动触发 deploy.yml，run 35056682330 success）+ 线上双视口冒烟 14/14 PASS（4 卡渲染、0 overflowX、hash 路由可达、0 pageerror 仅已知 CSP meta 噪音）+ bundle 特征核对确认 T39 终版（`Merge exports, keep it all` / `_animatingZoom` 复位）+ tag `v1.0.0` + CHANGELOG v1.0.0 段。发布地址 `https://coderkk.github.io/google-timeline-viewer/`。
-- **发布 Retro**（docs/records/retros/2026-09-16.md）：全员反馈，产出 A10–A15 行动项（验证脚本入库 / 根治声明附同族清单 / 已知噪音量化+时效 / L1 冒烟豁免例外 / 同族枚举前置 / 数据交付三方对账），已落 Backlog。Dev+Reviewer 重点共识：**验证资产不入库=假信号的根源**；N1 家族三中招（T27→T38→T39）靠共享 hook + 封印脚本结构性消除。
+## 2026-09-16 13:15 â€” v1.0.0 å‘å¸ƒ + å‘å¸ƒ Retroï¼ˆCEO + Dev + Reviewerï¼‰
+- **T40 å‘å¸ƒé—­çŽ¯**ï¼šGitHub Pages éƒ¨ç½²ï¼ˆpush è‡ªåŠ¨è§¦å‘ deploy.ymlï¼Œrun 35056682330 successï¼‰+ çº¿ä¸ŠåŒè§†å£å†’çƒŸ 14/14 PASSï¼ˆ4 å¡æ¸²æŸ“ã€0 overflowXã€hash è·¯ç”±å¯è¾¾ã€0 pageerror ä»…å·²çŸ¥ CSP meta å™ªéŸ³ï¼‰+ bundle ç‰¹å¾æ ¸å¯¹ç¡®è®¤ T39 ç»ˆç‰ˆï¼ˆ`Merge exports, keep it all` / `_animatingZoom` å¤ä½ï¼‰+ tag `v1.0.0` + CHANGELOG v1.0.0 æ®µã€‚å‘å¸ƒåœ°å€ `https://coderkk.github.io/google-timeline-viewer/`ã€‚
+- **å‘å¸ƒ Retro**ï¼ˆdocs/records/retros/2026-09-16.mdï¼‰ï¼šå…¨å‘˜åé¦ˆï¼Œäº§å‡º A10â€“A15 è¡ŒåŠ¨é¡¹ï¼ˆéªŒè¯è„šæœ¬å…¥åº“ / æ ¹æ²»å£°æ˜Žé™„åŒæ—æ¸…å• / å·²çŸ¥å™ªéŸ³é‡åŒ–+æ—¶æ•ˆ / L1 å†’çƒŸè±å…ä¾‹å¤– / åŒæ—æžšä¸¾å‰ç½® / æ•°æ®äº¤ä»˜ä¸‰æ–¹å¯¹è´¦ï¼‰ï¼Œå·²è½ Backlogã€‚Dev+Reviewer é‡ç‚¹å…±è¯†ï¼š**éªŒè¯èµ„äº§ä¸å…¥åº“=å‡ä¿¡å·çš„æ ¹æº**ï¼›N1 å®¶æ—ä¸‰ä¸­æ‹›ï¼ˆT27â†’T38â†’T39ï¼‰é å…±äº« hook + å°å°è„šæœ¬ç»“æž„æ€§æ¶ˆé™¤ã€‚
 
-## 2026-09-17 12:50 — Dev T41: 流程修订落地（runbook/COPY 入库）+ i18n 死键与 DataBar 死分支清除
+## 2026-09-17 12:50 â€” Dev T41: æµç¨‹ä¿®è®¢è½åœ°ï¼ˆrunbook/COPY å…¥åº“ï¼‰+ i18n æ­»é”®ä¸Ž DataBar æ­»åˆ†æ”¯æ¸…é™¤
 
-### ①文档落地
-- **`docs/release-runbook.md`**：模板复制 + 项目适配（GitHub Pages 发布通道 = push main 自动触发 deploy.yml、build 三步命令、T42 privacy job 与 T43 smoke-release.mjs 均为后续生效引用、凭据 grep/CSP diff/截图核对按 SMOKE-CHECKLIST 三层义务对接）。下次发布链拆卡前必做，发布验收引用它。
-- **`docs/COPY.md`**：主张登记表落地并填实——**10 条主张**（隐私段 1-4 强制登记：坐标不出设备 / 本地处理不上传 / 瓦片请求明示 IP+bbox / Google Maps 外链 opt-in）+ Landing 4 卡 + 单文件导入 + 四格式 + 合并归档 + 导出护栏 + 默认近 30 天范围；术语表登记 6 组对照（含「存档」仅存内部文档、用户面零残留的实证）；截图表登记全部 10 张截图；变更日志留空待首条。
-- 截图核对结论：**T41 无法人工开图**（工具模型无图像识别能力），全部如实标注「待人工核对」；附客观证据（截图生成 09-15 09:28-09:38 早于 T30/T35/T36/T39）→ 其中 6 张标「疑似不一致」（landing-full 缺 Merge 第 4 卡 / trips×2 旧双月历 / places 旧默认半径 / help 旧 FAQ 文案），release-runbook 已把「疑似不一致须重截」写成发布硬条件。
+### â‘ æ–‡æ¡£è½åœ°
+- **`docs/release-runbook.md`**ï¼šæ¨¡æ¿å¤åˆ¶ + é¡¹ç›®é€‚é…ï¼ˆGitHub Pages å‘å¸ƒé€šé“ = push main è‡ªåŠ¨è§¦å‘ deploy.ymlã€build ä¸‰æ­¥å‘½ä»¤ã€T42 privacy job ä¸Ž T43 smoke-release.mjs å‡ä¸ºåŽç»­ç”Ÿæ•ˆå¼•ç”¨ã€å‡­æ® grep/CSP diff/æˆªå›¾æ ¸å¯¹æŒ‰ SMOKE-CHECKLIST ä¸‰å±‚ä¹‰åŠ¡å¯¹æŽ¥ï¼‰ã€‚ä¸‹æ¬¡å‘å¸ƒé“¾æ‹†å¡å‰å¿…åšï¼Œå‘å¸ƒéªŒæ”¶å¼•ç”¨å®ƒã€‚
+- **`docs/COPY.md`**ï¼šä¸»å¼ ç™»è®°è¡¨è½åœ°å¹¶å¡«å®žâ€”â€”**10 æ¡ä¸»å¼ **ï¼ˆéšç§æ®µ 1-4 å¼ºåˆ¶ç™»è®°ï¼šåæ ‡ä¸å‡ºè®¾å¤‡ / æœ¬åœ°å¤„ç†ä¸ä¸Šä¼  / ç“¦ç‰‡è¯·æ±‚æ˜Žç¤º IP+bbox / Google Maps å¤–é“¾ opt-inï¼‰+ Landing 4 å¡ + å•æ–‡ä»¶å¯¼å…¥ + å››æ ¼å¼ + åˆå¹¶å½’æ¡£ + å¯¼å‡ºæŠ¤æ  + é»˜è®¤è¿‘ 30 å¤©èŒƒå›´ï¼›æœ¯è¯­è¡¨ç™»è®° 6 ç»„å¯¹ç…§ï¼ˆå«ã€Œå­˜æ¡£ã€ä»…å­˜å†…éƒ¨æ–‡æ¡£ã€ç”¨æˆ·é¢é›¶æ®‹ç•™çš„å®žè¯ï¼‰ï¼›æˆªå›¾è¡¨ç™»è®°å…¨éƒ¨ 10 å¼ æˆªå›¾ï¼›å˜æ›´æ—¥å¿—ç•™ç©ºå¾…é¦–æ¡ã€‚
+- æˆªå›¾æ ¸å¯¹ç»“è®ºï¼š**T41 æ— æ³•äººå·¥å¼€å›¾**ï¼ˆå·¥å…·æ¨¡åž‹æ— å›¾åƒè¯†åˆ«èƒ½åŠ›ï¼‰ï¼Œå…¨éƒ¨å¦‚å®žæ ‡æ³¨ã€Œå¾…äººå·¥æ ¸å¯¹ã€ï¼›é™„å®¢è§‚è¯æ®ï¼ˆæˆªå›¾ç”Ÿæˆ 09-15 09:28-09:38 æ—©äºŽ T30/T35/T36/T39ï¼‰â†’ å…¶ä¸­ 6 å¼ æ ‡ã€Œç–‘ä¼¼ä¸ä¸€è‡´ã€ï¼ˆlanding-full ç¼º Merge ç¬¬ 4 å¡ / tripsÃ—2 æ—§åŒæœˆåŽ† / places æ—§é»˜è®¤åŠå¾„ / help æ—§ FAQ æ–‡æ¡ˆï¼‰ï¼Œrelease-runbook å·²æŠŠã€Œç–‘ä¼¼ä¸ä¸€è‡´é¡»é‡æˆªã€å†™æˆå‘å¸ƒç¡¬æ¡ä»¶ã€‚
 
-### ②活 bug 修复（Designer 2026-09-16 抓到的 T38 grep 词表盲区）
-- **`data.filesSuffix` 死键**：grep 确认唯一消费方 = DataBar `dataFileCount > 1` 死分支（T35 单文件化后永不触发），T36/T38 均未清除 → 从 `en.ts`/`zh.ts` 双 catalog 删除；i18n guard 测试无对它的直接断言（catalog parity 自动覆盖，双删即绿）。
-- **DataBar `dataFileCount > 1` 死分支**：`dataFileCount` 字段全清——store 接口声明 + 初始值 + `importFiles`/`loadSample`/`clearData` 三处 set + DataBar selector；保留 1 档展示路径（sample → `t('data.sample')`；user → 纯文件名）；ImportPanel.test.tsx mock 同步移除该字段。`importFiles` 保持 `File[]` 签名不动（ImportPanel 传 `[files[0]]`，超出 T41 范围不做 API 变更）。
-- **全 repo grep 盲区验证**：`more files|moreFiles|filesSuffix|dataFileCount` → src/ 下**零命中**；全 repo 仅剩 3 处历史文档引用（NOTES L243 T28 旧设计描述 / TASKS T41 卡自身 / ARCHIVE T28 归档）——均为追溯记录非死代码，按追加式纪律不改写。
+### â‘¡æ´» bug ä¿®å¤ï¼ˆDesigner 2026-09-16 æŠ“åˆ°çš„ T38 grep è¯è¡¨ç›²åŒºï¼‰
+- **`data.filesSuffix` æ­»é”®**ï¼šgrep ç¡®è®¤å”¯ä¸€æ¶ˆè´¹æ–¹ = DataBar `dataFileCount > 1` æ­»åˆ†æ”¯ï¼ˆT35 å•æ–‡ä»¶åŒ–åŽæ°¸ä¸è§¦å‘ï¼‰ï¼ŒT36/T38 å‡æœªæ¸…é™¤ â†’ ä»Ž `en.ts`/`zh.ts` åŒ catalog åˆ é™¤ï¼›i18n guard æµ‹è¯•æ— å¯¹å®ƒçš„ç›´æŽ¥æ–­è¨€ï¼ˆcatalog parity è‡ªåŠ¨è¦†ç›–ï¼ŒåŒåˆ å³ç»¿ï¼‰ã€‚
+- **DataBar `dataFileCount > 1` æ­»åˆ†æ”¯**ï¼š`dataFileCount` å­—æ®µå…¨æ¸…â€”â€”store æŽ¥å£å£°æ˜Ž + åˆå§‹å€¼ + `importFiles`/`loadSample`/`clearData` ä¸‰å¤„ set + DataBar selectorï¼›ä¿ç•™ 1 æ¡£å±•ç¤ºè·¯å¾„ï¼ˆsample â†’ `t('data.sample')`ï¼›user â†’ çº¯æ–‡ä»¶åï¼‰ï¼›ImportPanel.test.tsx mock åŒæ­¥ç§»é™¤è¯¥å­—æ®µã€‚`importFiles` ä¿æŒ `File[]` ç­¾åä¸åŠ¨ï¼ˆImportPanel ä¼  `[files[0]]`ï¼Œè¶…å‡º T41 èŒƒå›´ä¸åš API å˜æ›´ï¼‰ã€‚
+- **å…¨ repo grep ç›²åŒºéªŒè¯**ï¼š`more files|moreFiles|filesSuffix|dataFileCount` â†’ src/ ä¸‹**é›¶å‘½ä¸­**ï¼›å…¨ repo ä»…å‰© 3 å¤„åŽ†å²æ–‡æ¡£å¼•ç”¨ï¼ˆNOTES L243 T28 æ—§è®¾è®¡æè¿° / TASKS T41 å¡è‡ªèº« / ARCHIVE T28 å½’æ¡£ï¼‰â€”â€”å‡ä¸ºè¿½æº¯è®°å½•éžæ­»ä»£ç ï¼ŒæŒ‰è¿½åŠ å¼çºªå¾‹ä¸æ”¹å†™ã€‚
 
-**自测**：`npm run lint` ✓ / `npm test` **243 全绿**（基线不变）/ `npm run build` ✓（仅既有 chunk-size 警告）。
+**è‡ªæµ‹**ï¼š`npm run lint` âœ“ / `npm test` **243 å…¨ç»¿**ï¼ˆåŸºçº¿ä¸å˜ï¼‰/ `npm run build` âœ“ï¼ˆä»…æ—¢æœ‰ chunk-size è­¦å‘Šï¼‰ã€‚
 
-**冒烟（D 类 + 通用，临时脚本 `/tmp/opencode/t41-databar-smoke.mjs` 跑完即弃）**：production build + vite preview（port 0）+ Playwright——
-- A sample 路径：Landing → 载示例 → DataBar 显示 `Sample data`，body 无「more files」（0 pageerror）
-- B user 路径：更换数据 → 导入单文件 → DataBar 显示 `sample-timeline.json` 纯文件名，body 无「more files / 个文件」（0 pageerror）
+**å†’çƒŸï¼ˆD ç±» + é€šç”¨ï¼Œä¸´æ—¶è„šæœ¬ `/tmp/opencode/t41-databar-smoke.mjs` è·‘å®Œå³å¼ƒï¼‰**ï¼šproduction build + vite previewï¼ˆport 0ï¼‰+ Playwrightâ€”â€”
+- A sample è·¯å¾„ï¼šLanding â†’ è½½ç¤ºä¾‹ â†’ DataBar æ˜¾ç¤º `Sample data`ï¼Œbody æ— ã€Œmore filesã€ï¼ˆ0 pageerrorï¼‰
+- B user è·¯å¾„ï¼šæ›´æ¢æ•°æ® â†’ å¯¼å…¥å•æ–‡ä»¶ â†’ DataBar æ˜¾ç¤º `sample-timeline.json` çº¯æ–‡ä»¶åï¼Œbody æ— ã€Œmore files / ä¸ªæ–‡ä»¶ã€ï¼ˆ0 pageerrorï¼‰
 
-**已知遗留（诚实标注，非 T41 范围）**：①截图「待人工核对」6 张疑似不一致须发布前人工重截（已入 release-runbook 硬条件 + COPY 核对该）；②COPY 术语表发现 README 与 zh i18n 混用「模拟数据/示例数据」微漂移（低优先，候选统一「模拟数据」）；③`dataFileCount` 删除后 parse worker 的 per-file progress 事件仍是 `index/fileCount` 协议（T35 记录功能 14 将真实消费），未受影响。
+**å·²çŸ¥é—ç•™ï¼ˆè¯šå®žæ ‡æ³¨ï¼Œéž T41 èŒƒå›´ï¼‰**ï¼šâ‘ æˆªå›¾ã€Œå¾…äººå·¥æ ¸å¯¹ã€6 å¼ ç–‘ä¼¼ä¸ä¸€è‡´é¡»å‘å¸ƒå‰äººå·¥é‡æˆªï¼ˆå·²å…¥ release-runbook ç¡¬æ¡ä»¶ + COPY æ ¸å¯¹è¯¥ï¼‰ï¼›â‘¡COPY æœ¯è¯­è¡¨å‘çŽ° README ä¸Ž zh i18n æ··ç”¨ã€Œæ¨¡æ‹Ÿæ•°æ®/ç¤ºä¾‹æ•°æ®ã€å¾®æ¼‚ç§»ï¼ˆä½Žä¼˜å…ˆï¼Œå€™é€‰ç»Ÿä¸€ã€Œæ¨¡æ‹Ÿæ•°æ®ã€ï¼‰ï¼›â‘¢`dataFileCount` åˆ é™¤åŽ parse worker çš„ per-file progress äº‹ä»¶ä»æ˜¯ `index/fileCount` åè®®ï¼ˆT35 è®°å½•åŠŸèƒ½ 14 å°†çœŸå®žæ¶ˆè´¹ï¼‰ï¼Œæœªå—å½±å“ã€‚
 
-## 2026-09-17 13:25 — Dev T42: 隐私断言机器化（network-tap）+ Security 评审前置设计落地
+## 2026-09-17 13:25 â€” Dev T42: éšç§æ–­è¨€æœºå™¨åŒ–ï¼ˆnetwork-tapï¼‰+ Security è¯„å®¡å‰ç½®è®¾è®¡è½åœ°
 
-### 交付物（按 `docs/DESIGN-T42.md` 逐字实现）
-- **`scripts/privacy-allowlist.json`**：出网面单一机器源——`meta`（repo/app/updated/scope/surfaces/limitations）+ `localSchemes`（blob:/data:/about:/file:）+ `network`（self=origin-equals-page-base；tile=[OSM]）+ `policy`（networkRequestsNoQuery / networkRequestsNoPayload / cspConnectSrcHostTokens 三布尔 + customTileSource 例外登记）+ `exceptions`（空）。
-- **`scripts/smoke-network-tap.mjs`**（单文件 ESM，Playwright **零新依赖** ^1.63.0 已在 scripts/package.json）：`--base` / `--allowed`（默认相对 import.meta.url）/ `--json` / `--calibrate-only`。双视口 S1–S8 + fixture tmpdir 真实导入（worker 路径）+ 逐请求裁決 + 空转守卫 + 校准双探针 + CSP 静态复核 + report JSON。
-- **`.github/workflows/deploy.yml`** 重写为 **build → privacy → deploy**：build 产出并 upload artifact `dist`（单一事实源，无 job 重建）；privacy 下载 dist + `python3 -m http.server 4173 -d dist` + 跑 tap；deploy `needs: [build, privacy]`（牙③结构性硬门禁）。
-- **`docs/SMOKE-CHECKLIST.md`** 隐私段加可复现入口（tap 命令 + allowlist 路径 + 退出码语义 + 校准项）。
-- **`docs/COPY.md`** 新增 **#11 `privacy-default-config-no-egress`** / **#12 `privacy-custom-tile-opt-in`** 两条机器断言主张 + 变更日志首条。
-- 本 NOTES + TASKS T42 关卡。
+### äº¤ä»˜ç‰©ï¼ˆæŒ‰ `docs/DESIGN-T42.md` é€å­—å®žçŽ°ï¼‰
+- **`scripts/privacy-allowlist.json`**ï¼šå‡ºç½‘é¢å•ä¸€æœºå™¨æºâ€”â€”`meta`ï¼ˆrepo/app/updated/scope/surfaces/limitationsï¼‰+ `localSchemes`ï¼ˆblob:/data:/about:/file:ï¼‰+ `network`ï¼ˆself=origin-equals-page-baseï¼›tile=[OSM]ï¼‰+ `policy`ï¼ˆnetworkRequestsNoQuery / networkRequestsNoPayload / cspConnectSrcHostTokens ä¸‰å¸ƒå°” + customTileSource ä¾‹å¤–ç™»è®°ï¼‰+ `exceptions`ï¼ˆç©ºï¼‰ã€‚
+- **`scripts/smoke-network-tap.mjs`**ï¼ˆå•æ–‡ä»¶ ESMï¼ŒPlaywright **é›¶æ–°ä¾èµ–** ^1.63.0 å·²åœ¨ scripts/package.jsonï¼‰ï¼š`--base` / `--allowed`ï¼ˆé»˜è®¤ç›¸å¯¹ import.meta.urlï¼‰/ `--json` / `--calibrate-only`ã€‚åŒè§†å£ S1â€“S8 + fixture tmpdir çœŸå®žå¯¼å…¥ï¼ˆworker è·¯å¾„ï¼‰+ é€è¯·æ±‚è£æ±º + ç©ºè½¬å®ˆå« + æ ¡å‡†åŒæŽ¢é’ˆ + CSP é™æ€å¤æ ¸ + report JSONã€‚
+- **`.github/workflows/deploy.yml`** é‡å†™ä¸º **build â†’ privacy â†’ deploy**ï¼šbuild äº§å‡ºå¹¶ upload artifact `dist`ï¼ˆå•ä¸€äº‹å®žæºï¼Œæ—  job é‡å»ºï¼‰ï¼›privacy ä¸‹è½½ dist + `python3 -m http.server 4173 -d dist` + è·‘ tapï¼›deploy `needs: [build, privacy]`ï¼ˆç‰™â‘¢ç»“æž„æ€§ç¡¬é—¨ç¦ï¼‰ã€‚
+- **`docs/SMOKE-CHECKLIST.md`** éšç§æ®µåŠ å¯å¤çŽ°å…¥å£ï¼ˆtap å‘½ä»¤ + allowlist è·¯å¾„ + é€€å‡ºç è¯­ä¹‰ + æ ¡å‡†é¡¹ï¼‰ã€‚
+- **`docs/COPY.md`** æ–°å¢ž **#11 `privacy-default-config-no-egress`** / **#12 `privacy-custom-tile-opt-in`** ä¸¤æ¡æœºå™¨æ–­è¨€ä¸»å¼  + å˜æ›´æ—¥å¿—é¦–æ¡ã€‚
+- æœ¬ NOTES + TASKS T42 å…³å¡ã€‚
 
-### A1 allowlist schema（node -e 断言）
-9 项全过：localSchemes 4 项含 `blob:`；`network.tile.length===1`（OpenStreetMap，pathPattern `^/\d+/\d+/\d+\.png$` 可编译）；policy 三布尔 true；exceptions.length===0。**PASS**
+### A1 allowlist schemaï¼ˆnode -e æ–­è¨€ï¼‰
+9 é¡¹å…¨è¿‡ï¼šlocalSchemes 4 é¡¹å« `blob:`ï¼›`network.tile.length===1`ï¼ˆOpenStreetMapï¼ŒpathPattern `^/\d+/\d+/\d+\.png$` å¯ç¼–è¯‘ï¼‰ï¼›policy ä¸‰å¸ƒå°” trueï¼›exceptions.length===0ã€‚**PASS**
 
-### A2 默认配置跑 tap（build → vite preview → tap）
-- `csp-static OK — connect-src tokens: 'self' https:`（无 `*`、无 host token，符合 policy.cspConnectSrcHostTokens）
-- 双视口旅程全通：S1 landing → S2 sample（`.trip-map`）→ S3 settle 1500ms → **S4 `setInputFiles` 真实导入（dataReady=true，捕获 `parse.worker-*.js` 走 self，证明 worker 路径真跑）** → S5 places → S6 merge → S7 export-download **fired** → S8 settings/help/landing
-- 捕获并集 **108 请求全 ALLOW**：ALLOW-SELF（index js/css + worker + 页面）+ **ALLOW-TILE 71 个 OSM 瓦片**（zoom 4/5/12/13 多层，tile 必达信号满足）
-- 校准：`probe A fetch-injection -> 1 request VIOLATION-HOST FLAGGED` / `probe B custom-tile-UI -> 24 requests VIOLATION-HOST FLAGGED`
-- **verdict PASS，exit 0** ✓（report `/tmp/t42-report-clean*.json`：counts {total:108, allows:108, violations:0}，vacuous {tilePathExercised:true, dataReady:true}）
+### A2 é»˜è®¤é…ç½®è·‘ tapï¼ˆbuild â†’ vite preview â†’ tapï¼‰
+- `csp-static OK â€” connect-src tokens: 'self' https:`ï¼ˆæ—  `*`ã€æ—  host tokenï¼Œç¬¦åˆ policy.cspConnectSrcHostTokensï¼‰
+- åŒè§†å£æ—…ç¨‹å…¨é€šï¼šS1 landing â†’ S2 sampleï¼ˆ`.trip-map`ï¼‰â†’ S3 settle 1500ms â†’ **S4 `setInputFiles` çœŸå®žå¯¼å…¥ï¼ˆdataReady=trueï¼Œæ•èŽ· `parse.worker-*.js` èµ° selfï¼Œè¯æ˜Ž worker è·¯å¾„çœŸè·‘ï¼‰** â†’ S5 places â†’ S6 merge â†’ S7 export-download **fired** â†’ S8 settings/help/landing
+- æ•èŽ·å¹¶é›† **108 è¯·æ±‚å…¨ ALLOW**ï¼šALLOW-SELFï¼ˆindex js/css + worker + é¡µé¢ï¼‰+ **ALLOW-TILE 71 ä¸ª OSM ç“¦ç‰‡**ï¼ˆzoom 4/5/12/13 å¤šå±‚ï¼Œtile å¿…è¾¾ä¿¡å·æ»¡è¶³ï¼‰
+- æ ¡å‡†ï¼š`probe A fetch-injection -> 1 request VIOLATION-HOST FLAGGED` / `probe B custom-tile-UI -> 24 requests VIOLATION-HOST FLAGGED`
+- **verdict PASSï¼Œexit 0** âœ“ï¼ˆreport `/tmp/t42-report-clean*.json`ï¼šcounts {total:108, allows:108, violations:0}ï¼Œvacuous {tilePathExercised:true, dataReady:true}ï¼‰
 
-### A3 三态必红（量具自检，宣言原则 2）+ 抓到一个真 bug
-| 状态 | 操作 | 结果 |
+### A3 ä¸‰æ€å¿…çº¢ï¼ˆé‡å…·è‡ªæ£€ï¼Œå®£è¨€åŽŸåˆ™ 2ï¼‰+ æŠ“åˆ°ä¸€ä¸ªçœŸ bug
+| çŠ¶æ€ | æ“ä½œ | ç»“æžœ |
 |------|------|------|
-| 干净 | 默认构建 | exit 0 |
-| 注入 | `Landing.tsx` 临时 `fetch('https://example.com/t42-injected-egress')` + 重建 | **exit 1**，输出 `>>> VIOLATION-HOST https://example.com/t42-injected-egress (https://example.com)`，verdict FAIL（assert-failures=1） |
-| 还原 | 移除注入 + 重建 | exit 0（0 违例） |
+| å¹²å‡€ | é»˜è®¤æž„å»º | exit 0 |
+| æ³¨å…¥ | `Landing.tsx` ä¸´æ—¶ `fetch('https://example.com/t42-injected-egress')` + é‡å»º | **exit 1**ï¼Œè¾“å‡º `>>> VIOLATION-HOST https://example.com/t42-injected-egress (https://example.com)`ï¼Œverdict FAILï¼ˆassert-failures=1ï¼‰ |
+| è¿˜åŽŸ | ç§»é™¤æ³¨å…¥ + é‡å»º | exit 0ï¼ˆ0 è¿ä¾‹ï¼‰ |
 
-- **真 bug（A3 抓到）**：初版 tap 把逐请求违例 push 进 `report.violations` 但 **未入 `assertFailures`** → 注入态的 `example.com` 请求虽被判 VIOLATION-HOST 并列出，**verdict 仍 PASS / exit 0（假绿）**。A3 必红要求把此假绿暴露，修复（违例同步 push assertFailures）后三态闭环。**这正是「阳性对照」存在的价值：缺了 A3，这个假绿会直接进 CI 门禁。**
-- **环境教训（状态 3 复验歧义）**：还原后初次仍 exit 1 且报注入 URL——根因不是代码，而是 `npm run build && npx vite preview &` 整链后台化 + 旧 preview 残留占 4173（stale server 供旧 dist）。清理端口（`lsof -t -i:4173` + kill）+ **前台 build + 独立 preview** 后稳定回绿。**规则：门禁链路复现把 build / 起服 / 运行分段执行，别用 && 整链后台化。**
+- **çœŸ bugï¼ˆA3 æŠ“åˆ°ï¼‰**ï¼šåˆç‰ˆ tap æŠŠé€è¯·æ±‚è¿ä¾‹ push è¿› `report.violations` ä½† **æœªå…¥ `assertFailures`** â†’ æ³¨å…¥æ€çš„ `example.com` è¯·æ±‚è™½è¢«åˆ¤ VIOLATION-HOST å¹¶åˆ—å‡ºï¼Œ**verdict ä» PASS / exit 0ï¼ˆå‡ç»¿ï¼‰**ã€‚A3 å¿…çº¢è¦æ±‚æŠŠæ­¤å‡ç»¿æš´éœ²ï¼Œä¿®å¤ï¼ˆè¿ä¾‹åŒæ­¥ push assertFailuresï¼‰åŽä¸‰æ€é—­çŽ¯ã€‚**è¿™æ­£æ˜¯ã€Œé˜³æ€§å¯¹ç…§ã€å­˜åœ¨çš„ä»·å€¼ï¼šç¼ºäº† A3ï¼Œè¿™ä¸ªå‡ç»¿ä¼šç›´æŽ¥è¿› CI é—¨ç¦ã€‚**
+- **çŽ¯å¢ƒæ•™è®­ï¼ˆçŠ¶æ€ 3 å¤éªŒæ­§ä¹‰ï¼‰**ï¼šè¿˜åŽŸåŽåˆæ¬¡ä» exit 1 ä¸”æŠ¥æ³¨å…¥ URLâ€”â€”æ ¹å› ä¸æ˜¯ä»£ç ï¼Œè€Œæ˜¯ `npm run build && npx vite preview &` æ•´é“¾åŽå°åŒ– + æ—§ preview æ®‹ç•™å  4173ï¼ˆstale server ä¾›æ—§ distï¼‰ã€‚æ¸…ç†ç«¯å£ï¼ˆ`lsof -t -i:4173` + killï¼‰+ **å‰å° build + ç‹¬ç«‹ preview** åŽç¨³å®šå›žç»¿ã€‚**è§„åˆ™ï¼šé—¨ç¦é“¾è·¯å¤çŽ°æŠŠ build / èµ·æœ / è¿è¡Œåˆ†æ®µæ‰§è¡Œï¼Œåˆ«ç”¨ && æ•´é“¾åŽå°åŒ–ã€‚**
 
-### A4–A6 退出码语义
-- **A4** `--calibrate-only`：跳过 assert 只跑校准，双探针 FLAGGED，**exit 0** ✓
-- **A5** `T42_VACUOUS_SIM=1`（模拟空 sweep）：`[vacuous] tile path not exercised` + `[vacuous] data not ready after fixture import` 两守卫触发，**exit 1** ✓（防「跑了个寂寞」）
-- **A6** **exit 2** = `T42_PROBE_A_URL=''`（校准量具坏 → `calibration-probes-flagged=false/true` → 非零，绝不假绿）；**exit 3** = 死 base（`waitReady` 超时抛错）。0/1/2/3 四语义实测可区分 ✓
+### A4â€“A6 é€€å‡ºç è¯­ä¹‰
+- **A4** `--calibrate-only`ï¼šè·³è¿‡ assert åªè·‘æ ¡å‡†ï¼ŒåŒæŽ¢é’ˆ FLAGGEDï¼Œ**exit 0** âœ“
+- **A5** `T42_VACUOUS_SIM=1`ï¼ˆæ¨¡æ‹Ÿç©º sweepï¼‰ï¼š`[vacuous] tile path not exercised` + `[vacuous] data not ready after fixture import` ä¸¤å®ˆå«è§¦å‘ï¼Œ**exit 1** âœ“ï¼ˆé˜²ã€Œè·‘äº†ä¸ªå¯‚å¯žã€ï¼‰
+- **A6** **exit 2** = `T42_PROBE_A_URL=''`ï¼ˆæ ¡å‡†é‡å…·å â†’ `calibration-probes-flagged=false/true` â†’ éžé›¶ï¼Œç»ä¸å‡ç»¿ï¼‰ï¼›**exit 3** = æ­» baseï¼ˆ`waitReady` è¶…æ—¶æŠ›é”™ï¼‰ã€‚0/1/2/3 å››è¯­ä¹‰å®žæµ‹å¯åŒºåˆ† âœ“
 
-### C3 README 隐私声明对照（目录侧）
-README L132–141「隐私声明」披露的外部请求 = ①地图瓦片（默认 OSM，暴露 IP + 视野 bbox；可切自托管）②Google Maps 外链 opt-in（默认「复制坐标」纯本机）——与 allowlist 非 self 面（tile=OSM）+ `exceptions`/policy 中的 opt-in 例外面**一一对应，无未披露出网面**。COPY #3/#4 措辞红线（不写「0 网络请求」）与 DESIGN §0 N 面盘点一致。
+### C3 README éšç§å£°æ˜Žå¯¹ç…§ï¼ˆç›®å½•ä¾§ï¼‰
+README L132â€“141ã€Œéšç§å£°æ˜Žã€æŠ«éœ²çš„å¤–éƒ¨è¯·æ±‚ = â‘ åœ°å›¾ç“¦ç‰‡ï¼ˆé»˜è®¤ OSMï¼Œæš´éœ² IP + è§†é‡Ž bboxï¼›å¯åˆ‡è‡ªæ‰˜ç®¡ï¼‰â‘¡Google Maps å¤–é“¾ opt-inï¼ˆé»˜è®¤ã€Œå¤åˆ¶åæ ‡ã€çº¯æœ¬æœºï¼‰â€”â€”ä¸Ž allowlist éž self é¢ï¼ˆtile=OSMï¼‰+ `exceptions`/policy ä¸­çš„ opt-in ä¾‹å¤–é¢**ä¸€ä¸€å¯¹åº”ï¼Œæ— æœªæŠ«éœ²å‡ºç½‘é¢**ã€‚COPY #3/#4 æŽªè¾žçº¢çº¿ï¼ˆä¸å†™ã€Œ0 ç½‘ç»œè¯·æ±‚ã€ï¼‰ä¸Ž DESIGN Â§0 N é¢ç›˜ç‚¹ä¸€è‡´ã€‚
 
-### 回归 + 纪律
-- `npm run test` **243 全绿**（18 文件）/ `npm run lint` 0 问题 / `npm run build` ✓（仅既有 chunk-size 告警）；`node --check scripts/smoke-network-tap.mjs` ✓。
-- **零新依赖**：`git diff --stat scripts/package.json scripts/package-lock.json` 无输出（playwright 既有）。
-- 范围纪律：产品代码 T42 期间**零改动**（A3 注入已完整还原，`grep t42-injected-egress src/` 零命中）；仅动 tap/allowlist/deploy.yml/SMOKE-CHECKLIST/COPY/NOTES/TASKS。**尚未提交**（CEO 统一）。
-- 遗留：B1/B2（deploy.yml 拓扑静态核对）+ CI 实跑（push 后首次 privacy job 绿灯）留给 Reviewer/Security 本轮评审与 CEO 提交后验证。
+### å›žå½’ + çºªå¾‹
+- `npm run test` **243 å…¨ç»¿**ï¼ˆ18 æ–‡ä»¶ï¼‰/ `npm run lint` 0 é—®é¢˜ / `npm run build` âœ“ï¼ˆä»…æ—¢æœ‰ chunk-size å‘Šè­¦ï¼‰ï¼›`node --check scripts/smoke-network-tap.mjs` âœ“ã€‚
+- **é›¶æ–°ä¾èµ–**ï¼š`git diff --stat scripts/package.json scripts/package-lock.json` æ— è¾“å‡ºï¼ˆplaywright æ—¢æœ‰ï¼‰ã€‚
+- èŒƒå›´çºªå¾‹ï¼šäº§å“ä»£ç  T42 æœŸé—´**é›¶æ”¹åŠ¨**ï¼ˆA3 æ³¨å…¥å·²å®Œæ•´è¿˜åŽŸï¼Œ`grep t42-injected-egress src/` é›¶å‘½ä¸­ï¼‰ï¼›ä»…åŠ¨ tap/allowlist/deploy.yml/SMOKE-CHECKLIST/COPY/NOTES/TASKSã€‚**å°šæœªæäº¤**ï¼ˆCEO ç»Ÿä¸€ï¼‰ã€‚
+- é—ç•™ï¼šB1/B2ï¼ˆdeploy.yml æ‹“æ‰‘é™æ€æ ¸å¯¹ï¼‰+ CI å®žè·‘ï¼ˆpush åŽé¦–æ¬¡ privacy job ç»¿ç¯ï¼‰ç•™ç»™ Reviewer/Security æœ¬è½®è¯„å®¡ä¸Ž CEO æäº¤åŽéªŒè¯ã€‚
 
-## 2026-09-17 13:36 — Dev T41 G1–G3 修复（文档准确性：i18n key / README 行号 / 截图计数）
+## 2026-09-17 13:36 â€” Dev T41 G1â€“G3 ä¿®å¤ï¼ˆæ–‡æ¡£å‡†ç¡®æ€§ï¼ši18n key / README è¡Œå· / æˆªå›¾è®¡æ•°ï¼‰
 
-Reviewer 复核 T41 抓到 3 处文档准确性缺陷（G4 = 提交卫生：只改 T41 范围，不碰 T42 的 `scripts/` + `deploy.yml` + `DESIGN-T42.md`）。纯文档改动。
+Reviewer å¤æ ¸ T41 æŠ“åˆ° 3 å¤„æ–‡æ¡£å‡†ç¡®æ€§ç¼ºé™·ï¼ˆG4 = æäº¤å«ç”Ÿï¼šåªæ”¹ T41 èŒƒå›´ï¼Œä¸ç¢° T42 çš„ `scripts/` + `deploy.yml` + `DESIGN-T42.md`ï¼‰ã€‚çº¯æ–‡æ¡£æ”¹åŠ¨ã€‚
 
-### G1 — COPY #6 引用了不存在的 i18n key
-- `docs/COPY.md` 主张 #6 原写 Help `help.formatsHint`+`formatsTree`。全仓 grep：**`help.formatsTree`（复数）不存在**；实际 key 为单数 **`help.formatTree`**（`en.ts:184` / `zh.ts:188`，消费方 `HelpPage.tsx:91`）；`help.formatsHint` 存在（`en.ts:179` / `zh.ts:183` / `HelpPage.tsx:71`）。
-- 修复：`formatsTree` → `formatTree`。en/zh 双 catalog parity 一致，无代码改动。
+### G1 â€” COPY #6 å¼•ç”¨äº†ä¸å­˜åœ¨çš„ i18n key
+- `docs/COPY.md` ä¸»å¼  #6 åŽŸå†™ Help `help.formatsHint`+`formatsTree`ã€‚å…¨ä»“ grepï¼š**`help.formatsTree`ï¼ˆå¤æ•°ï¼‰ä¸å­˜åœ¨**ï¼›å®žé™… key ä¸ºå•æ•° **`help.formatTree`**ï¼ˆ`en.ts:184` / `zh.ts:188`ï¼Œæ¶ˆè´¹æ–¹ `HelpPage.tsx:91`ï¼‰ï¼›`help.formatsHint` å­˜åœ¨ï¼ˆ`en.ts:179` / `zh.ts:183` / `HelpPage.tsx:71`ï¼‰ã€‚
+- ä¿®å¤ï¼š`formatsTree` â†’ `formatTree`ã€‚en/zh åŒ catalog parity ä¸€è‡´ï¼Œæ— ä»£ç æ”¹åŠ¨ã€‚
 
-### G2 — COPY 术语表 README 行号不实
-- 「模拟/示例数据」行原写「模拟数据（L89/136）」+「示例数据（L98「点击『立即体验』」语境）」。`grep -n "模拟数据\|示例数据" README.md` 实测**仅 2 处**：**L89**「…点击『立即体验』可一键载入**模拟数据**试玩」（旧表把『立即体验』语境错挂到「示例数据」）、**L179**「状态管理（Zustand）：导入数据、**示例数据**加载…」。L136/L98 无这些词。
-- 修复：改为「模拟数据（L89「点击『立即体验』」语境）与示例数据（L179「状态管理」段）」。
+### G2 â€” COPY æœ¯è¯­è¡¨ README è¡Œå·ä¸å®ž
+- ã€Œæ¨¡æ‹Ÿ/ç¤ºä¾‹æ•°æ®ã€è¡ŒåŽŸå†™ã€Œæ¨¡æ‹Ÿæ•°æ®ï¼ˆL89/136ï¼‰ã€+ã€Œç¤ºä¾‹æ•°æ®ï¼ˆL98ã€Œç‚¹å‡»ã€Žç«‹å³ä½“éªŒã€ã€è¯­å¢ƒï¼‰ã€ã€‚`grep -n "æ¨¡æ‹Ÿæ•°æ®\|ç¤ºä¾‹æ•°æ®" README.md` å®žæµ‹**ä»… 2 å¤„**ï¼š**L89**ã€Œâ€¦ç‚¹å‡»ã€Žç«‹å³ä½“éªŒã€å¯ä¸€é”®è½½å…¥**æ¨¡æ‹Ÿæ•°æ®**è¯•çŽ©ã€ï¼ˆæ—§è¡¨æŠŠã€Žç«‹å³ä½“éªŒã€è¯­å¢ƒé”™æŒ‚åˆ°ã€Œç¤ºä¾‹æ•°æ®ã€ï¼‰ã€**L179**ã€ŒçŠ¶æ€ç®¡ç†ï¼ˆZustandï¼‰ï¼šå¯¼å…¥æ•°æ®ã€**ç¤ºä¾‹æ•°æ®**åŠ è½½â€¦ã€ã€‚L136/L98 æ— è¿™äº›è¯ã€‚
+- ä¿®å¤ï¼šæ”¹ä¸ºã€Œæ¨¡æ‹Ÿæ•°æ®ï¼ˆL89ã€Œç‚¹å‡»ã€Žç«‹å³ä½“éªŒã€ã€è¯­å¢ƒï¼‰ä¸Žç¤ºä¾‹æ•°æ®ï¼ˆL179ã€ŒçŠ¶æ€ç®¡ç†ã€æ®µï¼‰ã€ã€‚
 
-### G3 — 截图「疑似不一致」5 vs 6 **定死为 6**
-- 现状矛盾：COPY 截图表实际只标 **5**（landing-full / trips / trips-activity / places / help），而 NOTES 上一则 T41 记录 + TASKS T41 卡写 **6**（且 NOTES 括号内只列了 5 个名字——自相矛盾）。
-- 核对方法（逐张客观证据，非猜）：①`ls -la docs/screenshots/` + `git log -- <file>` 确认 10 张 PNG 内容**全部定格于 `2151b9d`（T20-T26，09-15 09:28–09:38）**；②列出其后 UI 变更 commit（T30 `b6550cf` 09-15 13:28 / T35 / T36 `951ef4b` / T38 `ba6090c` / T39 `7df39ae`）逐张比对；③唯一存疑的 `mobile.png`（原判「风险中」）**做实测**：`git worktree add /tmp/opencode/gtv-2151b9d 2151b9d`（即生成该图的精确 commit）→ Playwright 390×780 重渲染 → 与仓库图逐像素比对。
-- **实测结论（坐实 `mobile.png` 为旧版）**：`2151b9d` 的 390×780 移动端 bottom-sheet 日期控件 = **内联整月日历**——`.drp` h=**547**、`hasTrigger:false`、`hasWeekdays:true`、`calVisible:true`，bodyText 含「日期范围 / 全部 / 近 30 天 / 近 1 年 / 2026 年 9 月 / 一二三四五六日」，nav 5 项（无 Merge，印证早于 T36）；现版 `.drp` h=**73**、紧凑 trigger、无日历。像素差同样偏向旧版：date-picker 区（y519-780）MAE **11.94 @2151b9d** vs 14.91 @current；bottom-sheet 区（y455-780）**11.31** vs 14.26；全图 14.07 vs 16.75。→ 图中为 T30 前旧日期控件，**构成疑似不一致**。
-- 修复：COPY 截图表 `mobile.png` 行改标「疑似不一致」+ 依据；COPY 说明段把「疑似不一致」定死为 **6 张**并列名（landing-full / trips / trips-activity / places / mobile / help），并顺带订正 T30 时间（「09-15晚」→「09-15 13:28」）+ 补 T38；TASKS T41 卡补明确清单与 G3 依据；COPY 变更日志加一条（原为「留空待首条」，补上首条）。
-- 闸门：`npm run lint` 0 问题 + `npm test` **243 全绿**（18 文件）+ `npm run build` ✓（仅既有 chunk-size 告警）。未动 `src/`，i18n catalog / guard 不受影响。
+### G3 â€” æˆªå›¾ã€Œç–‘ä¼¼ä¸ä¸€è‡´ã€5 vs 6 **å®šæ­»ä¸º 6**
+- çŽ°çŠ¶çŸ›ç›¾ï¼šCOPY æˆªå›¾è¡¨å®žé™…åªæ ‡ **5**ï¼ˆlanding-full / trips / trips-activity / places / helpï¼‰ï¼Œè€Œ NOTES ä¸Šä¸€åˆ™ T41 è®°å½• + TASKS T41 å¡å†™ **6**ï¼ˆä¸” NOTES æ‹¬å·å†…åªåˆ—äº† 5 ä¸ªåå­—â€”â€”è‡ªç›¸çŸ›ç›¾ï¼‰ã€‚
+- æ ¸å¯¹æ–¹æ³•ï¼ˆé€å¼ å®¢è§‚è¯æ®ï¼ŒéžçŒœï¼‰ï¼šâ‘ `ls -la docs/screenshots/` + `git log -- <file>` ç¡®è®¤ 10 å¼  PNG å†…å®¹**å…¨éƒ¨å®šæ ¼äºŽ `2151b9d`ï¼ˆT20-T26ï¼Œ09-15 09:28â€“09:38ï¼‰**ï¼›â‘¡åˆ—å‡ºå…¶åŽ UI å˜æ›´ commitï¼ˆT30 `b6550cf` 09-15 13:28 / T35 / T36 `951ef4b` / T38 `ba6090c` / T39 `7df39ae`ï¼‰é€å¼ æ¯”å¯¹ï¼›â‘¢å”¯ä¸€å­˜ç–‘çš„ `mobile.png`ï¼ˆåŽŸåˆ¤ã€Œé£Žé™©ä¸­ã€ï¼‰**åšå®žæµ‹**ï¼š`git worktree add /tmp/opencode/gtv-2151b9d 2151b9d`ï¼ˆå³ç”Ÿæˆè¯¥å›¾çš„ç²¾ç¡® commitï¼‰â†’ Playwright 390Ã—780 é‡æ¸²æŸ“ â†’ ä¸Žä»“åº“å›¾é€åƒç´ æ¯”å¯¹ã€‚
+- **å®žæµ‹ç»“è®ºï¼ˆåå®ž `mobile.png` ä¸ºæ—§ç‰ˆï¼‰**ï¼š`2151b9d` çš„ 390Ã—780 ç§»åŠ¨ç«¯ bottom-sheet æ—¥æœŸæŽ§ä»¶ = **å†…è”æ•´æœˆæ—¥åŽ†**â€”â€”`.drp` h=**547**ã€`hasTrigger:false`ã€`hasWeekdays:true`ã€`calVisible:true`ï¼ŒbodyText å«ã€Œæ—¥æœŸèŒƒå›´ / å…¨éƒ¨ / è¿‘ 30 å¤© / è¿‘ 1 å¹´ / 2026 å¹´ 9 æœˆ / ä¸€äºŒä¸‰å››äº”å…­æ—¥ã€ï¼Œnav 5 é¡¹ï¼ˆæ—  Mergeï¼Œå°è¯æ—©äºŽ T36ï¼‰ï¼›çŽ°ç‰ˆ `.drp` h=**73**ã€ç´§å‡‘ triggerã€æ— æ—¥åŽ†ã€‚åƒç´ å·®åŒæ ·åå‘æ—§ç‰ˆï¼šdate-picker åŒºï¼ˆy519-780ï¼‰MAE **11.94 @2151b9d** vs 14.91 @currentï¼›bottom-sheet åŒºï¼ˆy455-780ï¼‰**11.31** vs 14.26ï¼›å…¨å›¾ 14.07 vs 16.75ã€‚â†’ å›¾ä¸­ä¸º T30 å‰æ—§æ—¥æœŸæŽ§ä»¶ï¼Œ**æž„æˆç–‘ä¼¼ä¸ä¸€è‡´**ã€‚
+- ä¿®å¤ï¼šCOPY æˆªå›¾è¡¨ `mobile.png` è¡Œæ”¹æ ‡ã€Œç–‘ä¼¼ä¸ä¸€è‡´ã€+ ä¾æ®ï¼›COPY è¯´æ˜Žæ®µæŠŠã€Œç–‘ä¼¼ä¸ä¸€è‡´ã€å®šæ­»ä¸º **6 å¼ **å¹¶åˆ—åï¼ˆlanding-full / trips / trips-activity / places / mobile / helpï¼‰ï¼Œå¹¶é¡ºå¸¦è®¢æ­£ T30 æ—¶é—´ï¼ˆã€Œ09-15æ™šã€â†’ã€Œ09-15 13:28ã€ï¼‰+ è¡¥ T38ï¼›TASKS T41 å¡è¡¥æ˜Žç¡®æ¸…å•ä¸Ž G3 ä¾æ®ï¼›COPY å˜æ›´æ—¥å¿—åŠ ä¸€æ¡ï¼ˆåŽŸä¸ºã€Œç•™ç©ºå¾…é¦–æ¡ã€ï¼Œè¡¥ä¸Šé¦–æ¡ï¼‰ã€‚
+- é—¸é—¨ï¼š`npm run lint` 0 é—®é¢˜ + `npm test` **243 å…¨ç»¿**ï¼ˆ18 æ–‡ä»¶ï¼‰+ `npm run build` âœ“ï¼ˆä»…æ—¢æœ‰ chunk-size å‘Šè­¦ï¼‰ã€‚æœªåŠ¨ `src/`ï¼Œi18n catalog / guard ä¸å—å½±å“ã€‚
 
-### 清理
-- 临时物（worktree `gtv-2151b9d` / `gtv-pret30` + `render-*.mjs` + `*-mobile.png`，均在 `/tmp/opencode/`）在项目 repo 外，已 `git worktree remove` 清理；项目 repo 内无残留。**提交留给 CEO**。
+### æ¸…ç†
+- ä¸´æ—¶ç‰©ï¼ˆworktree `gtv-2151b9d` / `gtv-pret30` + `render-*.mjs` + `*-mobile.png`ï¼Œå‡åœ¨ `/tmp/opencode/`ï¼‰åœ¨é¡¹ç›® repo å¤–ï¼Œå·² `git worktree remove` æ¸…ç†ï¼›é¡¹ç›® repo å†…æ— æ®‹ç•™ã€‚**æäº¤ç•™ç»™ CEO**ã€‚
 
-## 2026-09-17 14:05 — Dev T43 A10 验证脚本入库（smoke-release.mjs / DataBar 三态单测 / SMOKE-CHECKLIST 可复现入口）
+## 2026-09-17 14:05 â€” Dev T43 A10 éªŒè¯è„šæœ¬å…¥åº“ï¼ˆsmoke-release.mjs / DataBar ä¸‰æ€å•æµ‹ / SMOKE-CHECKLIST å¯å¤çŽ°å…¥å£ï¼‰
 
-来源: 2026-09-16 v1.0.0 发布 Retro A10 → WORKFLOW 规则 16（验证脚本入库；标不出可复现入口的冒烟项 = 装饰）。T38 双视口冒烟临时脚本（`scripts/out/gh-live-smoke.mjs`）收编为正式脚本。
+æ¥æº: 2026-09-16 v1.0.0 å‘å¸ƒ Retro A10 â†’ WORKFLOW è§„åˆ™ 16ï¼ˆéªŒè¯è„šæœ¬å…¥åº“ï¼›æ ‡ä¸å‡ºå¯å¤çŽ°å…¥å£çš„å†’çƒŸé¡¹ = è£…é¥°ï¼‰ã€‚T38 åŒè§†å£å†’çƒŸä¸´æ—¶è„šæœ¬ï¼ˆ`scripts/out/gh-live-smoke.mjs`ï¼‰æ”¶ç¼–ä¸ºæ­£å¼è„šæœ¬ã€‚
 
-### 交付物
-1. **`scripts/smoke-release.mjs`（新，RELEASE-SMOKE v1）** — T38 双视口冒烟正式化：
-   - `--base <url>` 指本地 build；缺省 = live `https://coderkk.github.io/google-timeline-viewer`；**self origin 从 base 运行期派生**（`new URL(BASE).origin` + per-viewport `origin match` 断言），零硬编码。
-   - 双视口 1440×900 + 390×844 × 9 项 = 18 项：landing 200 / origin match / 4 feature cards（`waitForSelector('.feature-card')` + count==4）/ landing title / feature tags / hero CTA visible / help 路由（`#/help`）/ overflowX / **pageerror**（每视口显式断言，过滤已知 frame-ancestors CSP 噪音）。
-   - 输出 `PASS|FAIL  name: value` + verdict 行；退出码 **0=全过 / 1=断含失败（含真 pageerror）/ 2=运行错误**；`waitReady` 断连**快速失败**（死端口 ~1s 出 exit 2，不硬等 30s）。
-   - 零新依赖（playwright 既有）；结构对齐 `smoke-network-tap.mjs`（argValue + waitReady + 分离 exit 语义 + 头注校准记录——规则 8 硬要求）。
-2. **`src/src/components/DataBar.test.tsx`（新）** — DataBar 三态 label 锁定：sample → `t('data.sample')`（"Sample data"）、unnamed（`dataSource='user'` + `dataLabel=null`）→ `t('data.unnamed')`（"Unnamed data"）、fileName（`dataLabel='Timeline_2024.json'`）→ 原样输出。复用 ImportPanel.test 的 `renderToString` + store mock 模式（`vi.hoisted` 可变状态 + `beforeEach` 复位），无新依赖。
-3. **`docs/SMOKE-CHECKLIST.md`** — 头部加「可复现入口（A10 / 规则 16）」指引表；**每条勾选项标注 `— 可复现: <scripts/ 命令>` 或 `— 人工项: <说明>`**（半机器化项拆开如实标）。纯人工项（截图核对 / 视觉确认 / 真数据体感 / 统计肉眼比对 / 环境矩阵抽查）全部如实标「人工项」，不假装都有脚本——诚实原则。
-4. **`docs/release-runbook.md`** — 线上冒烟入口 `scripts/out/gh-live-smoke.mjs` → `node scripts/smoke-release.mjs`（live 模式）。
+### äº¤ä»˜ç‰©
+1. **`scripts/smoke-release.mjs`ï¼ˆæ–°ï¼ŒRELEASE-SMOKE v1ï¼‰** â€” T38 åŒè§†å£å†’çƒŸæ­£å¼åŒ–ï¼š
+   - `--base <url>` æŒ‡æœ¬åœ° buildï¼›ç¼ºçœ = live `https://coderkk.github.io/google-timeline-viewer`ï¼›**self origin ä»Ž base è¿è¡ŒæœŸæ´¾ç”Ÿ**ï¼ˆ`new URL(BASE).origin` + per-viewport `origin match` æ–­è¨€ï¼‰ï¼Œé›¶ç¡¬ç¼–ç ã€‚
+   - åŒè§†å£ 1440Ã—900 + 390Ã—844 Ã— 9 é¡¹ = 18 é¡¹ï¼šlanding 200 / origin match / 4 feature cardsï¼ˆ`waitForSelector('.feature-card')` + count==4ï¼‰/ landing title / feature tags / hero CTA visible / help è·¯ç”±ï¼ˆ`#/help`ï¼‰/ overflowX / **pageerror**ï¼ˆæ¯è§†å£æ˜¾å¼æ–­è¨€ï¼Œè¿‡æ»¤å·²çŸ¥ frame-ancestors CSP å™ªéŸ³ï¼‰ã€‚
+   - è¾“å‡º `PASS|FAIL  name: value` + verdict è¡Œï¼›é€€å‡ºç  **0=å…¨è¿‡ / 1=æ–­å«å¤±è´¥ï¼ˆå«çœŸ pageerrorï¼‰/ 2=è¿è¡Œé”™è¯¯**ï¼›`waitReady` æ–­è¿ž**å¿«é€Ÿå¤±è´¥**ï¼ˆæ­»ç«¯å£ ~1s å‡º exit 2ï¼Œä¸ç¡¬ç­‰ 30sï¼‰ã€‚
+   - é›¶æ–°ä¾èµ–ï¼ˆplaywright æ—¢æœ‰ï¼‰ï¼›ç»“æž„å¯¹é½ `smoke-network-tap.mjs`ï¼ˆargValue + waitReady + åˆ†ç¦» exit è¯­ä¹‰ + å¤´æ³¨æ ¡å‡†è®°å½•â€”â€”è§„åˆ™ 8 ç¡¬è¦æ±‚ï¼‰ã€‚
+2. **`src/src/components/DataBar.test.tsx`ï¼ˆæ–°ï¼‰** â€” DataBar ä¸‰æ€ label é”å®šï¼šsample â†’ `t('data.sample')`ï¼ˆ"Sample data"ï¼‰ã€unnamedï¼ˆ`dataSource='user'` + `dataLabel=null`ï¼‰â†’ `t('data.unnamed')`ï¼ˆ"Unnamed data"ï¼‰ã€fileNameï¼ˆ`dataLabel='Timeline_2024.json'`ï¼‰â†’ åŽŸæ ·è¾“å‡ºã€‚å¤ç”¨ ImportPanel.test çš„ `renderToString` + store mock æ¨¡å¼ï¼ˆ`vi.hoisted` å¯å˜çŠ¶æ€ + `beforeEach` å¤ä½ï¼‰ï¼Œæ— æ–°ä¾èµ–ã€‚
+3. **`docs/SMOKE-CHECKLIST.md`** â€” å¤´éƒ¨åŠ ã€Œå¯å¤çŽ°å…¥å£ï¼ˆA10 / è§„åˆ™ 16ï¼‰ã€æŒ‡å¼•è¡¨ï¼›**æ¯æ¡å‹¾é€‰é¡¹æ ‡æ³¨ `â€” å¯å¤çŽ°: <scripts/ å‘½ä»¤>` æˆ– `â€” äººå·¥é¡¹: <è¯´æ˜Ž>`**ï¼ˆåŠæœºå™¨åŒ–é¡¹æ‹†å¼€å¦‚å®žæ ‡ï¼‰ã€‚çº¯äººå·¥é¡¹ï¼ˆæˆªå›¾æ ¸å¯¹ / è§†è§‰ç¡®è®¤ / çœŸæ•°æ®ä½“æ„Ÿ / ç»Ÿè®¡è‚‰çœ¼æ¯”å¯¹ / çŽ¯å¢ƒçŸ©é˜µæŠ½æŸ¥ï¼‰å…¨éƒ¨å¦‚å®žæ ‡ã€Œäººå·¥é¡¹ã€ï¼Œä¸å‡è£…éƒ½æœ‰è„šæœ¬â€”â€”è¯šå®žåŽŸåˆ™ã€‚
+4. **`docs/release-runbook.md`** â€” çº¿ä¸Šå†’çƒŸå…¥å£ `scripts/out/gh-live-smoke.mjs` â†’ `node scripts/smoke-release.mjs`ï¼ˆlive æ¨¡å¼ï¼‰ã€‚
 
-### 本地验证（全部实际跑成）
+### æœ¬åœ°éªŒè¯ï¼ˆå…¨éƒ¨å®žé™…è·‘æˆï¼‰
 ```
-$ node scripts/smoke-release.mjs --base http://127.0.0.1:4173   # 本地 build + http.server
+$ node scripts/smoke-release.mjs --base http://127.0.0.1:4173   # æœ¬åœ° build + http.server
 RELEASE-SMOKE v1 base=http://127.0.0.1:4173 self=http://127.0.0.1:4173
 PASS  desktop landing 200: 200
 PASS  desktop origin match: http://127.0.0.1:4173
@@ -1478,115 +1478,204 @@ PASS  desktop hero CTA visible: visible
 PASS  desktop help route: ok
 PASS  desktop overflowX: 0
 PASS  desktop pageerror: 0 (ignored 1 known CSP frame-ancestors noise)
-PASS  mobile …（同 9 项全 PASS）
+PASS  mobile â€¦ï¼ˆåŒ 9 é¡¹å…¨ PASSï¼‰
 verdict: PASS (18/18 checks PASS)
 exit code: 0
 ```
-- **负向校准（规则 8 门禁型脚本）**：
-  - **死端口** `--base http://127.0.0.1:4199` → `base not reachable … fetch failed` → **exit 2（~1s 快速失败）** ✓
-  - **最小 HTML（无 `.feature-card`）** 起 4198 → 4 项 FAIL（cards/title/tags/CTA）×2 视口 → **exit 1** ✓（绝无假绿）
-- **live 模式**（缺省 URL）→ **exit 0、18/18 PASS**、0 pageerror（仅既有 CSP 噪音 1/视口）✓
-- `cd src && npm run test` → **246 全绿（19 文件；+3 DataBar）**；`npm run lint` 0；`npm run build` ✓（仅既有 chunk-size 告警）。
-- 端口纪律（T42 教训防复发）：4173 先 `ss` 确认空闲 → `python3 -m http.server 4173 -d src/dist`（前台 build + 独立起服分段，不用 `&&` 整链后台化）；`pkill` 用过 `-f` 自匹配陷阱（本次 `pkill -f "http.server 4198"` 挂起自身 shell——`-f` 全命令行匹配到 `bash -c` 里的字符串）→ 改用 `pgrep -af '[h]ttp.server'` 括号技巧核对后清理。
+- **è´Ÿå‘æ ¡å‡†ï¼ˆè§„åˆ™ 8 é—¨ç¦åž‹è„šæœ¬ï¼‰**ï¼š
+  - **æ­»ç«¯å£** `--base http://127.0.0.1:4199` â†’ `base not reachable â€¦ fetch failed` â†’ **exit 2ï¼ˆ~1s å¿«é€Ÿå¤±è´¥ï¼‰** âœ“
+  - **æœ€å° HTMLï¼ˆæ—  `.feature-card`ï¼‰** èµ· 4198 â†’ 4 é¡¹ FAILï¼ˆcards/title/tags/CTAï¼‰Ã—2 è§†å£ â†’ **exit 1** âœ“ï¼ˆç»æ— å‡ç»¿ï¼‰
+- **live æ¨¡å¼**ï¼ˆç¼ºçœ URLï¼‰â†’ **exit 0ã€18/18 PASS**ã€0 pageerrorï¼ˆä»…æ—¢æœ‰ CSP å™ªéŸ³ 1/è§†å£ï¼‰âœ“
+- `cd src && npm run test` â†’ **246 å…¨ç»¿ï¼ˆ19 æ–‡ä»¶ï¼›+3 DataBarï¼‰**ï¼›`npm run lint` 0ï¼›`npm run build` âœ“ï¼ˆä»…æ—¢æœ‰ chunk-size å‘Šè­¦ï¼‰ã€‚
+- ç«¯å£çºªå¾‹ï¼ˆT42 æ•™è®­é˜²å¤å‘ï¼‰ï¼š4173 å…ˆ `ss` ç¡®è®¤ç©ºé—² â†’ `python3 -m http.server 4173 -d src/dist`ï¼ˆå‰å° build + ç‹¬ç«‹èµ·æœåˆ†æ®µï¼Œä¸ç”¨ `&&` æ•´é“¾åŽå°åŒ–ï¼‰ï¼›`pkill` ç”¨è¿‡ `-f` è‡ªåŒ¹é…é™·é˜±ï¼ˆæœ¬æ¬¡ `pkill -f "http.server 4198"` æŒ‚èµ·è‡ªèº« shellâ€”â€”`-f` å…¨å‘½ä»¤è¡ŒåŒ¹é…åˆ° `bash -c` é‡Œçš„å­—ç¬¦ä¸²ï¼‰â†’ æ”¹ç”¨ `pgrep -af '[h]ttp.server'` æ‹¬å·æŠ€å·§æ ¸å¯¹åŽæ¸…ç†ã€‚
 
-### 旧脚本处置
-- `scripts/out/gh-live-smoke.mjs` **实际被 git 跟踪**（`git ls-files` 命中；out/ 下仅两个 perf JSON 是 gitignore 产物）——**保留不删**（避免 tracked 删除噪音）；runbook 已改指新脚本，out/ 脚本留作历史产物。
+### æ—§è„šæœ¬å¤„ç½®
+- `scripts/out/gh-live-smoke.mjs` **å®žé™…è¢« git è·Ÿè¸ª**ï¼ˆ`git ls-files` å‘½ä¸­ï¼›out/ ä¸‹ä»…ä¸¤ä¸ª perf JSON æ˜¯ gitignore äº§ç‰©ï¼‰â€”â€”**ä¿ç•™ä¸åˆ **ï¼ˆé¿å… tracked åˆ é™¤å™ªéŸ³ï¼‰ï¼›runbook å·²æ”¹æŒ‡æ–°è„šæœ¬ï¼Œout/ è„šæœ¬ç•™ä½œåŽ†å²äº§ç‰©ã€‚
 
-### 遗留
-- 验收④ Reviewer 确认 + CEO 统一提交（本任务未 commit）；T42 的 B1/B2（deploy.yml 拓扑）同样待本轮。
+### é—ç•™
+- éªŒæ”¶â‘£ Reviewer ç¡®è®¤ + CEO ç»Ÿä¸€æäº¤ï¼ˆæœ¬ä»»åŠ¡æœª commitï¼‰ï¼›T42 çš„ B1/B2ï¼ˆdeploy.yml æ‹“æ‰‘ï¼‰åŒæ ·å¾…æœ¬è½®ã€‚
 
 ---
 
-## 2026-09-17 15:00 — Dev T43 Reviewer PASS 消费轮: G1/G2 + S2–S6 一轮修完
+## 2026-09-17 15:00 â€” Dev T43 Reviewer PASS æ¶ˆè´¹è½®: G1/G2 + S2â€“S6 ä¸€è½®ä¿®å®Œ
 
-> Reviewer 判定: `判定|致命0/严重0/一般2/建议6|历史矛盾: -|安全阻塞: NA`。CEO 指令: G1/G2 + 便宜建议级一轮修完；S1 已裁决保留。本轮回改文件 = `scripts/smoke-release.mjs` + `docs/SMOKE-CHECKLIST.md` + `docs/TASKS.md`（+ NOTES 收尾），未 commit。
+> Reviewer åˆ¤å®š: `åˆ¤å®š|è‡´å‘½0/ä¸¥é‡0/ä¸€èˆ¬2/å»ºè®®6|åŽ†å²çŸ›ç›¾: -|å®‰å…¨é˜»å¡ž: NA`ã€‚CEO æŒ‡ä»¤: G1/G2 + ä¾¿å®œå»ºè®®çº§ä¸€è½®ä¿®å®Œï¼›S1 å·²è£å†³ä¿ç•™ã€‚æœ¬è½®å›žæ”¹æ–‡ä»¶ = `scripts/smoke-release.mjs` + `docs/SMOKE-CHECKLIST.md` + `docs/TASKS.md`ï¼ˆ+ NOTES æ”¶å°¾ï¼‰ï¼Œæœª commitã€‚
 
-### G1 help route 空转 → 已修 + 负向校准
-- 旧判据 `waitForSelector('h1, .section-title, main')` 会假绿：Landing 有 h1、Layout 恒渲染 main——坏哈希路由/空白 shell 也 PASS。
-- 改断 **Help 特有 `.help-section`**（HelpPage.tsx 4 处渲染，grep 确认唯一来源）+ `page.url()` 尾 `#/help`。
-- **负向校准（门禁必红）**：起临时 http server 对任意路径返回 `<main><h1>not the app</h1></main>`（`/tmp/opencode/g1-negative-probe.mjs`，ephemeral Node http server，用完即关）→ 双视口 `FAIL … help route: page.waitForSelector: Timeout 10000ms exceeded.`，verdict FAIL（8/18）exit 1 ✓ ——旧判据下 `<h1>`+`<main>` 必假绿，证明 G1 是实缺口。
-- **正向**：本地 build（http.server dist 4173）双视口 `PASS … help route: http://127.0.0.1:4173/#/help`，18/18 exit 0。
+### G1 help route ç©ºè½¬ â†’ å·²ä¿® + è´Ÿå‘æ ¡å‡†
+- æ—§åˆ¤æ® `waitForSelector('h1, .section-title, main')` ä¼šå‡ç»¿ï¼šLanding æœ‰ h1ã€Layout æ’æ¸²æŸ“ mainâ€”â€”åå“ˆå¸Œè·¯ç”±/ç©ºç™½ shell ä¹Ÿ PASSã€‚
+- æ”¹æ–­ **Help ç‰¹æœ‰ `.help-section`**ï¼ˆHelpPage.tsx 4 å¤„æ¸²æŸ“ï¼Œgrep ç¡®è®¤å”¯ä¸€æ¥æºï¼‰+ `page.url()` å°¾ `#/help`ã€‚
+- **è´Ÿå‘æ ¡å‡†ï¼ˆé—¨ç¦å¿…çº¢ï¼‰**ï¼šèµ·ä¸´æ—¶ http server å¯¹ä»»æ„è·¯å¾„è¿”å›ž `<main><h1>not the app</h1></main>`ï¼ˆ`/tmp/opencode/g1-negative-probe.mjs`ï¼Œephemeral Node http serverï¼Œç”¨å®Œå³å…³ï¼‰â†’ åŒè§†å£ `FAIL â€¦ help route: page.waitForSelector: Timeout 10000ms exceeded.`ï¼Œverdict FAILï¼ˆ8/18ï¼‰exit 1 âœ“ â€”â€”æ—§åˆ¤æ®ä¸‹ `<h1>`+`<main>` å¿…å‡ç»¿ï¼Œè¯æ˜Ž G1 æ˜¯å®žç¼ºå£ã€‚
+- **æ­£å‘**ï¼šæœ¬åœ° buildï¼ˆhttp.server dist 4173ï¼‰åŒè§†å£ `PASS â€¦ help route: http://127.0.0.1:4173/#/help`ï¼Œ18/18 exit 0ã€‚
 
-### G2 SMOKE-CHECKLIST 归因失实 → 已修正
-- 核实：`smoke-network-tap.mjs` 只注册 `page.on('dialog')` + `page.on('request')`（L331/L333/L402/L404），**无 pageerror 收集**——「0 pageerror」条写「全旅程页面路径由 tap S1–S8 遍历」暗示 tap 兜了错误检查，失实。
-- 改：第 32 行 → 「tap = 网络视角遍历全旅程页（不判 pageerror）；全旅程页面 0 pageerror = **人工项兜底**」；顺带修第 67 行同类并列归因（「J1/J3 首屏 0 錯誤 + 路由可達 = smoke-release + tap」拆开：「0 錯誤」归属 release（landing/help）+ 人工兜底，「路由可達」归属 tap + release）。
-- **grep 复核无其他失实归因**：L14/16/35/39/104 及 runbook/COPY 中 tap 表述均只涉请求捕获/数据就绪/白名单，无 pageerror 归因（NOTES 历史条目如实）。
+### G2 SMOKE-CHECKLIST å½’å› å¤±å®ž â†’ å·²ä¿®æ­£
+- æ ¸å®žï¼š`smoke-network-tap.mjs` åªæ³¨å†Œ `page.on('dialog')` + `page.on('request')`ï¼ˆL331/L333/L402/L404ï¼‰ï¼Œ**æ—  pageerror æ”¶é›†**â€”â€”ã€Œ0 pageerrorã€æ¡å†™ã€Œå…¨æ—…ç¨‹é¡µé¢è·¯å¾„ç”± tap S1â€“S8 éåŽ†ã€æš—ç¤º tap å…œäº†é”™è¯¯æ£€æŸ¥ï¼Œå¤±å®žã€‚
+- æ”¹ï¼šç¬¬ 32 è¡Œ â†’ ã€Œtap = ç½‘ç»œè§†è§’éåŽ†å…¨æ—…ç¨‹é¡µï¼ˆä¸åˆ¤ pageerrorï¼‰ï¼›å…¨æ—…ç¨‹é¡µé¢ 0 pageerror = **äººå·¥é¡¹å…œåº•**ã€ï¼›é¡ºå¸¦ä¿®ç¬¬ 67 è¡ŒåŒç±»å¹¶åˆ—å½’å› ï¼ˆã€ŒJ1/J3 é¦–å± 0 éŒ¯èª¤ + è·¯ç”±å¯é” = smoke-release + tapã€æ‹†å¼€ï¼šã€Œ0 éŒ¯èª¤ã€å½’å±ž releaseï¼ˆlanding/helpï¼‰+ äººå·¥å…œåº•ï¼Œã€Œè·¯ç”±å¯é”ã€å½’å±ž tap + releaseï¼‰ã€‚
+- **grep å¤æ ¸æ— å…¶ä»–å¤±å®žå½’å› **ï¼šL14/16/35/39/104 åŠ runbook/COPY ä¸­ tap è¡¨è¿°å‡åªæ¶‰è¯·æ±‚æ•èŽ·/æ•°æ®å°±ç»ª/ç™½åå•ï¼Œæ—  pageerror å½’å› ï¼ˆNOTES åŽ†å²æ¡ç›®å¦‚å®žï¼‰ã€‚
 
-### 建议级（S2–S6）
-- **S2 CLI**：`--base=<url>` 等号形式识别；`--base` 缺值 / 未知参数 → usage 到 stderr + **exit 2**（不再静默回落 live URL）。
-- **S3** `--base` 非 http(s) URL（`not-a-url` / `localhost:4173` 协议冒充）→ usage + **exit 2**（`new URL()` 包 try + protocol 白名单 http/https）。
-- **S4** landing 200 显式 `status()===200` 断言（非 200 即 FAIL，不再只回显状态码）。
-- **S5** hero CTA present-but-hidden → **FAIL**（旧为 value `'hidden'` 也算 PASS）。
-- **S6** pageerror 过滤后**逐行打印被忽略的具体行**（来源+触发条件可查，A12），不只计数。
-- **S1** `data.unnamed`（DataBar.tsx L20 `dataLabel===null` 防御死分支 + DataBar.test.tsx 对应例）：**CEO 裁决保留**（文档化防御、无害不删），已在 TASKS T43 卡注明——本轮不触碰。
+### å»ºè®®çº§ï¼ˆS2â€“S6ï¼‰
+- **S2 CLI**ï¼š`--base=<url>` ç­‰å·å½¢å¼è¯†åˆ«ï¼›`--base` ç¼ºå€¼ / æœªçŸ¥å‚æ•° â†’ usage åˆ° stderr + **exit 2**ï¼ˆä¸å†é™é»˜å›žè½ live URLï¼‰ã€‚
+- **S3** `--base` éž http(s) URLï¼ˆ`not-a-url` / `localhost:4173` åè®®å†’å……ï¼‰â†’ usage + **exit 2**ï¼ˆ`new URL()` åŒ… try + protocol ç™½åå• http/httpsï¼‰ã€‚
+- **S4** landing 200 æ˜¾å¼ `status()===200` æ–­è¨€ï¼ˆéž 200 å³ FAILï¼Œä¸å†åªå›žæ˜¾çŠ¶æ€ç ï¼‰ã€‚
+- **S5** hero CTA present-but-hidden â†’ **FAIL**ï¼ˆæ—§ä¸º value `'hidden'` ä¹Ÿç®— PASSï¼‰ã€‚
+- **S6** pageerror è¿‡æ»¤åŽ**é€è¡Œæ‰“å°è¢«å¿½ç•¥çš„å…·ä½“è¡Œ**ï¼ˆæ¥æº+è§¦å‘æ¡ä»¶å¯æŸ¥ï¼ŒA12ï¼‰ï¼Œä¸åªè®¡æ•°ã€‚
+- **S1** `data.unnamed`ï¼ˆDataBar.tsx L20 `dataLabel===null` é˜²å¾¡æ­»åˆ†æ”¯ + DataBar.test.tsx å¯¹åº”ä¾‹ï¼‰ï¼š**CEO è£å†³ä¿ç•™**ï¼ˆæ–‡æ¡£åŒ–é˜²å¾¡ã€æ— å®³ä¸åˆ ï¼‰ï¼Œå·²åœ¨ TASKS T43 å¡æ³¨æ˜Žâ€”â€”æœ¬è½®ä¸è§¦ç¢°ã€‚
 
-### 验证证据（同命令重跑输出）
-- `node --check scripts/smoke-release.mjs` → SYNTAX OK
-- `npm run build`（src）→ ✓（仅既有 chunk-size 告警）
-- 正向（等号形式 + 空格形式各一次，dist @4173）→ **18/18 PASS / exit 0**，pageerror 0（仅既有 CSP 噪音 1/视口，S6 已逐行打印）
-- 裸页负向 → help route **双视口 FAIL** / verdict FAIL / **exit 1** ✓
-- 死 base `http://127.0.0.1:59999` → **exit 2**（fetch failed 快速失败）✓
-- `--base not-a-url` / `--base localhost:4173` / `--base`（缺值）/ `--base=`（空）/ `--hello`（未知）→ usage + **exit 2** 全 ✓
-- `cd src && npm run test` → **246 全绿（19 文件）**；`npm run lint` → 0；`npm run build` → ✓
-- 端口纪律：T43 原 NOTES 已记（`pgrep -af '[h]ttp.server'` 括号技巧核对后再清理；本次已确认 0 残留）
+### éªŒè¯è¯æ®ï¼ˆåŒå‘½ä»¤é‡è·‘è¾“å‡ºï¼‰
+- `node --check scripts/smoke-release.mjs` â†’ SYNTAX OK
+- `npm run build`ï¼ˆsrcï¼‰â†’ âœ“ï¼ˆä»…æ—¢æœ‰ chunk-size å‘Šè­¦ï¼‰
+- æ­£å‘ï¼ˆç­‰å·å½¢å¼ + ç©ºæ ¼å½¢å¼å„ä¸€æ¬¡ï¼Œdist @4173ï¼‰â†’ **18/18 PASS / exit 0**ï¼Œpageerror 0ï¼ˆä»…æ—¢æœ‰ CSP å™ªéŸ³ 1/è§†å£ï¼ŒS6 å·²é€è¡Œæ‰“å°ï¼‰
+- è£¸é¡µè´Ÿå‘ â†’ help route **åŒè§†å£ FAIL** / verdict FAIL / **exit 1** âœ“
+- æ­» base `http://127.0.0.1:59999` â†’ **exit 2**ï¼ˆfetch failed å¿«é€Ÿå¤±è´¥ï¼‰âœ“
+- `--base not-a-url` / `--base localhost:4173` / `--base`ï¼ˆç¼ºå€¼ï¼‰/ `--base=`ï¼ˆç©ºï¼‰/ `--hello`ï¼ˆæœªçŸ¥ï¼‰â†’ usage + **exit 2** å…¨ âœ“
+- `cd src && npm run test` â†’ **246 å…¨ç»¿ï¼ˆ19 æ–‡ä»¶ï¼‰**ï¼›`npm run lint` â†’ 0ï¼›`npm run build` â†’ âœ“
+- ç«¯å£çºªå¾‹ï¼šT43 åŽŸ NOTES å·²è®°ï¼ˆ`pgrep -af '[h]ttp.server'` æ‹¬å·æŠ€å·§æ ¸å¯¹åŽå†æ¸…ç†ï¼›æœ¬æ¬¡å·²ç¡®è®¤ 0 æ®‹ç•™ï¼‰
 
-### 遗留
-- 未 commit（过审后统一提交）；runbook 无改动需求（T43 原文已指新脚本）。
+### é—ç•™
+- æœª commitï¼ˆè¿‡å®¡åŽç»Ÿä¸€æäº¤ï¼‰ï¼›runbook æ— æ”¹åŠ¨éœ€æ±‚ï¼ˆT43 åŽŸæ–‡å·²æŒ‡æ–°è„šæœ¬ï¼‰ã€‚
 
-## 2026-09-19 22:43 — Dev T44 PASS 消费轮: Windows 进程清理修复 + T39 零残留复核 + Layout 尾换行
+## 2026-09-19 22:43 â€” Dev T44 PASS æ¶ˆè´¹è½®: Windows è¿›ç¨‹æ¸…ç†ä¿®å¤ + T39 é›¶æ®‹ç•™å¤æ ¸ + Layout å°¾æ¢è¡Œ
 
-来源: T44 Reviewer PASS-WITH-CONDITIONS（一般级 1 项 + 一般级复核 1 项 + 建议级 1 项）。只动 `scripts/smoke-merge-layout.mjs` / `scripts/smoke-race-check.mjs` / `src/src/components/Layout.tsx` + 本 NOTES，未 commit。
+æ¥æº: T44 Reviewer PASS-WITH-CONDITIONSï¼ˆä¸€èˆ¬çº§ 1 é¡¹ + ä¸€èˆ¬çº§å¤æ ¸ 1 é¡¹ + å»ºè®®çº§ 1 é¡¹ï¼‰ã€‚åªåŠ¨ `scripts/smoke-merge-layout.mjs` / `scripts/smoke-race-check.mjs` / `src/src/components/Layout.tsx` + æœ¬ NOTESï¼Œæœª commitã€‚
 
-### ① 两 smoke 脚本 Windows 进程清理修复（一般级）
+### â‘  ä¸¤ smoke è„šæœ¬ Windows è¿›ç¨‹æ¸…ç†ä¿®å¤ï¼ˆä¸€èˆ¬çº§ï¼‰
 
-**根因确认**: `process.kill(-pid, ...)`（负 pid 进程组杀）是 POSIX 语义，Windows 上未实现——**恒抛 ESRCH**，被 `catch {}` 吞掉 → 原 `stopPreview` 整套清理在 Windows 变 no-op，vite preview 进程残留。CEO 开工前实测的 6 个孤儿 vite 进程即该失效清理机制的产物。
+**æ ¹å› ç¡®è®¤**: `process.kill(-pid, ...)`ï¼ˆè´Ÿ pid è¿›ç¨‹ç»„æ€ï¼‰æ˜¯ POSIX è¯­ä¹‰ï¼ŒWindows ä¸Šæœªå®žçŽ°â€”â€”**æ’æŠ› ESRCH**ï¼Œè¢« `catch {}` åžæŽ‰ â†’ åŽŸ `stopPreview` æ•´å¥—æ¸…ç†åœ¨ Windows å˜ no-opï¼Œvite preview è¿›ç¨‹æ®‹ç•™ã€‚CEO å¼€å·¥å‰å®žæµ‹çš„ 6 ä¸ªå­¤å„¿ vite è¿›ç¨‹å³è¯¥å¤±æ•ˆæ¸…ç†æœºåˆ¶çš„äº§ç‰©ã€‚
 
-**改动**（两脚本同构）:
-- 新增 `killProcessTree(pid)` 跨平台清理: win32 → `spawn('taskkill', ['/PID', String(pid), '/T', '/F'])`（异步等 exit，含 error 分支）+ 之后正 pid `process.kill(pid, 'SIGKILL')` 兜底；非 win32 → 原 `kill(-pid, 'SIGKILL')`。
-- `stopPreview`: 非 win32 保留原「SIGTERM 组 → 轮询 `kill(-pid,0)` 消失 → SIGKILL」逻辑；win32 走「`kill(pid,0)` 探测存活 → `killProcessTree(pid)` → 正 pid SIGKILL」。
-- `startPreview` 超时路径统一 `await killProcessTree(proc.pid)` 再 reject（merge 原有负 pid 一并修掉；race 脚本原本超时路径完全不杀 → 顺手补上，与「零残留」意图一致）。
-- 头注释删除「never leaves a preview server behind / NEVER left behind」等不实宣称，改写为跨平台清理语义（Windows = taskkill /T /F + SIGKILL 兜底）。
+**æ”¹åŠ¨**ï¼ˆä¸¤è„šæœ¬åŒæž„ï¼‰:
+- æ–°å¢ž `killProcessTree(pid)` è·¨å¹³å°æ¸…ç†: win32 â†’ `spawn('taskkill', ['/PID', String(pid), '/T', '/F'])`ï¼ˆå¼‚æ­¥ç­‰ exitï¼Œå« error åˆ†æ”¯ï¼‰+ ä¹‹åŽæ­£ pid `process.kill(pid, 'SIGKILL')` å…œåº•ï¼›éž win32 â†’ åŽŸ `kill(-pid, 'SIGKILL')`ã€‚
+- `stopPreview`: éž win32 ä¿ç•™åŽŸã€ŒSIGTERM ç»„ â†’ è½®è¯¢ `kill(-pid,0)` æ¶ˆå¤± â†’ SIGKILLã€é€»è¾‘ï¼›win32 èµ°ã€Œ`kill(pid,0)` æŽ¢æµ‹å­˜æ´» â†’ `killProcessTree(pid)` â†’ æ­£ pid SIGKILLã€ã€‚
+- `startPreview` è¶…æ—¶è·¯å¾„ç»Ÿä¸€ `await killProcessTree(proc.pid)` å† rejectï¼ˆmerge åŽŸæœ‰è´Ÿ pid ä¸€å¹¶ä¿®æŽ‰ï¼›race è„šæœ¬åŽŸæœ¬è¶…æ—¶è·¯å¾„å®Œå…¨ä¸æ€ â†’ é¡ºæ‰‹è¡¥ä¸Šï¼Œä¸Žã€Œé›¶æ®‹ç•™ã€æ„å›¾ä¸€è‡´ï¼‰ã€‚
+- å¤´æ³¨é‡Šåˆ é™¤ã€Œnever leaves a preview server behind / NEVER left behindã€ç­‰ä¸å®žå®£ç§°ï¼Œæ”¹å†™ä¸ºè·¨å¹³å°æ¸…ç†è¯­ä¹‰ï¼ˆWindows = taskkill /T /F + SIGKILL å…œåº•ï¼‰ã€‚
 
-**额外发现（「确认现在能跑」暴露的 Windows 兼容缺口）**: `smoke-race-check.mjs` 在 Windows 原生 **`spawn('npx', ...)` ENOENT**（Windows 不自动解析 npx.cmd），且 ROOT 用 `new URL().pathname` 得到 `/D:/...` 畸形路径。已按项目 Windows 服务启动纪律对齐 `smoke-merge-layout.mjs`: `process.execPath` + `src/node_modules/vite/bin/vite.js`、`fileURLToPath` 取 ROOT/SAMPLE/VITE_BIN、剥 ANSI 后解析 `Local:` 行——现可原生跑通。
+**é¢å¤–å‘çŽ°ï¼ˆã€Œç¡®è®¤çŽ°åœ¨èƒ½è·‘ã€æš´éœ²çš„ Windows å…¼å®¹ç¼ºå£ï¼‰**: `smoke-race-check.mjs` åœ¨ Windows åŽŸç”Ÿ **`spawn('npx', ...)` ENOENT**ï¼ˆWindows ä¸è‡ªåŠ¨è§£æž npx.cmdï¼‰ï¼Œä¸” ROOT ç”¨ `new URL().pathname` å¾—åˆ° `/D:/...` ç•¸å½¢è·¯å¾„ã€‚å·²æŒ‰é¡¹ç›® Windows æœåŠ¡å¯åŠ¨çºªå¾‹å¯¹é½ `smoke-merge-layout.mjs`: `process.execPath` + `src/node_modules/vite/bin/vite.js`ã€`fileURLToPath` å– ROOT/SAMPLE/VITE_BINã€å‰¥ ANSI åŽè§£æž `Local:` è¡Œâ€”â€”çŽ°å¯åŽŸç”Ÿè·‘é€šã€‚
 
-**复测（Windows 原生 + tasklist 级残留指纹）**:
-- `node scripts/smoke-merge-layout.mjs` → **14/14 PASS / exit 0**；跑完 `Get-CimInstance Win32_Process | Where CommandLine -match 'vite'` → **COUNT=0**。
-- `node scripts/smoke-race-check.mjs` → A 6/6 轮 `navAt=181~233ms`（全 <250ms 真踩窗）0 race + B tooltip=true 0 race + C rootOk=true 0 race → **全 PASS / exit 0**；跑完同上指纹 → **COUNT=0**。
+**å¤æµ‹ï¼ˆWindows åŽŸç”Ÿ + tasklist çº§æ®‹ç•™æŒ‡çº¹ï¼‰**:
+- `node scripts/smoke-merge-layout.mjs` â†’ **14/14 PASS / exit 0**ï¼›è·‘å®Œ `Get-CimInstance Win32_Process | Where CommandLine -match 'vite'` â†’ **COUNT=0**ã€‚
+- `node scripts/smoke-race-check.mjs` â†’ A 6/6 è½® `navAt=181~233ms`ï¼ˆå…¨ <250ms çœŸè¸©çª—ï¼‰0 race + B tooltip=true 0 race + C rootOk=true 0 race â†’ **å…¨ PASS / exit 0**ï¼›è·‘å®ŒåŒä¸ŠæŒ‡çº¹ â†’ **COUNT=0**ã€‚
 
-### ② T39「零残留」验收记录复核（一般级，只查不改历史）
+### â‘¡ T39ã€Œé›¶æ®‹ç•™ã€éªŒæ”¶è®°å½•å¤æ ¸ï¼ˆä¸€èˆ¬çº§ï¼ŒåªæŸ¥ä¸æ”¹åŽ†å²ï¼‰
 
-- 旧记录（NOTES L1350-1353 / TASKS T39 卡 / DECISIONS 2026-09-16）: 清理 = `kill(-pid)` 组杀，验证 = `pgrep -f 'vite preview'` 零残留（含故障注入 exit 1 路径）。
-- **复核判断**: ①`pgrep -f` 是 POSIX 命令，Windows 原生不存在——该探测在 Windows 上不可执行；②清理依赖的 `kill(-pid)` 在 Windows 恒 ESRCH no-op，`kill(-pid, 0)` 轮询同样恒 ESRCH → 立即判「组已消失」返回。**故「零残留」旧记录在 Windows 原生环境下是假信号**（过程上无法验证、机理上清理从未发生）。实证旁证: T44 开工前实测残留的 6 个孤儿 vite 进程。
-- **复核实测（修复后, Windows 原生）**: 上面 ① 两脚本 exit 0 后逐次跑 tasklist 级指纹（`Get-CimInstance Win32_Process` + CommandLine 匹配 vite）→ 均 **COUNT=0**。旧记录依追加式纪律不改写，本段为追加观察。
-- 注: 故障注入（exit 1）路径本轮未复跑（任务范围限定）；两脚本对 exit 0/1/2 走同一 `finally → stopPreview`，清理路径一致。
+- æ—§è®°å½•ï¼ˆNOTES L1350-1353 / TASKS T39 å¡ / DECISIONS 2026-09-16ï¼‰: æ¸…ç† = `kill(-pid)` ç»„æ€ï¼ŒéªŒè¯ = `pgrep -f 'vite preview'` é›¶æ®‹ç•™ï¼ˆå«æ•…éšœæ³¨å…¥ exit 1 è·¯å¾„ï¼‰ã€‚
+- **å¤æ ¸åˆ¤æ–­**: â‘ `pgrep -f` æ˜¯ POSIX å‘½ä»¤ï¼ŒWindows åŽŸç”Ÿä¸å­˜åœ¨â€”â€”è¯¥æŽ¢æµ‹åœ¨ Windows ä¸Šä¸å¯æ‰§è¡Œï¼›â‘¡æ¸…ç†ä¾èµ–çš„ `kill(-pid)` åœ¨ Windows æ’ ESRCH no-opï¼Œ`kill(-pid, 0)` è½®è¯¢åŒæ ·æ’ ESRCH â†’ ç«‹å³åˆ¤ã€Œç»„å·²æ¶ˆå¤±ã€è¿”å›žã€‚**æ•…ã€Œé›¶æ®‹ç•™ã€æ—§è®°å½•åœ¨ Windows åŽŸç”ŸçŽ¯å¢ƒä¸‹æ˜¯å‡ä¿¡å·**ï¼ˆè¿‡ç¨‹ä¸Šæ— æ³•éªŒè¯ã€æœºç†ä¸Šæ¸…ç†ä»Žæœªå‘ç”Ÿï¼‰ã€‚å®žè¯æ—è¯: T44 å¼€å·¥å‰å®žæµ‹æ®‹ç•™çš„ 6 ä¸ªå­¤å„¿ vite è¿›ç¨‹ã€‚
+- **å¤æ ¸å®žæµ‹ï¼ˆä¿®å¤åŽ, Windows åŽŸç”Ÿï¼‰**: ä¸Šé¢ â‘  ä¸¤è„šæœ¬ exit 0 åŽé€æ¬¡è·‘ tasklist çº§æŒ‡çº¹ï¼ˆ`Get-CimInstance Win32_Process` + CommandLine åŒ¹é… viteï¼‰â†’ å‡ **COUNT=0**ã€‚æ—§è®°å½•ä¾è¿½åŠ å¼çºªå¾‹ä¸æ”¹å†™ï¼Œæœ¬æ®µä¸ºè¿½åŠ è§‚å¯Ÿã€‚
+- æ³¨: æ•…éšœæ³¨å…¥ï¼ˆexit 1ï¼‰è·¯å¾„æœ¬è½®æœªå¤è·‘ï¼ˆä»»åŠ¡èŒƒå›´é™å®šï¼‰ï¼›ä¸¤è„šæœ¬å¯¹ exit 0/1/2 èµ°åŒä¸€ `finally â†’ stopPreview`ï¼Œæ¸…ç†è·¯å¾„ä¸€è‡´ã€‚
 
-### ③ Layout.tsx 文件尾换行（建议级）
+### â‘¢ Layout.tsx æ–‡ä»¶å°¾æ¢è¡Œï¼ˆå»ºè®®çº§ï¼‰
 
-- `src/src/components/Layout.tsx` 原末行 `}` 后无换行（`\ No newline at end of file`，文件 CRLF 风格）→ 已补 CRLF 尾换行；`git diff` 末 hunk 仅新增尾换行。
+- `src/src/components/Layout.tsx` åŽŸæœ«è¡Œ `}` åŽæ— æ¢è¡Œï¼ˆ`\ No newline at end of file`ï¼Œæ–‡ä»¶ CRLF é£Žæ ¼ï¼‰â†’ å·²è¡¥ CRLF å°¾æ¢è¡Œï¼›`git diff` æœ« hunk ä»…æ–°å¢žå°¾æ¢è¡Œã€‚
 
-### 范围纪律
+### èŒƒå›´çºªå¾‹
 
-- 零新依赖（process.execPath + taskkill 均 node builtin / 系统命令）；未 commit；未动 TASKS.md（T44 卡维持 Doing）；旧 T39 记录未改写。
+- é›¶æ–°ä¾èµ–ï¼ˆprocess.execPath + taskkill å‡ node builtin / ç³»ç»Ÿå‘½ä»¤ï¼‰ï¼›æœª commitï¼›æœªåŠ¨ TASKS.mdï¼ˆT44 å¡ç»´æŒ Doingï¼‰ï¼›æ—§ T39 è®°å½•æœªæ”¹å†™ã€‚
 
-## 2026-09-19 23:17 — Dev
+## 2026-09-19 23:17 â€” Dev
 
-T45 冒烟纪律补布局核对（3 文件：项目 SMOKE-CHECKLIST / 模板 SMOKE-CHECKLIST / 公司 WORKFLOW 规则5）——标准项 N/A（无运行时触达）
+T45 å†’çƒŸçºªå¾‹è¡¥å¸ƒå±€æ ¸å¯¹ï¼ˆ3 æ–‡ä»¶ï¼šé¡¹ç›® SMOKE-CHECKLIST / æ¨¡æ¿ SMOKE-CHECKLIST / å…¬å¸ WORKFLOW è§„åˆ™5ï¼‰â€”â€”æ ‡å‡†é¡¹ N/Aï¼ˆæ— è¿è¡Œæ—¶è§¦è¾¾ï¼‰
 
-## 2026-09-19 23:50 — Dev
+## 2026-09-19 23:50 â€” Dev
 
-T46 内容页水平居中修复——merge/help/settings 根容器缺 margin auto。
-- 现象: 用户实测「merge, guide, settings content 没有在中间」。
-- 根因: .page-help/.settings-page/.merge-page 均 max-width:780px 无 margin:0 auto → 在 .app-main（可用宽 1060px）内左对齐，右侧空约 280px。Landing 子块全带 margin auto 故居中，仅三个内容页偏左。T44 只断言互等未断言居中（T45 D-1 布局核对教训）。
-- 修复: index.css 三处各加 margin: 0 auto。
-- 脚本: scripts/smoke-merge-layout.mjs 断言升级——三页互等（/app/merge + /settings + /help，left/top/width 全等）+ 每页水平居中 |center - viewportCenter| ≤ 1px。
-- 验证: lint ✓ / 250 tests + 4 skip ✓ / build ✓；smoke 22/22 PASS exit 0——desktop left 190→330、center 720==720 真居中；mobile left 20、center 195==195（350px 内容宽天然撑满）；0 pageerror（1 已知 CSP 噪音过滤）；overflowX 0px（merge/settings/help 逐页强制项，Reviewer 建议 3 消费）；smoke 脚本自身路径结束后残留 vite 进程 0（另：临时截图脚本 shot-t46.mjs 曾泄漏 1 个 vite preview——pid 44636，Reviewer 现场捉到后 taskkill 已清）；脚本断言最终 22/22 = 三页互等 + 每页居中 + 每页 overflowX + footer + 全屏语义 + pageerror。
-- 截图: docs/screenshots/center-{merge,help,settings}-desktop-t46.png + center-merge-mobile-t46.png（4 张，临时脚本 shot-t46.mjs 生成后已无引用）。
+T46 å†…å®¹é¡µæ°´å¹³å±…ä¸­ä¿®å¤â€”â€”merge/help/settings æ ¹å®¹å™¨ç¼º margin autoã€‚
+- çŽ°è±¡: ç”¨æˆ·å®žæµ‹ã€Œmerge, guide, settings content æ²¡æœ‰åœ¨ä¸­é—´ã€ã€‚
+- æ ¹å› : .page-help/.settings-page/.merge-page å‡ max-width:780px æ—  margin:0 auto â†’ åœ¨ .app-mainï¼ˆå¯ç”¨å®½ 1060pxï¼‰å†…å·¦å¯¹é½ï¼Œå³ä¾§ç©ºçº¦ 280pxã€‚Landing å­å—å…¨å¸¦ margin auto æ•…å±…ä¸­ï¼Œä»…ä¸‰ä¸ªå†…å®¹é¡µåå·¦ã€‚T44 åªæ–­è¨€äº’ç­‰æœªæ–­è¨€å±…ä¸­ï¼ˆT45 D-1 å¸ƒå±€æ ¸å¯¹æ•™è®­ï¼‰ã€‚
+- ä¿®å¤: index.css ä¸‰å¤„å„åŠ  margin: 0 autoã€‚
+- è„šæœ¬: scripts/smoke-merge-layout.mjs æ–­è¨€å‡çº§â€”â€”ä¸‰é¡µäº’ç­‰ï¼ˆ/app/merge + /settings + /helpï¼Œleft/top/width å…¨ç­‰ï¼‰+ æ¯é¡µæ°´å¹³å±…ä¸­ |center - viewportCenter| â‰¤ 1pxã€‚
+- éªŒè¯: lint âœ“ / 250 tests + 4 skip âœ“ / build âœ“ï¼›smoke 22/22 PASS exit 0â€”â€”desktop left 190â†’330ã€center 720==720 çœŸå±…ä¸­ï¼›mobile left 20ã€center 195==195ï¼ˆ350px å†…å®¹å®½å¤©ç„¶æ’‘æ»¡ï¼‰ï¼›0 pageerrorï¼ˆ1 å·²çŸ¥ CSP å™ªéŸ³è¿‡æ»¤ï¼‰ï¼›overflowX 0pxï¼ˆmerge/settings/help é€é¡µå¼ºåˆ¶é¡¹ï¼ŒReviewer å»ºè®® 3 æ¶ˆè´¹ï¼‰ï¼›smoke è„šæœ¬è‡ªèº«è·¯å¾„ç»“æŸåŽæ®‹ç•™ vite è¿›ç¨‹ 0ï¼ˆå¦ï¼šä¸´æ—¶æˆªå›¾è„šæœ¬ shot-t46.mjs æ›¾æ³„æ¼ 1 ä¸ª vite previewâ€”â€”pid 44636ï¼ŒReviewer çŽ°åœºæ‰åˆ°åŽ taskkill å·²æ¸…ï¼‰ï¼›è„šæœ¬æ–­è¨€æœ€ç»ˆ 22/22 = ä¸‰é¡µäº’ç­‰ + æ¯é¡µå±…ä¸­ + æ¯é¡µ overflowX + footer + å…¨å±è¯­ä¹‰ + pageerrorã€‚
+- æˆªå›¾: docs/screenshots/center-{merge,help,settings}-desktop-t46.png + center-merge-mobile-t46.pngï¼ˆ4 å¼ ï¼Œä¸´æ—¶è„šæœ¬ shot-t46.mjs ç”ŸæˆåŽå·²æ— å¼•ç”¨ï¼‰ã€‚
 
-## 2026-09-20 09:38 — Dev T48 合并页下载文件名旁侧显示文件大小
+## 2026-09-20 09:38 â€” Dev T48 åˆå¹¶é¡µä¸‹è½½æ–‡ä»¶åæ—ä¾§æ˜¾ç¤ºæ–‡ä»¶å¤§å°
 
-- 改动: MergePage.tsx 新增 ormatBytes 工具函数 + ileSize state，合并完成后从 Blob.size 计算并显示 ilename.json (XX MB)
-- 测试: formatBytes 单元测试 5 条全绿（0 B / <1KB / KB / MB / GB 各档）
-- lint: 0 error 1 warning（react-refresh/only-export-components，已有模式）
-- test: 255 passed | 4 skipped（+5 formatBytes，与 T46 后 250+4 一致）
-- build: 全绿
-- 归档: NOTES 追加
+- æ”¹åŠ¨: MergePage.tsx æ–°å¢ž ormatBytes å·¥å…·å‡½æ•° + ileSize stateï¼Œåˆå¹¶å®ŒæˆåŽä»Ž Blob.size è®¡ç®—å¹¶æ˜¾ç¤º ilename.json (XX MB)
+- æµ‹è¯•: formatBytes å•å…ƒæµ‹è¯• 5 æ¡å…¨ç»¿ï¼ˆ0 B / <1KB / KB / MB / GB å„æ¡£ï¼‰
+- lint: 0 error 1 warningï¼ˆreact-refresh/only-export-componentsï¼Œå·²æœ‰æ¨¡å¼ï¼‰
+- test: 255 passed | 4 skippedï¼ˆ+5 formatBytesï¼Œä¸Ž T46 åŽ 250+4 ä¸€è‡´ï¼‰
+- build: å…¨ç»¿
+- å½’æ¡£: NOTES è¿½åŠ 
+## 2026-09-21 02:00 — Dev T47 移动端适配立项（盘查 + 数据源采集 + 子卡拆分）
+
+**目标**: 先侦察不急于写全 — 产出移动端差异盘查 + repo traffic 数据 + 拆分子卡方案。
+
+**产出**: 
+
+1. **mobile-audit.mjs** — Playwright 390px 视口全路由盘查脚本（Landing / Trips / Places / Merge / Help / Settings）
+
+   测量维度：overflowX / 页面几何（left/top/width/居中）/ 容器语义（footer 存在与否）/ 字体大小 / 触摸目标尺寸 / 侧栏行为 / 地图容器 / 弹窗空间
+
+   **盘查结论**：
+
+   - overflowX: ✅ 全部路由 0px
+   - 页面居中: ✅ 内容页完美居中（偏移 0px）
+   - 容器语义: ✅ 地图页全屏无 footer / 内容页有 footer — 正确
+   - 字体大小: ✅ 最小 11px（feature-card-text）— 可读
+   - 触摸目标: ❌ 6 nav-link 29px < 44px（全路由）+ Settings btn-primary 39px + theme-btn 37px
+   - 侧栏/抽屉: ✅ trips-side max-height: 42vh — 正常
+   - 地图容器: ✅ 正常填充剩余视口高度
+   - 报告: docs/records/mobile-audit/2026-09-21.md（8 P1 问题，全部是触摸目标尺寸不足）
+
+2. **repo-traffic.mjs** — GitHub API traffic 采集脚本
+
+   匿名请求无法获取 views/clones（401 Unauthorized），但获取到仓库元数据：0 stars, 0 forks, MIT license, TypeScript, 6031 KB
+
+   - 报告: docs/records/repo-traffic/2026-09-21.md + .json
+   - 结论: 暂无流量数据（可能刚发布），移动端适配作为 P1 推进
+
+3. **T47-SUBTASKS.md** — 拆分子卡方案
+
+   - T47.1: 触摸目标修复（P1, L1, CSS 3 行）
+   - T47.2: mobile-audit 脚本入库（P2, L1）
+   - T47.3: PRD 移动端章节入册（P3, L1）
+
+**A17 绝对锚点纪律**: 所有断言含与视口/祖先的绝对关系
+
+- min-height >= 44px（触摸目标，与视口无关的绝对尺寸）
+- overflowX == 0px（相对于 document.documentElement.clientWidth）
+- |pageCenter - vpCenter| <= 1px（页面中心与视口中心对齐）
+- pageWidth <= viewportWidth + 2（页面不超出视口）
+
+**验证**: 255 tests + 4 skip / lint 0 error / build 全绿
+
+**标准项**: N/A（无新增运行时面，smoke 覆盖存量）
+
+## 2026-09-21 02:00 -- Dev T47 移动端适配立项（盘查 + 数据源采集 + 子卡拆分）
+
+**目标**: 先侦察不急于写全 -- 产出移动端差异盘查 + repo traffic 数据 + 拆分子卡方案。
+
+**产出**: 
+
+1. **mobile-audit.mjs** -- Playwright 390px 视口全路由盘查脚本（Landing / Trips / Places / Merge / Help / Settings）
+
+   测量维度：overflowX / 页面几何（left/top/width/居中）/ 容器语义（footer 存在与否）/ 字体大小 / 触摸目标尺寸 / 侧栏行为 / 地图容器 / 弹窗空间
+
+   **盘查结论**：
+
+   - overflowX: OK 全部路由 0px
+   - 页面居中: OK 内容页完美居中（偏移 0px）
+   - 容器语义: OK 地图页全屏无 footer / 内容页有 footer -- 正确
+   - 字体大小: OK 最小 11px（feature-card-text）-- 可读
+   - 触摸目标: FAIL 6 nav-link 29px < 44px（全路由）+ Settings btn-primary 39px + theme-btn 37px
+   - 侧栏/抽屉: OK trips-side max-height: 42vh -- 正常
+   - 地图容器: OK 正常填充剩余视口高度
+   - 报告: docs/records/mobile-audit/2026-09-21.md（8 P1 问题，全部是触摸目标尺寸不足）
+
+2. **repo-traffic.mjs** -- GitHub API traffic 采集脚本
+
+   匿名请求无法获取 views/clones（401 Unauthorized），但获取到仓库元数据：0 stars, 0 forks, MIT license, TypeScript, 6031 KB
+
+   - 报告: docs/records/repo-traffic/2026-09-21.md + .json
+   - 结论: 暂无流量数据（可能刚发布），移动端适配作为 P1 推进
+
+3. **T47-SUBTASKS.md** -- 拆分子卡方案
+
+   - T47.1: 触摸目标修复（P1, L1, CSS 3 行）
+   - T47.2: mobile-audit 脚本入库（P2, L1）
+   - T47.3: PRD 移动端章节入册（P3, L1）
+
+**A17 绝对锚点纪律**: 所有断言含与视口/祖先的绝对关系
+
+- min-height >= 44px（触摸目标，与视口无关的绝对尺寸）
+- overflowX == 0px（相对于 document.documentElement.clientWidth）
+- |pageCenter - vpCenter| <= 1px（页面中心与视口中心对齐）
+- pageWidth <= viewportWidth + 2（页面不超出视口）
+
+**验证**: 255 tests + 4 skip / lint 0 error / build 全绿
+
+**标准项**: N/A（无新增运行时面，smoke 覆盖存量）
