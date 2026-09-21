@@ -172,17 +172,9 @@ export default function DateRangePicker() {
       setOpen(false)
       return
     }
-    // Range refinement: if both start and end are set, clicking a day
-    // adjusts the range (day < start → new start; day >= start → new end).
-    if (startDay !== null && endDay !== null) {
-      if (dayMs < startDay) {
-        setDateRange(dayMs, endDay)
-      } else {
-        setDateRange(startDay, endOfDayMs(dayMs))
-      }
-      return
-    }
-    // Start a fresh selection: this day becomes the (open-ended) start.
+    // Always start fresh: this day becomes the (open-ended) start.
+    // No range refinement — clicking a day within the range would
+    // unexpectedly shrink the range instead of starting a new one.
     setDateRange(dayMs, null)
   }
 
@@ -296,7 +288,7 @@ export default function DateRangePicker() {
                         aria-selected={y === view.year}
                         onClick={() => pickYear(y)}
                       >
-                        {y} {t('drp.year')}
+                        {y}
                       </button>
                     ))}
                   </div>
