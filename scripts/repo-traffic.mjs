@@ -46,6 +46,7 @@ async function fetchJSON(url, headers = {}) {
     const reset = res.headers.get('x-ratelimit-reset')
     return { _403: true, remaining, reset }
   }
+  if (res.status === 401) return { _401: true } // anonymous traffic endpoints return 401 (expected)
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
   return res.json()
 }
@@ -93,6 +94,8 @@ async function main() {
       issues.push('Traffic views: 404 (repo may be private)')
     } else if (data.views._403) {
       issues.push(`Traffic views: rate limited (remaining: ${data.views.remaining})`)
+    } else if (data.views._401) {
+      issues.push('Traffic views: 401 (anonymous request, requires auth token)')
     } else {
       const { count, views } = data.views
       console.log(`  total clicks: ${count}`)
@@ -118,6 +121,8 @@ async function main() {
       issues.push('Traffic clones: 404 (repo may be private)')
     } else if (data.clones._403) {
       issues.push(`Traffic clones: rate limited (remaining: ${data.clones.remaining})`)
+    } else if (data.clones._401) {
+      issues.push('Traffic clones: 401 (anonymous request, requires auth token)')
     } else {
       const { count, clones } = data.clones
       console.log(`  total clones: ${count}`)

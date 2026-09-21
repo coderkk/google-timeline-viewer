@@ -15,6 +15,7 @@
 | `node scripts/smoke-race-check.mjs` | **N1 競態封印**：Places 點地圖跳離×6 + Trips 重導入瞬跳×3 + 側欄收展×3，須 0 `_leaflet_pos` pageerror |
 | `node scripts/smoke-network-tap.mjs` | **隱私網絡門禁**（deploy.yml 阻塞）：雙視口 S1–S8 全流程捕獲 ⊆ 白名單；退出碼 0/1/2/3 |
 | `node scripts/perf-browser.mjs` / `perf-raw-window.mjs` / `perf-make-merged.mjs` | **C 類性能壓測**（T37 三件套） |
+| `node scripts/mobile-audit.mjs` | **移動端盤查**（T47）：390px 視口全路由斷點行為 + 觸摸目標尺寸（≥44px）+ overflowX + 居中；退出碼 0=全過 / 1=斷言失敗 |
 | — | 其餘**純人工項**（截圖核對 / 視覺確認 / 真數據導入體感 / 統計肉眼比對）逐條標註 |
 
 ## 類別速查
