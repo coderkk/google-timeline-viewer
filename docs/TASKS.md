@@ -1,35 +1,12 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T51 -->
+<!-- next: T52 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
 ## 📋 To Do
 
-- [x] ~~T47.1: 触摸目标修复（P1, L1）~~ (09-21→09-21) [P1] — CSS 3 行：`.site-nav-link` + `.btn-primary` + `.theme-btn` 各加 `min-height: 44px`（WCAG 2.5.5 触摸目标 ≥44px）。255 tests + 4 skip / lint 0 error / build 全绿。NOTES 追加。
-   - 档位: L1
-   - 冒烟: 通用（lint + test + build）——无新增运行时面
-   - 指派: Dev
-   - 来源: T47 盘查 → T47.1（P1 子卡）
-   - 时间: 09-21 创建 → 09-21 Done
-
 - [ ] **T-K1: 移动端适配** — **已提前立项 → T47（CEO 拍板 09-20 00:05）**；本条保留历史锚（原判据「等公开分享移动占比」已在 T47 卡内由 repo traffic 数据源承接）
-
-- [ ] **T47.2: mobile-audit 脚本入库 + SMOKE-CHECKLIST 更新（P2, L1）**
-  - T47 子卡（P2）——盘查脚本 `scripts/mobile-audit.mjs` 已在 T47 创建，现需正式入库到 SMOKE-CHECKLIST + 模板同步
-  - 内容: ①SMOKE-CHECKLIST 新增移动端盘查条目（指向 `scripts/mobile-audit.mjs`）②模板 `templates/project/docs/SMOKE-CHECKLIST.md` 同步
-  - 冒烟: 通用（lint + test + build）
-  - 验收: ①SMOKE-CHECKLIST 有 mobile-audit.mjs 条目 ②模板同步 ③归档记录
-  - 指派: Dev
-  - 来源: T47 盘查 → T47.2（P2 子卡）
-  - 时间: 09-21 创建
-
-- [x] ~~T47.3: PRD 移动端适配章节入册（P3, L1）~~ (09-21→09-21) [P3] — PRD 新增「移动端适配」章节（当前状态盘查结论 + 子卡计划表 T47.1/T47.2/T47.3 + A17 绝对锚点纪律）+ 修订历史 v1.25。255 tests + 4 skip / lint 0 error / build 全绿。**标准项: N/A（无运行时触达，纯文档改动）**。
-   - 档位: L1
-   - 冒烟: 通用（lint + test + build）
-   - 指派: Dev
-   - 来源: T47 盘查 → T47.3（P3 子卡）
-   - 时间: 09-21 创建 → 09-21 Done
 
 ## 📭 Backlog（上 = 优先）
 
@@ -54,6 +31,27 @@
    - 指派: Dev
    - 来源: 09-13 KIV T-K1 → 09-20 CEO 提前立项
    - 时间: 09-20 创建 → 09-21 Done
+
+- [x] ~~T47.1: 触摸目标修复（P1, L1）~~ (09-21→09-21) — CSS 3 行：`.site-nav-link` + `.btn-primary` + `.theme-btn` 各加 `min-height: 44px`（WCAG 2.5.5 触摸目标 ≥44px）。255 tests + 4 skip / lint 0 error / build 全绿。**标准项: N/A（无新增运行时面，smoke 覆盖存量）**。NOTES 追加。
+   - 档位: L1
+   - 冒烟: 通用（lint + test + build）
+   - 指派: Dev
+   - 来源: T47 盘查 → T47.1（P1 子卡）
+   - 时间: 09-21 创建 → 09-21 Done
+
+- [x] ~~T47.2: mobile-audit 脚本入库 + SMOKE-CHECKLIST 更新（P2, L1）~~ (09-21→09-21) — 盘查脚本 `scripts/mobile-audit.mjs` 已入库到 SMOKE-CHECKLIST + 模板同步。255 tests + 4 skip / lint 0 error / build 全绿。**标准项: N/A（无新增运行时面，smoke 覆盖存量）**。NOTES 追加。
+   - 档位: L1
+   - 冒烟: 通用（lint + test + build）
+   - 指派: Dev
+   - 来源: T47 盘查 → T47.2（P2 子卡）
+   - 时间: 09-21 创建 → 09-21 Done
+
+- [x] ~~T47.3: PRD 移动端适配章节入册（P3, L1）~~ (09-21→09-21) — PRD 新增「移动端适配」章节（当前状态盘查结论 + 子卡计划表 T47.1/T47.2/T47.3 + A17 绝对锚点纪律）+ 修订历史 v1.25。255 tests + 4 skip / lint 0 error / build 全绿。**标准项: N/A（无运行时触达，纯文档改动）**。NOTES 追加。
+   - 档位: L1
+   - 冒烟: 通用（lint + test + build）
+   - 指派: Dev
+   - 来源: T47 盘查 → T47.3（P3 子卡）
+   - 时间: 09-21 创建 → 09-21 Done
 
 - [x] ~~T46: 内容页水平居中修复——merge/help/settings 根容器缺 `margin: 0 auto`~~ (09-19→09-19) [P1] — 用户实测「merge, guide, settings content 没有在中间」。根因：`.page-help`/`.settings-page`/`.merge-page` 均 `max-width: 780px` 但无 `margin: 0 auto` → `.page` 普通 block 在 `.app-main`（可用宽 1060px）内左对齐、右侧空 ~280px；Landing 子块全带 margin auto 故居中，仅三个内容页偏左。**T44 只断言互等未断言居中**（两页同偏左故 PASS）——T45 D-1「布局核对」首次实战。修复：index.css 三处各加 `margin: 0 auto`。脚本 `smoke-merge-layout.mjs` 断言升级：三页（merge/settings/help）几何互等 + 每页水平居中 `|center−viewportCenter|≤1` + **每页 overflowX 强制项**（Reviewer 建议 3）。**验证全绿**：lint ✓ / **250 tests + 4 skip** / build ✓；smoke **22/22 PASS exit 0**——desktop left **190→330**、center 720==720 真居中；mobile left 20、center 195==195；0 pageerror（1 已知 CSP 噪音）/ overflowX 0px×6 / 零残留。截图 4 张 `docs/screenshots/center-*-t46.png`。**Reviewer PASS**（0 致命/0 严重/2 一般/1 建议，全消费：shot-t46.mjs 泄漏 vite pid 44636 已 taskkill、NOTES 措辞收窄、next 指针→T47、overflowX 逐页化）；NOTES L1574-1582。
    - 档位: L1（CSS 3 行 + 脚本断言扩展）
