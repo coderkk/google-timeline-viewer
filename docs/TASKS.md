@@ -1,8 +1,17 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T52 -->
+<!-- next: T53 -->
 
 ## 🔨 Doing（WIP ≤ 2）
+
+- [ ] **T52: Collection/Bookmark（date range 收藏，关联 filename）** [P2]
+  - 需求: 将 `date from/to` + 备注（如 "Thailand Trip"）存 localStorage，关联 filename（切换 timeline 时 collection 不错位）
+  - 内容: ① `src/lib/collections.ts`（store + localStorage CRUD）② Collection UI（收藏按钮 + 列表展示 + 加载/删除）③ DRR 联动（加载 collection 时自动设置 DRR）
+  - 冒烟: 通用（lint + test + build）
+  - 验收: ①collection 关联 filename ②加载 collection 时自动设置 DRR ③归档记录
+  - 指派: Dev
+  - 来源: 用户反馈（2026-09-21）
+  - 时间: 09-21 创建
 
 ## 📋 To Do
 
