@@ -80,19 +80,25 @@ export default function CollectionPanel() {
 
   return (
     <div className="collection-panel">
+      {/* Panel header */}
+      <div className="collection-header">
+        <span className="collection-icon">★</span>
+        <span className="collection-title">{t('collection.title')}</span>
+      </div>
+
       {/* Save button / input row */}
       <div className="collection-save-row">
-        <button
-          type="button"
-          className="collection-save-btn"
-          onClick={() => setShowInput(true)}
-          disabled={dateRange.startMs === null && dateRange.endMs === null}
-          title={t('collection.saveTitle')}
-        >
-          {t('collection.save')}
-        </button>
-
-        {showInput && (
+        {!showInput ? (
+          <button
+            type="button"
+            className="collection-save-btn"
+            onClick={() => setShowInput(true)}
+            disabled={dateRange.startMs === null && dateRange.endMs === null}
+            title={t('collection.saveTitle')}
+          >
+            {t('collection.save')}
+          </button>
+        ) : (
           <div className="collection-input-row">
             <input
               type="text"
@@ -124,7 +130,6 @@ export default function CollectionPanel() {
       {/* Saved collections list */}
       {hasSaved && (
         <div className="collection-list">
-          <div className="collection-list-head">{t('collection.saved')}</div>
           {saved.map((entry) => (
             <div key={entry.id} className="collection-item">
               <div className="collection-item-info">
@@ -154,6 +159,11 @@ export default function CollectionPanel() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Empty state hint */}
+      {!hasSaved && (
+        <div className="collection-empty-hint">{t('collection.emptyHint')}</div>
       )}
     </div>
   )

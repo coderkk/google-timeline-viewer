@@ -319,6 +319,7 @@ export const en = {
   'landing.sampleLabel': 'Sample data · not a real track',
 
   // -- Collection / Bookmark (T52 / PRD 功能 15) -------------------------------
+  'collection.title': 'Bookmarks',
   'collection.save': 'Save',
   'collection.saveTitle': 'Save current date range as a bookmark',
   'collection.labelPlaceholder': 'Label (e.g. "Thailand Trip")',
@@ -327,6 +328,7 @@ export const en = {
   'collection.load': 'Load',
   'collection.delete': 'Delete',
   'collection.confirmDelete': 'Delete bookmark "{label}"?',
+  'collection.emptyHint': 'Bookmark date ranges for quick loading next time.',
 
   'value.any': 'Any',
   'value.km': '{value} km',

@@ -314,6 +314,7 @@ export const zh = {
   'landing.sampleLabel': '模拟数据 · 非真实轨迹',
 
   // -- Collection / Bookmark (T52 / PRD 功能 15) -------------------------------
+  'collection.title': '收藏',
   'collection.save': '收藏',
   'collection.saveTitle': '将当前日期范围保存为书签',
   'collection.labelPlaceholder': '备注（如"泰国旅行"）',
@@ -322,6 +323,7 @@ export const zh = {
   'collection.load': '加载',
   'collection.delete': '删除',
   'collection.confirmDelete': '删除书签「{label}」？',
+  'collection.emptyHint': '收藏日期范围，方便下次快速加载。',
 
   'value.any': '不限',
   'value.km': '{value} 公里',

@@ -359,6 +359,28 @@ body {
   border-bottom: 1px solid var(--color-border);
 }
 
+/* Panel header */
+.collection-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.collection-icon {
+  font-size: 14px;
+  color: var(--color-accent);
+  user-select: none;
+}
+
+.collection-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.3px;
+}
+
+/* Save button / input row */
 .collection-save-row {
   display: flex;
   align-items: center;
@@ -413,6 +435,14 @@ body {
 .collection-input-actions {
   display: flex;
   gap: 4px;
+}
+
+/* Empty state hint */
+.collection-empty-hint {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  padding: 8px 0 4px 0;
+  line-height: 1.4;
 }
 
 .collection-input-btn {
