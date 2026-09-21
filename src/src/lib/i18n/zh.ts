@@ -315,6 +315,7 @@ export const zh = {
 
   // -- Collection / Bookmark (T52 / PRD 功能 15) -------------------------------
   'collection.title': '收藏',
+  'collection.add': '添加',
   'collection.save': '收藏',
   'collection.saveTitle': '将当前日期范围保存为书签',
   'collection.labelPlaceholder': '备注（如"泰国旅行"）',

@@ -84,19 +84,15 @@ export default function CollectionPanel() {
       <div className="collection-header">
         <span className="collection-icon">★</span>
         <span className="collection-title">{t('collection.title')}</span>
-      </div>
-
-      {/* Save button / input row */}
-      <div className="collection-save-row">
         {!showInput ? (
           <button
             type="button"
-            className="collection-save-btn"
+            className="collection-add-btn"
             onClick={() => setShowInput(true)}
             disabled={dateRange.startMs === null && dateRange.endMs === null}
             title={t('collection.saveTitle')}
           >
-            {t('collection.save')}
+            {t('collection.add')}
           </button>
         ) : (
           <div className="collection-input-row">

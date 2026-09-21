@@ -320,6 +320,7 @@ export const en = {
 
   // -- Collection / Bookmark (T52 / PRD 功能 15) -------------------------------
   'collection.title': 'Bookmarks',
+  'collection.add': 'Add',
   'collection.save': 'Save',
   'collection.saveTitle': 'Save current date range as a bookmark',
   'collection.labelPlaceholder': 'Label (e.g. "Thailand Trip")',
