@@ -109,3 +109,7 @@
 ## 2026-09-16 13:10 — v1.0.0 公开发布
 决定: **正式发布**。GitHub Pages 部署完成（push main 自动触发 `deploy.yml`，run 35056682330 success）+ 线上双视口冒烟 **14/14 PASS**（4 卡渲染、0 overflowX、hash 路由可达、0 pageerror（仅已知 CSP meta 噪音））+ bundle 特征核对确认为 T39 终版。打 tag `v1.0.0`，CHANGELOG 补发布段，TASKS T40 收尾。
 理由: 用户拍板「发布」（2026-09-16）。发布地址 `https://coderkk.github.io/google-timeline-viewer/`——portfolio 首个公开版本，完整覆盖：单文件导入 + 不确定进度、Trips/Places 双视图、合并归档页、Landing 4 卡、隐私承诺（零后端/零上传）。**发布门禁纪律**：deploy workflow 自带 lint + 243 单测 + build；封印脚本（N1 竞态）+ 线上冒烟在发布前验证。**遗留**：PRD 功能 10（GeoJSON/KML 导出）与「不做」区描述待核对（发布不阻塞）；T-K1 移动端适配视公开访问数据而定。
+
+## 2026-09-20 09:40 — T48 验收通过：合并页下载文件名旁侧显示文件大小
+决定: T48 验收通过。MergePage 合并完成后从 Blob.size 计算文件大小，以 ilename.json (XX MB) 格式显示在成功信息下方。新增 ormatBytes 工具函数（B/KB/MB/GB 四档，1 位小数）+ ileSize state。255 tests + 4 skip / lint 0 error / build 全绿。
+理由: L1 产品候选消化——信息展示增益，零架构变更。标准项: N/A（无新增运行时面，smoke 覆盖存量 merge 页）。

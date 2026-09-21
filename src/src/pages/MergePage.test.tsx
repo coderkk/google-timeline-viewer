@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { renderToString } from 'react-dom/server'
 import { I18nProvider, translate } from '../lib/i18n'
 import { isLargeMerge, mergeInputBytes } from '../lib/merge/largeFile'
-import MergePage from './MergePage'
+import MergePage, { formatBytes } from './MergePage'
 
 // The real facade statically imports './merge.worker?worker'; mocking the
 // facade keeps vitest's node env away from the Vite ?worker transform.
@@ -84,5 +84,31 @@ describe('MergePage large-file guard', () => {
     expect(zhMsg).toContain('231.6')
     expect(zhMsg).toMatch(/200MB/)
     expect(zhMsg).toMatch(/300MB/)
+  })
+})
+
+// -- formatBytes (T48) -------------------------------------------------------
+
+describe('formatBytes', () => {
+  it('formats 0 bytes', () => {
+    expect(formatBytes(0)).toBe('0 B')
+  })
+
+  it('formats bytes under 1 KB', () => {
+    expect(formatBytes(512)).toBe('512 B')
+  })
+
+  it('formats KB with 1 decimal', () => {
+    expect(formatBytes(1024)).toBe('1.0 KB')
+    expect(formatBytes(1536)).toBe('1.5 KB')
+  })
+
+  it('formats MB with 1 decimal', () => {
+    expect(formatBytes(1024 * 1024)).toBe('1.0 MB')
+    expect(formatBytes(101_500_000)).toBe('96.8 MB')
+  })
+
+  it('formats GB with 1 decimal', () => {
+    expect(formatBytes(1024 * 1024 * 1024)).toBe('1.0 GB')
   })
 })

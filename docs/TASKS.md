@@ -14,14 +14,7 @@
   - 来源: 09-13 KIV T-K1 → 09-20 CEO 提前立项
   - 时间: 09-20 创建
 
-- [ ] **T48: 合并页面下载文件名侧加载大小展示 + 归档记录** [P2]
-  - 产品候选消化（CEO 拍板建议 2）——信息展示增益，L1/L2 档（待侦察定档）。
-  - 内容: 合并页下载文件名旁侧加载显示归档文件大小；归档记录（DECISIONS/NOTES）一并补齐。
-  - 指派: Dev + Reviewer
-  - 来源: 09-19 To Do 候选（用户评估后开卡）→ 09-20 CEO 拍板直接消化
-  - 时间: 09-20 创建
-
-## ⏸ KIV
+## 📋 To Do
 
 - [ ] **T-K1: 移动端适配** — **已提前立项 → T47（CEO 拍板 09-20 00:05）**；本条保留历史锚（原判据「等公开分享移动占比」已在 T47 卡内由 repo traffic 数据源承接）
 
@@ -43,11 +36,17 @@
 ## ✅ Done
 
 - [x] ~~T46: 内容页水平居中修复——merge/help/settings 根容器缺 `margin: 0 auto`~~ (09-19→09-19) [P1] — 用户实测「merge, guide, settings content 没有在中间」。根因：`.page-help`/`.settings-page`/`.merge-page` 均 `max-width: 780px` 但无 `margin: 0 auto` → `.page` 普通 block 在 `.app-main`（可用宽 1060px）内左对齐、右侧空 ~280px；Landing 子块全带 margin auto 故居中，仅三个内容页偏左。**T44 只断言互等未断言居中**（两页同偏左故 PASS）——T45 D-1「布局核对」首次实战。修复：index.css 三处各加 `margin: 0 auto`。脚本 `smoke-merge-layout.mjs` 断言升级：三页（merge/settings/help）几何互等 + 每页水平居中 `|center−viewportCenter|≤1` + **每页 overflowX 强制项**（Reviewer 建议 3）。**验证全绿**：lint ✓ / **250 tests + 4 skip** / build ✓；smoke **22/22 PASS exit 0**——desktop left **190→330**、center 720==720 真居中；mobile left 20、center 195==195；0 pageerror（1 已知 CSP 噪音）/ overflowX 0px×6 / 零残留。截图 4 张 `docs/screenshots/center-*-t46.png`。**Reviewer PASS**（0 致命/0 严重/2 一般/1 建议，全消费：shot-t46.mjs 泄漏 vite pid 44636 已 taskkill、NOTES 措辞收窄、next 指针→T47、overflowX 逐页化）；NOTES L1574-1582。
-  - 档位: L1（CSS 3 行 + 脚本断言扩展）
-  - 冒烟: 布局核对（§D D-1）+ 通用（lint/test/build + smoke 双视口）
-  - 指派: Dev + Reviewer
-  - 来源: 用户实测反馈（2026-09-19）
-  - 时间: 09-19 创建 → 09-19 Done（未提交）
+   - 档位: L1（CSS 3 行 + 脚本断言扩展）
+   - 冒烟: 布局核对（§D D-1）+ 通用（lint/test/build + smoke 双视口）
+   - 指派: Dev + Reviewer
+   - 来源: 用户实测反馈（2026-09-19）
+   - 时间: 09-19 创建 → 09-19 Done（未提交）
+
+- [x] ~~T48: 合并页下载文件名旁侧显示文件大小~~ (09-20→09-20) [P2] — L1 产品候选消化：MergePage 合并完成后从 Blob.size 计算文件大小，以 `filename.json (XX MB)` 格式显示在成功信息下方。新增 `formatBytes` 工具函数（B/KB/MB/GB 四档，1 位小数）+ `fileSize` state。255 tests + 4 skip / lint 0 error / build 全绿。**标准项: N/A（无新增运行时面，smoke 覆盖存量 merge 页）**。NOTES 追加。
+   - 档位: L1
+   - 指派: Dev
+   - 来源: 09-19 To Do 候选（用户评估后开卡）→ 09-20 CEO 拍板直接消化
+   - 时间: 09-20 创建 → 09-20 Done
 
 - [x] ~~T45: 冒烟纪律补「布局核对」~~ (09-19→09-19) [P1] — T44 教训落地：D 类冒烟含布局核对。①项目 `docs/SMOKE-CHECKLIST.md`：头部教训行补 T44 + 类别速查 D 行→「文档/配置/部署/布局」+ 触动词「新增页面·路由·布局容器语义」+ §D 新增 **D-1 布局核对**（双视口页面几何与同族一致 / 路由容器语义（地图全屏无 footer vs 标准列+footer）/ 无 overflowX / 相邻 margin+导航高亮，逐项标可复现或人工项）+ 通用必验补适用前提框；②模板 `templates/project/docs/SMOKE-CHECKLIST.md`：同步项目版领先内容（可复现入口表前移、隐私机器断言段补单一源+校准双探针+退出码、A12 量化、N1 封印脚本引用、提交附注格式）+ 同款 D-1（不写死项目路由，通用表述）；③公司 `.agents/skills/opc-workflow/WORKFLOW.md` 规则 5：类别定义句补「D 文档/部署/布局——D 类含新增页面/路由的布局核对」+ **另例**（T44 教训）：含新增页面/路由/布局容器语义变更的卡冒烟强制含布局核对（§D D-1），不因 L1 豁免。**Reviewer PASS**（0 致命/0 严重/0 一般/6 建议）：三层义务一致性核过（另例=第②层内与 Designer 例同构的定向缩小豁免，不碰第①层标准项）；全员过目窗口结论「可关闭（附条件）」。
   - **建议消费（CEO 验收轮，全消费）**：①项目版补适用前提框 ✓ ②WORKFLOW/模板「无运行时触达的 L1」→档位中立「任务」✓ ③全员窗口补 Designer 视角=视为已过（D-1 是流程纪律非视觉决策，语义锚 T44 经验，DECISIONS 记录）④T45 卡补基准区（见下行）⑤NOTES 裸行→标准小节头 ✓ ⑥TASKS KIV 重复段去重 ✓

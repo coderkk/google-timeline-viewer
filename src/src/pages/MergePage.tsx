@@ -14,6 +14,14 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n)
 }
 
+/** Format byte count as human-readable (B / KB / MB / GB, 1 decimal). */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+}
+
 /** Suggested download name from the merged window's latest fix. */
 function mergeFileName(windowEndMs: number): string {
   if (windowEndMs <= 0) return 'timeline-merged.json'
@@ -35,6 +43,7 @@ export default function MergePage() {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<MergeStats | null>(null)
   const [error, setError] = useState<MergeErrorState | null>(null)
+  const [fileSize, setFileSize] = useState<string | null>(null)
 
   const canMerge = newFile !== null && !busy
 
@@ -67,9 +76,11 @@ export default function MergePage() {
     setBusy(true)
     setDone(null)
     setError(null)
+    setFileSize(null)
     try {
       const { json, stats } = await mergeInWorker(mainFile, newFile)
       const blob = new Blob([json], { type: 'application/json' })
+      setFileSize(formatBytes(blob.size))
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -147,6 +158,11 @@ export default function MergePage() {
               date: formatDate(done.windowEndMs),
             })}
           </p>
+          {fileSize && (
+            <p className="merge-file-size">
+              {mergeFileName(done.windowEndMs)} ({fileSize})
+            </p>
+          )}
         </section>
       )}
 

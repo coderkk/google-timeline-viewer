@@ -1581,3 +1581,12 @@ T46 内容页水平居中修复——merge/help/settings 根容器缺 margin aut
 - 脚本: scripts/smoke-merge-layout.mjs 断言升级——三页互等（/app/merge + /settings + /help，left/top/width 全等）+ 每页水平居中 |center - viewportCenter| ≤ 1px。
 - 验证: lint ✓ / 250 tests + 4 skip ✓ / build ✓；smoke 22/22 PASS exit 0——desktop left 190→330、center 720==720 真居中；mobile left 20、center 195==195（350px 内容宽天然撑满）；0 pageerror（1 已知 CSP 噪音过滤）；overflowX 0px（merge/settings/help 逐页强制项，Reviewer 建议 3 消费）；smoke 脚本自身路径结束后残留 vite 进程 0（另：临时截图脚本 shot-t46.mjs 曾泄漏 1 个 vite preview——pid 44636，Reviewer 现场捉到后 taskkill 已清）；脚本断言最终 22/22 = 三页互等 + 每页居中 + 每页 overflowX + footer + 全屏语义 + pageerror。
 - 截图: docs/screenshots/center-{merge,help,settings}-desktop-t46.png + center-merge-mobile-t46.png（4 张，临时脚本 shot-t46.mjs 生成后已无引用）。
+
+## 2026-09-20 09:38 — Dev T48 合并页下载文件名旁侧显示文件大小
+
+- 改动: MergePage.tsx 新增 ormatBytes 工具函数 + ileSize state，合并完成后从 Blob.size 计算并显示 ilename.json (XX MB)
+- 测试: formatBytes 单元测试 5 条全绿（0 B / <1KB / KB / MB / GB 各档）
+- lint: 0 error 1 warning（react-refresh/only-export-components，已有模式）
+- test: 255 passed | 4 skipped（+5 formatBytes，与 T46 后 250+4 一致）
+- build: 全绿
+- 归档: NOTES 追加
