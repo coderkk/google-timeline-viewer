@@ -1,10 +1,17 @@
 # TASKS: Google Timeline Viewer
 
-<!-- next: T49 -->
+<!-- next: T50 -->
 
 ## 🔨 Doing（WIP ≤ 2）
 
 ## 📋 To Do
+
+- [x] ~~T47.1: 触摸目标修复（P1, L1）~~ (09-21→09-21) [P1] — CSS 3 行：`.site-nav-link` + `.btn-primary` + `.theme-btn` 各加 `min-height: 44px`（WCAG 2.5.5 触摸目标 ≥44px）。255 tests + 4 skip / lint 0 error / build 全绿。NOTES 追加。
+   - 档位: L1
+   - 冒烟: 通用（lint + test + build）——无新增运行时面
+   - 指派: Dev
+   - 来源: T47 盘查 → T47.1（P1 子卡）
+   - 时间: 09-21 创建 → 09-21 Done
 
 - [ ] **T-K1: 移动端适配** — **已提前立项 → T47（CEO 拍板 09-20 00:05）**；本条保留历史锚（原判据「等公开分享移动占比」已在 T47 卡内由 repo traffic 数据源承接）
 

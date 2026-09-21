@@ -104,6 +104,7 @@ body {
   color: var(--color-text-dim);
   text-decoration: none;
   font-size: 14px;
+  min-height: 44px;
 }
 
 .site-nav-link:hover {
@@ -1116,6 +1117,7 @@ body {
 .btn-primary {
   background: var(--color-accent);
   color: #fff;
+  min-height: 44px;
 }
 
 .btn-primary:hover {
@@ -1584,6 +1586,7 @@ code {
   padding: 8px 16px;
   font-size: 13px;
   cursor: pointer;
+  min-height: 44px;
 }
 
 .theme-btn:hover {

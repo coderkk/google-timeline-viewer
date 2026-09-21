@@ -1634,3 +1634,7 @@ T46 å†…å®¹é¡µæ°´å¹³å±…ä¸­ä¿®å¤â€”â€”mer
 **验证**: 255 tests + 4 skip / lint 0 error / build 全绿
 
 **标准项**: N/A（无新增运行时面，smoke 覆盖存量）
+
+## 2026-09-21 11:30 — Dev T47.1 触摸目标修复（L1）
+
+CSS 3 行：`.site-nav-link` + `.btn-primary` + `.theme-btn` 各加 `min-height: 44px`（WCAG 2.5.5）。255 tests + 4 skip / lint 0 error / build 全绿。

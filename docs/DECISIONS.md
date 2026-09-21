@@ -113,3 +113,7 @@
 ## 2026-09-20 09:40 — T48 验收通过：合并页下载文件名旁侧显示文件大小
 决定: T48 验收通过。MergePage 合并完成后从 Blob.size 计算文件大小，以 ilename.json (XX MB) 格式显示在成功信息下方。新增 ormatBytes 工具函数（B/KB/MB/GB 四档，1 位小数）+ ileSize state。255 tests + 4 skip / lint 0 error / build 全绿。
 理由: L1 产品候选消化——信息展示增益，零架构变更。标准项: N/A（无新增运行时面，smoke 覆盖存量 merge 页）。
+
+## 2026-09-21 11:30 — T47.1 触摸目标修复验收通过
+决定: T47.1 验收通过。`.site-nav-link` + `.btn-primary` + `.theme-btn` 各加 `min-height: 44px`，全路由触摸目标 ≥44px（WCAG 2.5.5）。255 tests + 4 skip / lint 0 error / build 全绿。
+理由: L1 CSS 3 行修复，`min-height` 不影响桌面端布局。移动端 390px 视口下触摸目标达标。
