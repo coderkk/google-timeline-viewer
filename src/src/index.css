@@ -1281,6 +1281,26 @@ body {
   line-height: 1.4;
 }
 
+/* Leaflet popup container: inherit theme colors so it respects system light/dark. */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25);
+}
+
+.leaflet-popup-content {
+  color: var(--color-text);
+}
+
+.leaflet-popup-close-button {
+  color: var(--color-text-dim);
+}
+
+.leaflet-popup-close-button:hover {
+  color: var(--color-text);
+}
+
 .trip-popup-title {
   font-weight: 600;
 }

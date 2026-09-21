@@ -443,6 +443,8 @@ export default function TripMap(props: TripMapProps) {
                 renderer={canvasRenderer}
                 eventHandlers={{
                   click: () => {
+                    // Close any existing popup first (single-popup behavior).
+                    mapRef.current?.closePopup()
                     mapRef.current?.openPopup(
                       pointPopupContent({
                         lat: point.lat,
