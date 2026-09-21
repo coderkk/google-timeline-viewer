@@ -284,7 +284,7 @@ export default function DateRangePicker() {
                   aria-expanded={yearOpen}
                   onClick={() => setYearOpen((current) => !current)}
                 >
-                  {view.year} {t('drp.year')} ▾
+                  {view.year} ▾
                 </button>
                 {yearOpen && (
                   <div className="drp-year-dropdown" role="listbox" aria-label={t('drp.selectYear')}>
