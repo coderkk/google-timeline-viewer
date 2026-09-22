@@ -98,6 +98,8 @@ export interface TripMapProps {
    * where the dot layers are intentionally not drawn (T23).
    */
   onZoomChange?: (zoom: number) => void
+  /** Open a popup at the given coordinates (called from sidebar list). */
+  onOpenPopup?: (lat: number, lng: number, meta?: string) => void
 }
 
 interface ControllerProps {
@@ -311,6 +313,7 @@ export default function TripMap(props: TripMapProps) {
     mode = 'activityType',
     rangeStartMs = null,
     onZoomChange,
+    onOpenPopup,
   } = props
 
   const { t, formatDateTime, formatDuration, formatDay } = useI18n()

@@ -76,7 +76,7 @@ function MapPane({
   const [selectedSegmentIndex, setSelectedSegmentIndex] = useState<number | null>(null)
   // Generic camera target: a stop or a timeline point (both just need lat/lng).
   const [flyTarget, setFlyTarget] = useState<Point | null>(null)
-  const { t } = useI18n()
+  const { t, formatDateTime } = useI18n()
 
   // Selection is scoped to the current filtered window: whenever the date range
   // or the loaded data changes (the old fitKey remount used to drop the stale
@@ -140,7 +140,15 @@ function MapPane({
             visits={prepared.visits}
             limit={LIST_LIMIT}
             selectedVisitIndex={selectedVisitIndex}
-            onSelectPoint={(point) => setFlyTarget({ lat: point.lat, lng: point.lng })}
+            onSelectPoint={(point) => {
+              setFlyTarget({ lat: point.lat, lng: point.lng })
+              // Also open the popup on the map.
+              const meta =
+                point.timestampMs !== undefined
+                  ? `${formatDateTime(point.timestampMs)}`
+                  : undefined
+              onOpenPopup?.(point.lat, point.lng, meta)
+            }}
             onSelectVisit={(_, visit) => {
               setSelectedVisit(visit)
               setFlyTarget(visit)
@@ -193,6 +201,19 @@ function MapPane({
           showRoutePoints={showRoutePoints}
           mode={mode}
           onZoomChange={onZoomChange}
+          onOpenPopup={(lat, lng, meta) => {
+            if (!mapRef.current) return
+            mapRef.current.closePopup()
+            mapRef.current.openPopup(
+              pointPopupContent({
+                lat,
+                lng,
+                t,
+                meta,
+              }),
+              [lat, lng],
+            )
+          }}
         />
       </div>
     </>
