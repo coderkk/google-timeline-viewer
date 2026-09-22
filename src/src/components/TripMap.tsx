@@ -442,7 +442,7 @@ export default function TripMap(props: TripMapProps) {
                 }}
                 renderer={canvasRenderer}
                 eventHandlers={{
-                  click: () => {
+                  click: (e: L.LeafletMouseEvent) => {
                     // Close any existing popup first (single-popup behavior).
                     mapRef.current?.closePopup()
                     mapRef.current?.openPopup(
@@ -457,6 +457,7 @@ export default function TripMap(props: TripMapProps) {
                       }),
                       [point.lat, point.lng],
                     )
+                    L.DomEvent.stopPropagation(e)
                   },
                 }}
               />
