@@ -399,6 +399,16 @@ export default function TripMap(props: TripMapProps) {
     lastOpened.current = next
   }, [selectedMarkerIndex])
 
+  // Keep the selected marker's tooltip visible even when mouse leaves the canvas.
+  // Canvas-rendered markers don't fire DOM hover events, so the native `permanent`
+  // prop alone isn't enough — we re-open imperatively on every render.
+  const selectedCircle = selectedMarkerIndex !== null ? circles.current.get(selectedMarkerIndex) : null
+  useEffect(() => {
+    if (selectedMarkerIndex !== null && selectedCircle) {
+      selectedCircle.openTooltip()
+    }
+  })
+
   return (
     <MapContainer
       ref={mapRef}
@@ -572,7 +582,7 @@ export default function TripMap(props: TripMapProps) {
                 if (el) circles.current.set(index, el)
               }}
             >
-            <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip" permanent={selected} interactive>
+            <Tooltip direction="top" offset={[0, -4]} className="trip-tooltip" interactive>
               <span className="trip-tip-title">{title}</span>
               {visit.address !== undefined && <span className="trip-tip-addr">{visit.address}</span>}
               {rangeStartMs !== null && visit.startMs < rangeStartMs && (
